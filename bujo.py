@@ -102,8 +102,6 @@ except ImportError:
     pass  # not available on some platforms (e.g. Windows without pyreadline3)
 
 DB_PATH = os.environ.get("BUJO_DB", os.path.expanduser("~/.bujo/bujo.db"))
-DESKTOP_MODE = "--desktop" in sys.argv or "-d" in sys.argv
-PHONE_TITLE_WIDTH = 28
 ROOT_TITLE = "root"
 TAG_COLOR = "\033[36m"
 WORKING_COLOR = "\033[42;30m"
@@ -851,12 +849,6 @@ class Bujo:
     def _like_escape(text):
         return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
-    @staticmethod
-    def _truncate(text, width):
-        if len(text) <= width:
-            return text
-        return text[: width - 1].rstrip() + "…"
-
     def list_children(self, filters=None, show_all=False):
         is_default = not filters
         if show_all:
@@ -916,14 +908,8 @@ class Bujo:
             marker = "/" if self._has_children(entry_id) else ""
             has_priority = bool(priority_map.get(entry_id, 0))
             tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in self._tags_for(entry_id))
-            if DESKTOP_MODE:
-                pmark = PRIORITY_CMD if has_priority else ""
-                line = f"{entry_id:>4} {pmark:<2}{symbol} {title}{marker}{tag_suffix}"
-            else:
-                pmark = f"{PRIORITY_CMD} " if has_priority else ""
-                print(f"{entry_id}{tag_suffix}")
-                display_title = self._truncate(title, PHONE_TITLE_WIDTH)
-                line = f"{pmark}{symbol} {display_title}{marker}"
+            pmark = PRIORITY_CMD if has_priority else ""
+            line = f"{entry_id:>4} {pmark:<2}{symbol} {title}{marker}{tag_suffix}"
             if entry_id == active_id:
                 line = f"{WORKING_COLOR}{line}{COLOR_RESET}"
             print(line)
@@ -938,7 +924,6 @@ def main():
     app = Bujo(DB_PATH)
     print("bujo - type 'help' for commands, 'quit' to exit")
     print(f"using database: {DB_PATH}")
-    print(f"mode: {'desktop' if DESKTOP_MODE else 'phone'}")
 
     while True:
         try:

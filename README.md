@@ -17,8 +17,8 @@ tasks can contain their own child tasks and notes. You navigate the tree with
 ## Getting started
 
 ```sh
-./bujo.sh --desktop     # macOS/Linux
-bujo.bat  --desktop     # Windows
+./bujo.sh     # macOS/Linux
+bujo.bat      # Windows
 ```
 
 Both wrappers set `BUJO_DB` to `./bujo.db` before launching `bujo.py`, so the
@@ -27,14 +27,6 @@ database lives alongside the script. Without that variable, bujo defaults to
 
 ```sh
 BUJO_DB=/path/to/bujo.db python3 bujo.py
-```
-
-Pass `--desktop` (or `-d`) for a wider, single-line list layout suited to a
-normal terminal; the default "phone" layout wraps each entry onto two lines
-for narrow screens.
-
-```sh
-python3 bujo.py --desktop
 ```
 
 ## Concepts
