@@ -48,9 +48,11 @@ Commands (typed at the prompt):
     cd              alias for use
     + <name>        create a new folder at root, from anywhere; for a daily
                     folder use mm.dd.dow as the name
-    ro mm.dd.dow    roll all open items (* o -) from the current folder into
+    ro mm.dd.dow    roll all open items (* o) from the current folder into
                     the given root-level folder, recursively; matched items
-                    move as whole branches (children come along); < and >
+                    move as whole branches (children come along); notes (-)
+                    directly under a folder are left behind, but notes
+                    nested under a task still move with it; < and >
                     items are skipped since they're already relocated by
                     their own move commands; @ meetings never roll over; must
                     be run from inside a folder
@@ -120,7 +122,7 @@ WORKING_CMD = "`"
 BLOCKED = "⊘"  # ⊘
 SNOOZE = "&"
 
-ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, NOTE, SNOOZE}
+ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 
 ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"}
 ROOT_BLOCKED_PREFIXES = {TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE}
