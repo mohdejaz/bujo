@@ -29,8 +29,9 @@ Commands (typed at the prompt):
     < <name> <id> [id...]
                     move entries to a root-level named folder, creating it
                     if needed; for a daily folder use mm.dd as the name
-    ~ <id> [id...]  delete entries and all their children permanently
-    ~ <name>        delete a root-level folder (and its children), from
+    ~ <id> [id...]  soft-delete entries and all their children; marks them
+                    with ~ instead of removing them (see with ls ~ or ls f)
+    ~ <name>        soft-delete a root-level folder (and its children), from
                     anywhere
     tag <name> <id> [id...]
                     tag entries with <name>; works from anywhere
@@ -59,13 +60,14 @@ Commands (typed at the prompt):
     f "text"        find all entries whose text contains string (case-insensitive)
     f #<tag>        find all entries tagged with <tag> (exact match)
     ls              list open tasks, notes, meetings, events & folders
-    ls * - x @ ⊘ &  list only the given kinds (space separated, any combo):
+    ls * - x @ ⊘ & ~  list only the given kinds (space separated, any combo):
                       *  open tasks
                       -  notes
                       x  completed tasks
                       @  meetings
                       ⊘  blocked tasks
                       &  snoozed tasks
+                      ~  deleted entries
     ls f            list all entries, every kind, no filtering
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
     pwd             show the path to the current task
@@ -702,16 +704,28 @@ class Bujo:
             if entry_id == self.root_id:
                 print("cannot delete root")
                 continue
+            if row[2] == DELETE_CMD:
+                print(f"{entry_id}: already deleted")
+                continue
             pid = row[1]
             subtree = self._subtree_ids(entry_id)
+            subtree_state = {sid: self._get(sid) for sid in subtree}
             placeholders = ", ".join("?" * len(subtree))
             self.conn.execute(
-                f"DELETE FROM tasks WHERE id IN ({placeholders})", subtree
+                f"UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                f"WHERE id IN ({placeholders})",
+                [DELETE_CMD, *subtree],
             )
             self._log(entry_id, "deleted", related_id=pid, detail=f"{row[2]} {row[3]}")
             for sub_id in subtree:
                 if sub_id != entry_id:
-                    self._log(sub_id, "deleted", related_id=entry_id, detail="cascade delete")
+                    _sid, _spid, ssymbol, stitle = subtree_state[sub_id]
+                    self._log(
+                        sub_id,
+                        "deleted",
+                        related_id=entry_id,
+                        detail=f"{ssymbol} {stitle} - cascade delete",
+                    )
             if self.current_id in subtree:
                 self.current_id = pid if pid is not None else self.root_id
         self.conn.commit()
@@ -857,6 +871,7 @@ class Bujo:
                 MEETING,
                 FOLDER,
                 SNOOZE,
+                DELETE_CMD,
             }
         else:
             symbols = set(filters) if filters else {TASK_OPEN, BLOCKED, NOTE, EVENT, MEETING, FOLDER}
@@ -982,12 +997,13 @@ def main():
                     MEETING,
                     FOLDER,
                     SNOOZE,
+                    DELETE_CMD,
                 }
                 bad = [f for f in args if f not in valid]
                 if bad:
                     print(
                         f"usage: ls [{TASK_OPEN} {BLOCKED} {TASK_DONE} {NOTE} {MEETING} "
-                        f"{FOLDER} {SNOOZE}] | ls f | ls <id> [id...]"
+                        f"{FOLDER} {SNOOZE} {DELETE_CMD}] | ls f | ls <id> [id...]"
                     )
                 else:
                     app.list_children(args)
