@@ -909,7 +909,7 @@ class Bujo:
             has_priority = bool(priority_map.get(entry_id, 0))
             tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in self._tags_for(entry_id))
             pmark = PRIORITY_CMD if has_priority else ""
-            line = f"{entry_id:>4} {pmark:<2}{symbol} {title}{marker}{tag_suffix}"
+            line = f"{entry_id:>4} {pmark:<1}{symbol} {title}{marker}{tag_suffix}"
             if entry_id == active_id:
                 line = f"{WORKING_COLOR}{line}{COLOR_RESET}"
             print(line)
