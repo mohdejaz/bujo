@@ -82,6 +82,7 @@ Commands (typed at the prompt):
 import datetime
 import os
 import re
+import shutil
 import sqlite3
 import sys
 
@@ -673,9 +674,12 @@ class Bujo:
         if not rows:
             print("(no matches)")
             return
+        width = self._term_width()
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
-            print(f"{entry_id:>4} {symbol} {title}{marker}")
+            prefix = f"{entry_id:>4} {symbol} "
+            display_title = self._truncate(title, width - len(prefix) - len(marker))
+            print(f"{prefix}{display_title}{marker}")
 
     def _subtree_ids(self, entry_id):
         rows = self.conn.execute(
@@ -843,13 +847,30 @@ class Bujo:
         if not rows:
             print("(no matches)")
             return
+        width = self._term_width()
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
-            print(f"{entry_id:>4} {symbol} {title}{marker}")
+            prefix = f"{entry_id:>4} {symbol} "
+            display_title = self._truncate(title, width - len(prefix) - len(marker))
+            print(f"{prefix}{display_title}{marker}")
 
     @staticmethod
     def _like_escape(text):
         return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+    @staticmethod
+    def _term_width():
+        return shutil.get_terminal_size(fallback=(80, 24)).columns
+
+    @staticmethod
+    def _truncate(text, width):
+        if width <= 0:
+            return ""
+        if len(text) <= width:
+            return text
+        if width == 1:
+            return "…"
+        return text[: width - 1].rstrip() + "…"
 
     def list_children(self, filters=None, show_all=False):
         is_default = not filters
@@ -906,12 +927,18 @@ class Bujo:
         rows.sort(key=lambda row: -priority_map.get(row[0], 0))
         active = self._active()
         active_id = active[0] if active else None
+        width = self._term_width()
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
             has_priority = bool(priority_map.get(entry_id, 0))
-            tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in self._tags_for(entry_id))
+            tags = self._tags_for(entry_id)
+            tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in tags)
+            tags_visible_len = sum(len(t) + 2 for t in tags)
             pmark = PRIORITY_CMD if has_priority else ""
-            line = f"{entry_id:>4} {pmark:<1}{symbol} {title}{marker}{tag_suffix}"
+            prefix = f"{entry_id:>4} {pmark:<1}{symbol} "
+            available = width - len(prefix) - len(marker) - tags_visible_len
+            display_title = self._truncate(title, available)
+            line = f"{prefix}{display_title}{marker}{tag_suffix}"
             if entry_id == active_id:
                 line = f"{WORKING_COLOR}{line}{COLOR_RESET}"
             print(line)
