@@ -6,7 +6,9 @@ Root is a task. Tasks can contain child tasks and notes.
 Commands (typed at the prompt):
     * <text>        create a new task
     - <text>        create a new note
-    @ hh:mm <text>  create a new meeting, time-prefixed
+    @ hh:mm <text>  create a new meeting, time-prefixed; meetings must be
+                    filed directly under a folder (the current folder, or
+                    ^<id> where <id> is a folder)
                     for *, -, and @: prefix <text> with ^<id> to create
                     under <id> instead of the current task, without cding
                     into it first, e.g. `- ^5 remember X`
@@ -1059,12 +1061,17 @@ def main():
                 parent_id, text = extract_parent_override(" ".join(tokens[2:]))
                 if not text:
                     print("usage: @ hh:mm <text>")
-                elif parent_id is not None and not app._get(parent_id):
-                    print(f"no such id: {parent_id}")
                 else:
-                    title = f"{tokens[1]} {text}"
-                    app._snapshot(line)
-                    app.add_entry(MEETING, title, parent_id=parent_id)
+                    target_id = parent_id if parent_id is not None else app.current_id
+                    target = app._get(target_id)
+                    if not target:
+                        print(f"no such id: {target_id}")
+                    elif target[2] != FOLDER:
+                        print(f"{target_id} is not a folder — meetings can only be created directly under a folder")
+                    else:
+                        title = f"{tokens[1]} {text}"
+                        app._snapshot(line)
+                        app.add_entry(MEETING, title, parent_id=target_id)
         elif head == TASK_DONE:
             if len(tokens) < 2:
                 print("usage: x <id> [id...]")
