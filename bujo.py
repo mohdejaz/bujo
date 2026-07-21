@@ -31,10 +31,12 @@ Commands (typed at the prompt):
     < <name> <id> [id...]
                     move entries to a root-level named folder, creating it
                     if needed; for a daily folder use mm.dd as the name
-    ~ <id> [id...]  soft-delete entries and all their children; marks them
-                    with ~ instead of removing them (see with ls ~ or ls f)
-    ~ <name>        soft-delete a root-level folder (and its children), from
-                    anywhere
+    ~ <id> [id...]  toggle delete on entries and all their children; marks
+                    them with ~ instead of removing them (see with ls ~ or
+                    ls f); running ~ again on an already-deleted id restores
+                    it and its children to their prior symbol(s)
+    ~ <name>        toggle delete on a root-level folder (and its children),
+                    from anywhere
     tag <name> <id> [id...]
                     tag entries with <name>; works from anywhere
     untag <name> <id> [id...]
@@ -160,7 +162,7 @@ class Bujo:
 
     def _snapshot(self, label):
         self._undo_snapshot = self.conn.execute(
-            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority FROM tasks ORDER BY id"
+            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol FROM tasks ORDER BY id"
         ).fetchall()
         self._undo_tags = self.conn.execute(
             "SELECT task_id, tag, cre_ts FROM tags ORDER BY task_id, tag"
@@ -175,8 +177,8 @@ class Bujo:
         self.conn.execute("PRAGMA foreign_keys = OFF")
         self.conn.execute("DELETE FROM tasks")
         self.conn.executemany(
-            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         self.conn.execute("DELETE FROM tags")
@@ -205,6 +207,7 @@ class Bujo:
                 cre_ts   TEXT NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
                 upd_ts   TEXT NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
                 priority INTEGER NOT NULL DEFAULT 0,
+                prev_symbol TEXT,
                 FOREIGN KEY(pid) REFERENCES tasks(id)
             )
             """
@@ -218,6 +221,8 @@ class Bujo:
                 )
         if "priority" not in existing:
             self.conn.execute("ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
+        if "prev_symbol" not in existing:
+            self.conn.execute("ALTER TABLE tasks ADD COLUMN prev_symbol TEXT")
         # no FK on entry_id/related_id: deleted entries must stay in their own lineage
         self.conn.execute(
             """
@@ -354,6 +359,14 @@ class Bujo:
             "SELECT id, pid, symbol, title FROM tasks "
             "WHERE pid = ? AND symbol = ? AND LOWER(title) = LOWER(?)",
             (self.root_id, FOLDER, date_str),
+        ).fetchone()
+
+    def _find_folder_any_state(self, date_str):
+        return self.conn.execute(
+            "SELECT id, pid, symbol, title FROM tasks "
+            "WHERE pid = ? AND symbol IN (?, ?) AND LOWER(title) = LOWER(?) "
+            "ORDER BY (symbol = ?) ASC",
+            (self.root_id, FOLDER, DELETE_CMD, date_str, DELETE_CMD),
         ).fetchone()
 
     def _find_folders_like(self, name):
@@ -695,7 +708,7 @@ class Bujo:
         ).fetchall()
         return [row[0] for row in rows]
 
-    def delete(self, ids):
+    def toggle_delete(self, ids):
         for raw_id in ids:
             if not raw_id.isdigit():
                 print(f"invalid id: {raw_id}")
@@ -708,31 +721,60 @@ class Bujo:
             if entry_id == self.root_id:
                 print("cannot delete root")
                 continue
-            if row[2] == DELETE_CMD:
-                print(f"{entry_id}: already deleted")
-                continue
-            pid = row[1]
-            subtree = self._subtree_ids(entry_id)
-            subtree_state = {sid: self._get(sid) for sid in subtree}
-            placeholders = ", ".join("?" * len(subtree))
-            self.conn.execute(
-                f"UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                f"WHERE id IN ({placeholders})",
-                [DELETE_CMD, *subtree],
-            )
-            self._log(entry_id, "deleted", related_id=pid, detail=f"{row[2]} {row[3]}")
-            for sub_id in subtree:
-                if sub_id != entry_id:
-                    _sid, _spid, ssymbol, stitle = subtree_state[sub_id]
-                    self._log(
-                        sub_id,
-                        "deleted",
-                        related_id=entry_id,
-                        detail=f"{ssymbol} {stitle} - cascade delete",
-                    )
-            if self.current_id in subtree:
-                self.current_id = pid if pid is not None else self.root_id
+            _id, pid, symbol, title = row
+            if symbol == DELETE_CMD:
+                self._undelete(entry_id, pid, title)
+            else:
+                self._delete(entry_id, pid, symbol, title)
         self.conn.commit()
+
+    def _delete(self, entry_id, pid, symbol, title):
+        subtree = self._subtree_ids(entry_id)
+        placeholders = ", ".join("?" * len(subtree))
+        before = dict(
+            self.conn.execute(
+                f"SELECT id, symbol FROM tasks WHERE id IN ({placeholders})", subtree
+            )
+        )
+        self.conn.execute(
+            f"UPDATE tasks SET "
+            f"prev_symbol = CASE WHEN symbol != ? THEN symbol ELSE prev_symbol END, "
+            f"symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+            f"WHERE id IN ({placeholders})",
+            [DELETE_CMD, DELETE_CMD, *subtree],
+        )
+        self._log(entry_id, "deleted", related_id=pid, detail=f"{symbol} {title}")
+        for sub_id in subtree:
+            if sub_id != entry_id and before[sub_id] != DELETE_CMD:
+                self._log(sub_id, "deleted", related_id=entry_id, detail="cascade delete")
+        if self.current_id in subtree:
+            self.current_id = pid if pid is not None else self.root_id
+        print(f"{entry_id}: deleted")
+
+    def _undelete(self, entry_id, pid, title):
+        subtree = self._subtree_ids(entry_id)
+        placeholders = ", ".join("?" * len(subtree))
+        before = {
+            sid: (sym, prev)
+            for sid, sym, prev in self.conn.execute(
+                f"SELECT id, symbol, prev_symbol FROM tasks WHERE id IN ({placeholders})",
+                subtree,
+            )
+        }
+        self.conn.execute(
+            f"UPDATE tasks SET "
+            f"symbol = CASE WHEN symbol = ? THEN COALESCE(prev_symbol, ?) ELSE symbol END, "
+            f"prev_symbol = CASE WHEN symbol = ? THEN NULL ELSE prev_symbol END, "
+            f"upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+            f"WHERE id IN ({placeholders})",
+            [DELETE_CMD, TASK_OPEN, DELETE_CMD, *subtree],
+        )
+        restored_symbol = before[entry_id][1] or TASK_OPEN
+        self._log(entry_id, "undeleted", related_id=pid, detail=f"{restored_symbol} {title}")
+        for sub_id in subtree:
+            if sub_id != entry_id and before[sub_id][0] == DELETE_CMD:
+                self._log(sub_id, "undeleted", related_id=entry_id, detail="cascade undelete")
+        print(f"{entry_id}: restored")
 
     def change_task(self, arg):
         arg = arg.strip()
@@ -1145,15 +1187,15 @@ def main():
             if len(tokens) < 2:
                 print("usage: ~ <id> [id...] | ~ <name>")
             elif len(tokens) == 2 and not tokens[1].isdigit():
-                row = app._find_folder(tokens[1])
+                row = app._find_folder_any_state(tokens[1])
                 if not row:
                     print(f"no such folder: {tokens[1]}")
                 else:
                     app._snapshot(line)
-                    app.delete([str(row[0])])
+                    app.toggle_delete([str(row[0])])
             else:
                 app._snapshot(line)
-                app.delete(tokens[1:])
+                app.toggle_delete(tokens[1:])
         elif line[0] == WORKING_CMD:
             arg = line[1:].strip()
             if not arg:
