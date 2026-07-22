@@ -73,6 +73,9 @@ Commands (typed at the prompt):
                       &  snoozed tasks
                       ~  deleted entries
     ls f            list all entries, every kind, no filtering
+    ls date         add "date" to any ls form above (e.g. ls date, ls f date,
+                    ls * date) to prefix each entry with its create date
+                    (mm/dd)
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
     log             show the last 20 action log entries, most recent first
     log <id> [id...]
@@ -320,6 +323,15 @@ class Bujo:
             return ts_str
         dt = dt.replace(tzinfo=datetime.timezone.utc).astimezone()
         return dt.strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+
+    @classmethod
+    def _date_prefix(cls, cre_ts):
+        local = cls._to_local(cre_ts)
+        try:
+            dt = datetime.datetime.strptime(local, "%Y-%m-%d %H:%M:%S.%f")
+        except ValueError:
+            return "??/??"
+        return dt.strftime("%m/%d")
 
     def show_stats(self, ids):
         for i, raw_id in enumerate(ids):
@@ -946,7 +958,7 @@ class Bujo:
             return "…"
         return text[: width - 1].rstrip() + "…"
 
-    def list_children(self, filters=None, show_all=False):
+    def list_children(self, filters=None, show_all=False, show_date=False):
         is_default = not filters
         if show_all:
             symbols = {
@@ -998,6 +1010,14 @@ class Bujo:
                 [row[0] for row in rows],
             )
         )
+        date_map = {}
+        if show_date:
+            date_map = dict(
+                self.conn.execute(
+                    f"SELECT id, cre_ts FROM tasks WHERE id IN ({placeholders})",
+                    [row[0] for row in rows],
+                )
+            )
         rows.sort(key=lambda row: -priority_map.get(row[0], 0))
         active = self._active()
         active_id = active[0] if active else None
@@ -1009,7 +1029,8 @@ class Bujo:
             tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in tags)
             tags_visible_len = sum(len(t) + 2 for t in tags)
             pmark = PRIORITY_CMD if has_priority else ""
-            prefix = f"{entry_id:>4} {pmark:<1}{symbol} "
+            date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
+            prefix = f"{date_str}{entry_id:>4} {pmark:<1}{symbol} "
             available = width - len(prefix) - len(marker) - tags_visible_len
             display_title = self._truncate(title, available)
             line = f"{prefix}{display_title}{marker}{tag_suffix}"
@@ -1072,8 +1093,11 @@ def main():
             os.system("cls" if os.name == "nt" else "clear")
         elif head == "ls":
             args = tokens[1:]
+            show_date = "date" in args
+            if show_date:
+                args = [a for a in args if a != "date"]
             if args == ["f"]:
-                app.list_children(show_all=True)
+                app.list_children(show_all=True, show_date=show_date)
             elif args and all(a.isdigit() for a in args):
                 app.show_stats(args)
             else:
@@ -1091,10 +1115,10 @@ def main():
                 if bad:
                     print(
                         f"usage: ls [{TASK_OPEN} {BLOCKED} {TASK_DONE} {NOTE} {MEETING} "
-                        f"{FOLDER} {SNOOZE} {DELETE_CMD}] | ls f | ls <id> [id...]"
+                        f"{FOLDER} {SNOOZE} {DELETE_CMD}] [date] | ls f [date] | ls <id> [id...]"
                     )
                 else:
-                    app.list_children(args)
+                    app.list_children(args, show_date=show_date)
         elif head in ("use", "cd"):
             if len(tokens) < 2:
                 print("usage: use <id> | use <name> | use .. | use /")

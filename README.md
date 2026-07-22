@@ -108,6 +108,8 @@ ls * - x @ ⊘ &  list only the given kinds (space separated, any combo):
                   ⊘  blocked tasks
                   &  snoozed tasks
 ls f            list all entries, every kind, no filtering
+ls date         add "date" to any ls form above (e.g. ls date, ls f date,
+                ls * date) to prefix each entry with its create date (mm/dd)
 ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
 log             show the last 20 action log entries, most recent first
 log <id> [id...]
