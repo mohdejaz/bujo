@@ -74,6 +74,9 @@ Commands (typed at the prompt):
                       ~  deleted entries
     ls f            list all entries, every kind, no filtering
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
+    log             show the last 20 action log entries, most recent first
+    log <id> [id...]
+                    show all action log entries for id(s), most recent first
     pwd             show the path to the current task
     undo            undo the last mutating command
     cls             clear the screen
@@ -353,6 +356,35 @@ class Bujo:
             print(f"children: {self._child_count(entry_id)}")
             print(f"created:  {self._to_local(cre_ts)}")
             print(f"updated:  {self._to_local(upd_ts)}")
+
+    def show_log(self, ids=None, limit=20):
+        if ids:
+            entry_ids = [int(i) for i in ids]
+            placeholders = ", ".join("?" * len(entry_ids))
+            rows = self.conn.execute(
+                f"SELECT entry_id, action, related_id, detail, ts FROM log "
+                f"WHERE entry_id IN ({placeholders}) OR related_id IN ({placeholders}) "
+                f"ORDER BY id DESC",
+                entry_ids + entry_ids,
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT entry_id, action, related_id, detail, ts FROM log "
+                "ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        if not rows:
+            print("(no log entries)")
+            return
+        width = self._term_width()
+        for entry_id, action, related_id, detail, ts in rows:
+            eid = f"{entry_id:>4}" if entry_id is not None else "   -"
+            rel = f" -> {related_id}" if related_id is not None else ""
+            prefix = f"{self._to_local(ts)}  #{eid} {action:<14}"
+            text = f"{detail or ''}{rel}"
+            display = self._truncate(text, max(width - len(prefix) - 1, 0))
+            print(f"{prefix} {display}")
+        print(f"{len(rows)} entries")
 
     def _find_folder(self, date_str):
         return self.conn.execute(
@@ -1087,6 +1119,12 @@ def main():
                 app.find_by_tag(query[1:])
             else:
                 app.find(query)
+        elif head == "log":
+            args = tokens[1:]
+            if args and not all(a.isdigit() for a in args):
+                print("usage: log | log <id> [id...]")
+            else:
+                app.show_log(args if args else None)
         elif head == "ro":
             if len(tokens) != 2 or not DATE_DOW_RE.match(tokens[1]):
                 print("usage: ro mm.dd.dow")

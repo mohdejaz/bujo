@@ -109,6 +109,9 @@ ls * - x @ ⊘ &  list only the given kinds (space separated, any combo):
                   &  snoozed tasks
 ls f            list all entries, every kind, no filtering
 ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
+log             show the last 20 action log entries, most recent first
+log <id> [id...]
+                show all action log entries for id(s), most recent first
 pwd             show the path to the current task
 undo            undo the last mutating command
 cls             clear the screen
