@@ -74,8 +74,8 @@ Commands (typed at the prompt):
                       ~  deleted entries
     ls f            list all entries, every kind, no filtering
     ls date         add "date" to any ls form above (e.g. ls date, ls f date,
-                    ls * date) to prefix each entry with its create date
-                    (mm/dd)
+                    ls * date) to show each entry's create date (mm/dd)
+                    just before its text
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
     log             show the last 20 action log entries, most recent first
     log <id> [id...]
@@ -1030,7 +1030,7 @@ class Bujo:
             tags_visible_len = sum(len(t) + 2 for t in tags)
             pmark = PRIORITY_CMD if has_priority else ""
             date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
-            prefix = f"{date_str}{entry_id:>4} {pmark:<1}{symbol} "
+            prefix = f"{entry_id:>4} {pmark:<1}{symbol} {date_str}"
             available = width - len(prefix) - len(marker) - tags_visible_len
             display_title = self._truncate(title, available)
             line = f"{prefix}{display_title}{marker}{tag_suffix}"
