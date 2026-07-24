@@ -18,6 +18,11 @@ Commands (typed at the prompt):
                     prefix is kept and only the text after it is replaced
     e <name> <new name>
                     rename a root-level folder, from anywhere
+    cp <id> <folder> [folder...]
+                    duplicate a task/note/meeting into one or more
+                    root-level folders (created if needed) as fresh open
+                    copies; tasks/notes with children can't be duplicated;
+                    a bare mm.dd folder name is auto-expanded to mm.dd.dow
     x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
     b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                     show in ls and still roll over with ro
@@ -34,7 +39,8 @@ Commands (typed at the prompt):
                     it if needed
     < <name> <id> [id...]
                     move entries to a root-level named folder, creating it
-                    if needed; for a daily folder use mm.dd as the name
+                    if needed; for a daily folder use mm.dd as the name,
+                    auto-expanded to mm.dd.dow
     ~ <id> [id...]  toggle delete on entries and all their children; marks
                     them with ~ instead of removing them (see with ls ~ or
                     ls f); running ~ again on an already-deleted id restores
@@ -56,8 +62,8 @@ Commands (typed at the prompt):
     use /           move to the root task
     cd              alias for use
     + <name>        create a new folder at root, from anywhere; for a daily
-                    folder use mm.dd.dow as the name
-    ro mm.dd.dow    roll all open items (* o) from the current folder into
+                    folder use mm.dd as the name, auto-expanded to mm.dd.dow
+    ro mm.dd        roll all open items (* o) from the current folder into
                     the given root-level folder, recursively; matched items
                     move as whole branches (children come along); notes (-)
                     directly under a folder are left behind, but notes
@@ -139,7 +145,7 @@ SNOOZE = "&"
 
 ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 
-ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"}
+ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b", "cp"}
 ROOT_BLOCKED_PREFIXES = {TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE}
 
 DATE_RE = re.compile(r"^\d{1,2}\.\d{1,2}$")
@@ -424,7 +430,27 @@ class Bujo:
             (self.root_id, FOLDER, f"%{self._like_escape(name.lower())}%"),
         ).fetchall()
 
+    @staticmethod
+    def _expand_date_name(name):
+        """Bare 'mm.dd' -> 'mm.dd.dow' (assumes current year); passes through
+        anything else (already has a dow, or isn't a date at all). Returns
+        None if 'mm.dd' isn't a valid calendar date."""
+        if not DATE_RE.match(name):
+            return name
+        mm, dd = (int(part) for part in name.split("."))
+        year = datetime.date.today().year
+        try:
+            d = datetime.date(year, mm, dd)
+        except ValueError:
+            return None
+        return f"{mm:02d}.{dd:02d}.{d.strftime('%a').lower()}"
+
     def create_folder(self, date_str):
+        expanded = self._expand_date_name(date_str)
+        if expanded is None:
+            print(f"invalid date: {date_str}")
+            return
+        date_str = expanded
         if self._find_folder(date_str):
             print(f"folder already exists: {date_str}")
             return
@@ -482,14 +508,22 @@ class Bujo:
         print(f"moved {moved} item(s) to {date_str}")
 
     def move_to_date(self, dest, ids):
-        folder_id = self._get_or_create_folder(dest)
+        expanded = self._expand_date_name(dest)
+        if expanded is None:
+            print(f"invalid date: {dest}")
+            return
+        folder_id = self._get_or_create_folder(expanded)
         moved = self.move_ids(ids, folder_id, new_symbol=TASK_OPEN)
-        print(f"moved {moved} item(s) to {dest}")
+        print(f"moved {moved} item(s) to {expanded}")
 
     def rollover(self, dst_date):
-        dst_row = self._find_folder(dst_date)
+        expanded = self._expand_date_name(dst_date)
+        if expanded is None:
+            print(f"invalid date: {dst_date}")
+            return
+        dst_row = self._find_folder(expanded)
         if not dst_row:
-            print(f"no such folder: {dst_date}")
+            print(f"no such folder: {expanded}")
             return
         dst_id = dst_row[0]
         if self.current_id == dst_id:
@@ -542,6 +576,51 @@ class Bujo:
                 "INSERT INTO tags (task_id, tag) VALUES (?, ?)", (entry_id, tag)
             )
             self._log(entry_id, "tagged", detail=f"{tag} (inherited)")
+        self.conn.commit()
+        return entry_id
+
+    def duplicate_entry(self, ident, folder_names):
+        if not ident.isdigit():
+            print(f"invalid id: {ident}")
+            return
+        entry_id = int(ident)
+        row = self._get(entry_id)
+        if not row:
+            print(f"no such id: {entry_id}")
+            return
+        _id, pid, symbol, title = row
+        if entry_id == self.root_id:
+            print("cannot duplicate root")
+            return
+        if symbol == FOLDER:
+            print("cannot duplicate a folder; use + instead")
+            return
+        if symbol == EVENT:
+            print("cannot duplicate an event; use o directly for each date")
+            return
+        if symbol == DELETE_CMD:
+            print(f"{entry_id} is deleted; undelete it first")
+            return
+        if self._has_children(entry_id):
+            print(f"{entry_id} has children; duplicating entries with children isn't supported")
+            return
+
+        dup_symbol = TASK_OPEN if symbol in (TASK_OPEN, TASK_DONE, BLOCKED, SNOOZE) else symbol
+        source_tags = self._tags_for(entry_id)
+        for name in folder_names:
+            expanded = self._expand_date_name(name)
+            if expanded is None:
+                print(f"invalid date: {name}")
+                continue
+            folder_id = self._get_or_create_folder(expanded)
+            new_id = self.add_entry(dup_symbol, title, parent_id=folder_id)
+            for tag in source_tags:
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", (new_id, tag)
+                )
+                self._log(new_id, "tagged", detail=f"{tag} (duplicated)")
+            self._log(entry_id, "duplicated", related_id=new_id, detail=f"-> {expanded}")
+            print(f"{entry_id}: duplicated as {new_id} in {expanded}")
         self.conn.commit()
 
     def _get_or_create_cal_folder(self):
@@ -1208,8 +1287,8 @@ def main():
             else:
                 app.show_log(args if args else None)
         elif head == "ro":
-            if len(tokens) != 2 or not DATE_DOW_RE.match(tokens[1]):
-                print("usage: ro mm.dd.dow")
+            if len(tokens) != 2 or not (DATE_RE.match(tokens[1]) or DATE_DOW_RE.match(tokens[1])):
+                print("usage: ro mm.dd | ro mm.dd.dow")
             else:
                 app._snapshot(line)
                 app.rollover(tokens[1])
@@ -1279,6 +1358,17 @@ def main():
             else:
                 app._snapshot(line)
                 app.edit_text(tokens[1], " ".join(tokens[2:]))
+        elif head == "cp":
+            if len(tokens) < 3 or not tokens[1].isdigit():
+                print("usage: cp <id> <folder> [folder...]")
+            else:
+                names = tokens[2:]
+                bad = [n for n in names if not FOLDER_NAME_RE.match(n) or n.isdigit()]
+                if bad:
+                    print(f"invalid folder name(s): {', '.join(bad)}")
+                else:
+                    app._snapshot(line)
+                    app.duplicate_entry(tokens[1], names)
         elif line[0] == SNOOZE:
             arg = line[1:].strip()
             ids = arg.split()

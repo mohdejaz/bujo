@@ -57,6 +57,11 @@ e <id> <text>   edit an entry's text; for meetings/events the hh:mm/mm.dd
                 prefix is kept and only the text after it is replaced
 e <name> <new name>
                 rename a root-level folder, from anywhere
+cp <id> <folder> [folder...]
+                duplicate a task/note/meeting into one or more root-level
+                folders (created if needed) as fresh open copies; entries
+                with children can't be duplicated; a bare mm.dd folder
+                name is auto-expanded to mm.dd.dow
 x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
 b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 show in ls and still roll over with ro
@@ -73,7 +78,8 @@ b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 it if needed
 < <name> <id> [id...]
                 move entries to a root-level named folder, creating it
-                if needed; for a daily folder use mm.dd as the name
+                if needed; for a daily folder use mm.dd as the name,
+                auto-expanded to mm.dd.dow
 ~ <id> [id...]  delete entries and all their children permanently
 ~ <name>        delete a root-level folder (and its children), from
                 anywhere
@@ -92,8 +98,8 @@ use ..          move up to the parent task
 use /           move to the root task
 cd              alias for use
 + <name>        create a new folder at root, from anywhere; for a daily
-                folder use mm.dd.dow as the name
-ro mm.dd.dow    roll all open items (* o) from the current folder into
+                folder use mm.dd as the name, auto-expanded to mm.dd.dow
+ro mm.dd        roll all open items (* o) from the current folder into
                 the given root-level folder, recursively; matched items
                 move as whole branches (children come along); notes (-)
                 directly under a folder are left behind, but notes
