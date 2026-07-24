@@ -53,6 +53,10 @@ BUJO_DB=/path/to/bujo.db python3 bujo.py
                 into it first, e.g. `- ^5 remember X`
 o mm.dd <text>  create a calendar event; always filed under the root-level
                 "cal" folder (created if needed), regardless of current task
+e <id> <text>   edit an entry's text; for meetings/events the hh:mm/mm.dd
+                prefix is kept and only the text after it is replaced
+e <name> <new name>
+                rename a root-level folder, from anywhere
 x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
 b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 show in ls and still roll over with ro

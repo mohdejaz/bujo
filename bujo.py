@@ -14,6 +14,10 @@ Commands (typed at the prompt):
                     into it first, e.g. `- ^5 remember X`
     o mm.dd <text>  create a calendar event; always filed under the root-level
                     "cal" folder (created if needed), regardless of current task
+    e <id> <text>   edit an entry's text; for meetings/events the hh:mm/mm.dd
+                    prefix is kept and only the text after it is replaced
+    e <name> <new name>
+                    rename a root-level folder, from anywhere
     x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
     b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                     show in ls and still roll over with ro
@@ -575,6 +579,60 @@ class Bujo:
             action = "closed" if symbol == TASK_DONE else "updated"
             self._log(entry_id, action, detail=f"symbol {row[2]}->{symbol}")
         self.conn.commit()
+
+    def edit_text(self, ident, new_text):
+        new_text = new_text.strip()
+        if not new_text:
+            print("nothing to update")
+            return
+        if ident.isdigit():
+            entry_id = int(ident)
+            row = self._get(entry_id)
+            if not row:
+                print(f"no such id: {entry_id}")
+                return
+            _id, pid, symbol, title = row
+            if entry_id == self.root_id:
+                print("cannot rename root")
+                return
+            if symbol == FOLDER and title.lower() == CAL_FOLDER.lower():
+                print("cannot rename the cal folder")
+                return
+        else:
+            row = self._find_folder_any_state(ident)
+            if not row:
+                print(f"no such folder: {ident}")
+                return
+            entry_id, pid, symbol, title = row
+            if title.lower() == CAL_FOLDER.lower():
+                print("cannot rename the cal folder")
+                return
+
+        if symbol == FOLDER:
+            if not FOLDER_NAME_RE.match(new_text):
+                print("usage: e <name> <new name> (single token, no spaces)")
+                return
+            if new_text.isdigit():
+                print(f"folder name can't be purely numeric (looks like an id): {new_text}")
+                return
+            existing = self._find_folder_any_state(new_text)
+            if existing and existing[0] != entry_id:
+                print(f"folder already exists: {new_text}")
+                return
+            new_title = new_text
+        elif symbol in (MEETING, EVENT):
+            prefix = title.split(maxsplit=1)[0]
+            new_title = f"{prefix} {new_text}"
+        else:
+            new_title = new_text
+
+        self.conn.execute(
+            "UPDATE tasks SET title = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') WHERE id = ?",
+            (new_title, entry_id),
+        )
+        self._log(entry_id, "renamed", detail=f"'{title}' -> '{new_title}'")
+        self.conn.commit()
+        print(f"{entry_id}: renamed")
 
     def set_priority(self, ids):
         for raw_id in ids:
@@ -1215,6 +1273,12 @@ def main():
             else:
                 app._snapshot(line)
                 app.toggle_blocked(tokens[1:])
+        elif head == "e":
+            if len(tokens) < 3:
+                print("usage: e <id> <new text> | e <name> <new name>")
+            else:
+                app._snapshot(line)
+                app.edit_text(tokens[1], " ".join(tokens[2:]))
         elif line[0] == SNOOZE:
             arg = line[1:].strip()
             ids = arg.split()
