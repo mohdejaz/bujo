@@ -1167,7 +1167,7 @@ class Bujo:
                     [row[0] for row in rows],
                 )
             )
-        rows.sort(key=lambda row: -priority_map.get(row[0], 0))
+        rows.sort(key=lambda row: (-priority_map.get(row[0], 0), -row[0]))
         active = self._active()
         active_id = active[0] if active else None
         width = self._term_width()
