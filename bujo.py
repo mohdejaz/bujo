@@ -33,7 +33,9 @@ Commands (typed at the prompt):
                     in ls output
     `<id>           mark <id> as what you're currently working on; shown
                     in the prompt and highlighted in ls; picking a new
-                    one switches
+                    one switches (remembering the one you switched from);
+                    marking the active task done auto-reverts to it
+    `-              swap back to the previous working-on task
     `               clear the currently-working indicator
     > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
                     it if needed
@@ -277,6 +279,8 @@ class Bujo:
         self.conn.execute(
             "INSERT OR IGNORE INTO active_task (id, task_id) VALUES (1, NULL)"
         )
+        if "prev_task_id" not in {row[1] for row in self.conn.execute("PRAGMA table_info(active_task)")}:
+            self.conn.execute("ALTER TABLE active_task ADD COLUMN prev_task_id INTEGER")
         self.conn.commit()
 
     def _log(self, entry_id, action, related_id=None, detail=None):
@@ -659,6 +663,8 @@ class Bujo:
             )
             action = "closed" if symbol == TASK_DONE else "updated"
             self._log(entry_id, action, detail=f"symbol {row[2]}->{symbol}")
+            if symbol == TASK_DONE:
+                self._maybe_revert_active(entry_id)
         self.conn.commit()
 
     def edit_text(self, ident, new_text):
@@ -804,14 +810,62 @@ class Bujo:
         if not row:
             print(f"no such id: {entry_id}")
             return
-        self.conn.execute("UPDATE active_task SET task_id = ? WHERE id = 1", (entry_id,))
+        current = self.conn.execute("SELECT task_id FROM active_task WHERE id = 1").fetchone()[0]
+        if current == entry_id:
+            self.conn.execute("UPDATE active_task SET task_id = ? WHERE id = 1", (entry_id,))
+        else:
+            self.conn.execute(
+                "UPDATE active_task SET task_id = ?, prev_task_id = ? WHERE id = 1",
+                (entry_id, current),
+            )
         self.conn.commit()
         print(f"{entry_id}: working on it ({row[3]})")
 
     def stop(self):
-        self.conn.execute("UPDATE active_task SET task_id = NULL WHERE id = 1")
+        current = self.conn.execute("SELECT task_id FROM active_task WHERE id = 1").fetchone()[0]
+        if current is None:
+            self.conn.execute("UPDATE active_task SET task_id = NULL WHERE id = 1")
+        else:
+            self.conn.execute(
+                "UPDATE active_task SET task_id = NULL, prev_task_id = ? WHERE id = 1", (current,)
+            )
         self.conn.commit()
         print("stopped")
+
+    def swap(self):
+        row = self.conn.execute(
+            "SELECT task_id, prev_task_id FROM active_task WHERE id = 1"
+        ).fetchone()
+        task_id, prev_id = row if row else (None, None)
+        if prev_id is None:
+            print("no previous task")
+            return
+        entry = self._get(prev_id)
+        if entry is None or entry[2] == TASK_DONE:
+            self.conn.execute("UPDATE active_task SET prev_task_id = NULL WHERE id = 1")
+            self.conn.commit()
+            print(f"no such id: {prev_id}")
+            return
+        self.conn.execute(
+            "UPDATE active_task SET task_id = ?, prev_task_id = ? WHERE id = 1", (prev_id, task_id)
+        )
+        self.conn.commit()
+        print(f"{prev_id}: working on it ({entry[3]})")
+
+    def _maybe_revert_active(self, entry_id):
+        row = self.conn.execute(
+            "SELECT task_id, prev_task_id FROM active_task WHERE id = 1"
+        ).fetchone()
+        if not row or row[0] != entry_id:
+            return
+        prev_id = row[1]
+        self.conn.execute(
+            "UPDATE active_task SET task_id = ?, prev_task_id = NULL WHERE id = 1", (prev_id,)
+        )
+        if prev_id is not None:
+            entry = self._get(prev_id)
+            if entry:
+                print(f"back to {prev_id}: working on it ({entry[3]})")
 
     def _tags_for(self, entry_id):
         return [
@@ -1431,10 +1485,12 @@ def main():
             arg = line[1:].strip()
             if not arg:
                 app.stop()
+            elif arg == "-":
+                app.swap()
             elif arg.isdigit():
                 app.start(arg)
             else:
-                print("usage: `<id> | `")
+                print("usage: `<id> | ` | `-")
         else:
             print(f"unknown command: {head}")
 
