@@ -1221,9 +1221,9 @@ class Bujo:
                     [row[0] for row in rows],
                 )
             )
-        rows.sort(key=lambda row: (-priority_map.get(row[0], 0), -row[0]))
         active = self._active()
         active_id = active[0] if active else None
+        rows.sort(key=lambda row: (row[0] != active_id, -priority_map.get(row[0], 0), -row[0]))
         width = self._term_width()
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
