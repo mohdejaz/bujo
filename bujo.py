@@ -128,7 +128,6 @@ except ImportError:
 
 DB_PATH = os.environ.get("BUJO_DB", os.path.expanduser("~/.bujo/bujo.db"))
 ROOT_TITLE = "root"
-TAG_COLOR = "\033[7;36m"
 WORKING_COLOR = "\033[7;32m"
 COLOR_RESET = "\033[0m"
 
@@ -377,7 +376,7 @@ class Bujo:
             print(f"text:     {title}")
             print(f"priority: {'yes' if priority else 'none'}")
             tags = self._tags_for(entry_id)
-            tags_str = ", ".join(f"{TAG_COLOR}{t}{COLOR_RESET}" for t in tags) if tags else "(none)"
+            tags_str = ", ".join(tags) if tags else "(none)"
             print(f"tags:     {tags_str}")
             print(f"parent:   {parent}")
             print(f"folder:   {folder}")
@@ -1229,7 +1228,7 @@ class Bujo:
             marker = "/" if self._has_children(entry_id) else ""
             has_priority = bool(priority_map.get(entry_id, 0))
             tags = self._tags_for(entry_id)
-            tag_suffix = "".join(f" {TAG_COLOR}#{t}{COLOR_RESET}" for t in tags)
+            tag_suffix = "".join(f" #{t}" for t in tags)
             tags_visible_len = sum(len(t) + 2 for t in tags)
             pmark = PRIORITY_CMD if has_priority else ""
             date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
