@@ -1233,12 +1233,13 @@ class Bujo:
             tags_visible_len = sum(len(t) + 2 for t in tags)
             pmark = PRIORITY_CMD if has_priority else ""
             date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
-            prefix = f"{entry_id:>4} {pmark:<1}{symbol} {date_str}"
+            id_str = f"{entry_id:>4}"
+            prefix = f"{id_str} {pmark:<1}{symbol} {date_str}"
             available = width - len(prefix) - len(marker) - tags_visible_len
             display_title = self._truncate(title, available)
-            line = f"{prefix}{display_title}{marker}{tag_suffix}"
             if entry_id == active_id:
-                line = f"{WORKING_COLOR}{line}{COLOR_RESET}"
+                id_str = f"{WORKING_COLOR}{id_str}{COLOR_RESET}"
+            line = f"{id_str} {pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
             print(line)
         print(f"{len(rows)} entries")
 
