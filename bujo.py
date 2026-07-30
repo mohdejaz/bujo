@@ -128,8 +128,8 @@ except ImportError:
 
 DB_PATH = os.environ.get("BUJO_DB", os.path.expanduser("~/.bujo/bujo.db"))
 ROOT_TITLE = "root"
-TAG_COLOR = "\033[36m"
-WORKING_COLOR = "\033[42;30m"
+TAG_COLOR = "\033[7;36m"
+WORKING_COLOR = "\033[7;32m"
 COLOR_RESET = "\033[0m"
 
 TASK_OPEN = "*"
