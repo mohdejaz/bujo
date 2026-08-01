@@ -37,10 +37,14 @@ Commands (typed at the prompt):
                     sharing the same parent
     bot <id> [id...]
                     move entries to the bottom of their siblings
-    up <id> [id...]
-                    move entries up one position among their siblings
-    down <id> [id...]
-                    move entries down one position among their siblings
+    above <id> <id> [id...]
+                    move the second id onward to sit directly above the
+                    first id, in the order given; all must share the same
+                    parent as the first id
+    below <id> <id> [id...]
+                    move the second id onward to sit directly below the
+                    first id, in the order given; all must share the same
+                    parent as the first id
     `<id>           mark <id> as what you're currently working on; shown
                     in the prompt and highlighted in ls; picking a new
                     one switches (remembering the one you switched from);
@@ -120,6 +124,7 @@ Commands (typed at the prompt):
     quit / exit     leave bujo
 """
 
+import calendar
 import datetime
 import os
 import re
@@ -148,7 +153,9 @@ except ImportError:
 DB_PATH = os.environ.get("BUJO_DB", os.path.expanduser("~/.bujo/bujo.db"))
 ROOT_TITLE = "root"
 WORKING_COLOR = "\033[7;32m"
+BOLD = "\033[1m"
 COLOR_RESET = "\033[0m"
+CAL_BLOCK_WIDTH = 20
 
 TASK_OPEN = "*"
 TASK_DONE = "x"
@@ -868,72 +875,51 @@ class Bujo:
             print(f"{entry_id}: moved to bottom")
         self.conn.commit()
 
-    def move_up(self, ids, count=1):
+    def move_relative(self, ref_raw, ids, before):
+        word = "above" if before else "below"
+        resolved_ref = self._resolve_movable(ref_raw)
+        if resolved_ref is None:
+            return
+        ref_id, pid = resolved_ref
+        move_ids = []
+        seen = set()
         for raw_id in ids:
             resolved = self._resolve_movable(raw_id)
             if resolved is None:
                 continue
-            entry_id, pid = resolved
-            moved = 0
-            for _ in range(count):
-                cur_rank = self.conn.execute(
-                    "SELECT rank FROM tasks WHERE id = ?", (entry_id,)
-                ).fetchone()[0]
-                neighbor = self.conn.execute(
-                    "SELECT id, rank FROM tasks WHERE pid = ? AND rank > ? ORDER BY rank ASC LIMIT 1",
-                    (pid, cur_rank),
-                ).fetchone()
-                if not neighbor:
-                    break
-                neighbor_id, neighbor_rank = neighbor
-                self.conn.execute(
-                    "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                    "WHERE id = ?",
-                    (neighbor_rank, entry_id),
-                )
-                self.conn.execute("UPDATE tasks SET rank = ? WHERE id = ?", (cur_rank, neighbor_id))
-                self._log(entry_id, "reordered", related_id=neighbor_id, detail="moved up")
-                moved += 1
-            if moved == 0:
-                print(f"{entry_id}: already at top")
-            elif moved == 1:
-                print(f"{entry_id}: moved up")
-            else:
-                print(f"{entry_id}: moved up {moved} steps")
-        self.conn.commit()
-
-    def move_down(self, ids, count=1):
-        for raw_id in ids:
-            resolved = self._resolve_movable(raw_id)
-            if resolved is None:
+            entry_id, entry_pid = resolved
+            if entry_id == ref_id:
+                print(f"{entry_id}: cannot move {word} itself")
                 continue
-            entry_id, pid = resolved
-            moved = 0
-            for _ in range(count):
-                cur_rank = self.conn.execute(
-                    "SELECT rank FROM tasks WHERE id = ?", (entry_id,)
-                ).fetchone()[0]
-                neighbor = self.conn.execute(
-                    "SELECT id, rank FROM tasks WHERE pid = ? AND rank < ? ORDER BY rank DESC LIMIT 1",
-                    (pid, cur_rank),
-                ).fetchone()
-                if not neighbor:
-                    break
-                neighbor_id, neighbor_rank = neighbor
-                self.conn.execute(
-                    "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                    "WHERE id = ?",
-                    (neighbor_rank, entry_id),
-                )
-                self.conn.execute("UPDATE tasks SET rank = ? WHERE id = ?", (cur_rank, neighbor_id))
-                self._log(entry_id, "reordered", related_id=neighbor_id, detail="moved down")
-                moved += 1
-            if moved == 0:
-                print(f"{entry_id}: already at bottom")
-            elif moved == 1:
-                print(f"{entry_id}: moved down")
-            else:
-                print(f"{entry_id}: moved down {moved} steps")
+            if entry_pid != pid:
+                print(f"{entry_id}: not a sibling of {ref_id}")
+                continue
+            if entry_id in seen:
+                continue
+            seen.add(entry_id)
+            move_ids.append(entry_id)
+        if not move_ids:
+            return
+        siblings = [
+            row[0]
+            for row in self.conn.execute(
+                "SELECT id FROM tasks WHERE pid = ? ORDER BY rank DESC", (pid,)
+            ).fetchall()
+        ]
+        remaining = [sid for sid in siblings if sid not in seen]
+        insert_at = remaining.index(ref_id) + (0 if before else 1)
+        new_order = remaining[:insert_at] + move_ids + remaining[insert_at:]
+        total = len(new_order)
+        for position, entry_id in enumerate(new_order):
+            self.conn.execute(
+                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (total - position, entry_id),
+            )
+        for entry_id in move_ids:
+            self._log(entry_id, "reordered", related_id=ref_id, detail=f"moved {word}")
+        ids_str = ", ".join(str(i) for i in move_ids)
+        print(f"{ids_str}: moved {word} {ref_id}")
         self.conn.commit()
 
     def _active(self):
@@ -1428,12 +1414,73 @@ class Bujo:
                 line = plain_line
             lines.append(line)
             plain_lines.append(plain_line)
-        if all_folders:
+        date_indices = (
+            {i for i, row in enumerate(rows) if self._folder_date(row[3]) is not None}
+            if hide_folder_ids
+            else set()
+        )
+        if date_indices:
+            months = {}
+            for i in date_indices:
+                mm, dd = self._folder_date(rows[i][3])
+                months.setdefault(mm, set()).add(dd)
+            today = datetime.date.today()
+            blocks = [
+                self._month_calendar_lines(mm, days, today)
+                for mm, days in sorted(months.items())
+            ]
+            self._print_calendar_blocks(blocks, width)
+            other_indices = [i for i in range(len(rows)) if i not in date_indices]
+            if other_indices:
+                print()
+                self._print_grid(
+                    [lines[i] for i in other_indices],
+                    [plain_lines[i] for i in other_indices],
+                    width,
+                )
+        elif all_folders:
             self._print_grid(lines, plain_lines, width)
         else:
             for line in lines:
                 print(line)
         print(f"{len(rows)} entries")
+
+    @staticmethod
+    def _month_calendar_lines(month, days_with_folder, today):
+        year = today.year
+        weeks = calendar.Calendar(firstweekday=6).monthdayscalendar(year, month)
+        lines = [
+            calendar.month_name[month].center(CAL_BLOCK_WIDTH),
+            "Su Mo Tu We Th Fr Sa",
+        ]
+        for week in weeks:
+            cells = []
+            for day in week:
+                if day == 0:
+                    cells.append("  ")
+                    continue
+                text = f"{day:2d}"
+                if month == today.month and day == today.day:
+                    text = f"{WORKING_COLOR}{text}{COLOR_RESET}"
+                elif day in days_with_folder:
+                    text = f"{BOLD}{text}{COLOR_RESET}"
+                cells.append(text)
+            lines.append(" ".join(cells))
+        return lines
+
+    @staticmethod
+    def _print_calendar_blocks(blocks, width):
+        gap = 2
+        per_row = max(1, min(len(blocks), (width + gap) // (CAL_BLOCK_WIDTH + gap)))
+        blank_line = " " * CAL_BLOCK_WIDTH
+        for start in range(0, len(blocks), per_row):
+            group = blocks[start : start + per_row]
+            max_lines = max(len(block) for block in group)
+            for i in range(max_lines):
+                row_parts = [block[i] if i < len(block) else blank_line for block in group]
+                print((" " * gap).join(row_parts).rstrip())
+            if start + per_row < len(blocks):
+                print()
 
     @staticmethod
     def _print_grid(lines, plain_lines, width):
@@ -1661,26 +1708,18 @@ def main():
             else:
                 app._snapshot(line)
                 app.move_bottom(tokens[1:])
-        elif head == "up":
-            if len(tokens) < 2:
-                print("usage: up <id> [id...] | up <id> <n>")
+        elif head == "above":
+            if len(tokens) < 3:
+                print("usage: above <id> <id> [id...]")
             else:
-                args = tokens[1:]
                 app._snapshot(line)
-                if len(args) == 2 and args[1].isdigit() and int(args[1]) > 0:
-                    app.move_up([args[0]], count=int(args[1]))
-                else:
-                    app.move_up(args)
-        elif head == "down":
-            if len(tokens) < 2:
-                print("usage: down <id> [id...] | down <id> <n>")
+                app.move_relative(tokens[1], tokens[2:], before=True)
+        elif head == "below":
+            if len(tokens) < 3:
+                print("usage: below <id> <id> [id...]")
             else:
-                args = tokens[1:]
                 app._snapshot(line)
-                if len(args) == 2 and args[1].isdigit() and int(args[1]) > 0:
-                    app.move_down([args[0]], count=int(args[1]))
-                else:
-                    app.move_down(args)
+                app.move_relative(tokens[1], tokens[2:], before=False)
         elif head == "e":
             if len(tokens) < 3:
                 print("usage: e <id> <new text> | e <name> <new name>")
