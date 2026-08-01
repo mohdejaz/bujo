@@ -91,6 +91,10 @@ Commands (typed at the prompt):
     ls !            add "!" to any ls form above (e.g. ls !, ls f !,
                     ls * !) to show only priority entries
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
+    ls ^<id> [filters]
+                    list <id>'s children (its notes, subtasks, etc.) without
+                    switching into it; takes the same filters as plain ls,
+                    e.g. ls ^5, ls ^5 f, ls ^5 - date
     log             show the last 20 action log entries, most recent first
     log <id> [id...]
                     show all action log entries for id(s), most recent first
@@ -1151,7 +1155,8 @@ class Bujo:
             return "…"
         return text[: width - 1].rstrip() + "…"
 
-    def list_children(self, filters=None, show_all=False, show_date=False, priority_only=False):
+    def list_children(self, filters=None, show_all=False, show_date=False, priority_only=False, target_id=None):
+        target_id = self.current_id if target_id is None else target_id
         is_default = not filters
         if show_all:
             symbols = {
@@ -1169,10 +1174,10 @@ class Bujo:
             }
         else:
             symbols = set(filters) if filters else {TASK_OPEN, BLOCKED, NOTE, EVENT, MEETING, FOLDER}
-        rows = self._children(self.current_id)
+        rows = self._children(target_id)
         rows = [row for row in rows if row[2] in symbols]
         if not show_all:
-            if is_default and self._is_cal_folder(self.current_id):
+            if is_default and self._is_cal_folder(target_id):
                 event_filter = self._is_upcoming
             else:
                 event_filter = self._is_today if is_default else self._is_upcoming
@@ -1297,35 +1302,46 @@ def main():
             os.system("cls" if os.name == "nt" else "clear")
         elif head == "ls":
             args = tokens[1:]
-            show_date = "date" in args
-            if show_date:
-                args = [a for a in args if a != "date"]
-            priority_only = PRIORITY_CMD in args
-            if priority_only:
-                args = [a for a in args if a != PRIORITY_CMD]
-            if args == ["f"]:
-                app.list_children(show_all=True, show_date=show_date, priority_only=priority_only)
-            elif args and all(a.isdigit() for a in args):
-                app.show_stats(args)
+            target_id = None
+            if args and re.match(r"^\^\d+$", args[0]):
+                target_id = int(args[0][1:])
+                args = args[1:]
+            if target_id is not None and not app._get(target_id):
+                print(f"no such id: {target_id}")
             else:
-                valid = {
-                    TASK_OPEN,
-                    BLOCKED,
-                    TASK_DONE,
-                    NOTE,
-                    MEETING,
-                    FOLDER,
-                    SNOOZE,
-                    DELETE_CMD,
-                }
-                bad = [f for f in args if f not in valid]
-                if bad:
-                    print(
-                        f"usage: ls [{TASK_OPEN} {BLOCKED} {TASK_DONE} {NOTE} {MEETING} "
-                        f"{FOLDER} {SNOOZE} {DELETE_CMD}] [date] [!] | ls f [date] [!] | ls <id> [id...]"
-                    )
+                show_date = "date" in args
+                if show_date:
+                    args = [a for a in args if a != "date"]
+                priority_only = PRIORITY_CMD in args
+                if priority_only:
+                    args = [a for a in args if a != PRIORITY_CMD]
+                if args == ["f"]:
+                    app.list_children(show_all=True, show_date=show_date, priority_only=priority_only, target_id=target_id)
+                elif args and all(a.isdigit() for a in args):
+                    if target_id is not None:
+                        print("usage: ls ^<id> [filters] — stats form doesn't take ^<id>")
+                    else:
+                        app.show_stats(args)
                 else:
-                    app.list_children(args, show_date=show_date, priority_only=priority_only)
+                    valid = {
+                        TASK_OPEN,
+                        BLOCKED,
+                        TASK_DONE,
+                        NOTE,
+                        MEETING,
+                        FOLDER,
+                        SNOOZE,
+                        DELETE_CMD,
+                    }
+                    bad = [f for f in args if f not in valid]
+                    if bad:
+                        print(
+                            f"usage: ls [{TASK_OPEN} {BLOCKED} {TASK_DONE} {NOTE} {MEETING} "
+                            f"{FOLDER} {SNOOZE} {DELETE_CMD}] [date] [!] | ls f [date] [!] | "
+                            f"ls <id> [id...] | ls ^<id> [filters]"
+                        )
+                    else:
+                        app.list_children(args, show_date=show_date, priority_only=priority_only, target_id=target_id)
         elif head in ("use", "cd"):
             if len(tokens) < 2:
                 print("usage: use <id> | use <name> | use .. | use /")
