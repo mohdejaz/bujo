@@ -83,8 +83,13 @@ Commands (typed at the prompt):
                     items are skipped since they're already relocated by
                     their own move commands; @ meetings never roll over; must
                     be run from inside a folder
-    f "text"        find all entries whose text contains string (case-insensitive)
-    f #<tag>        find all entries tagged with <tag> (exact match)
+    f "text"        find all entries whose text contains string (case-insensitive);
+                    searches the whole journal (global) by default
+    f #<tag>        find all entries tagged with <tag> (exact match); also global
+                    by default
+    f ^ "text"      restrict a text/tag find to the current task's subtree
+                    (local); combine with #<tag> too, e.g. f ^ #<tag>
+    f ^<id> "text"  restrict a text/tag find to <id>'s subtree instead
     ls              list open tasks, notes, meetings, events & folders
     ls * - x @ ⊘ & ~  list only the given kinds (space separated, any combo):
                       *  open tasks
@@ -1041,12 +1046,22 @@ class Bujo:
                 print(f"{entry_id}: untagged '{name}'")
         self.conn.commit()
 
-    def find_by_tag(self, tag):
-        rows = self.conn.execute(
-            "SELECT t.id, t.pid, t.symbol, t.title FROM tasks t "
-            "JOIN tags g ON g.task_id = t.id WHERE LOWER(g.tag) = LOWER(?) ORDER BY t.id",
-            (tag,),
-        ).fetchall()
+    def find_by_tag(self, tag, target_id=None):
+        if target_id is not None:
+            subtree = self._subtree_ids(target_id)
+            placeholders = ", ".join("?" * len(subtree))
+            rows = self.conn.execute(
+                f"SELECT t.id, t.pid, t.symbol, t.title FROM tasks t "
+                f"JOIN tags g ON g.task_id = t.id "
+                f"WHERE LOWER(g.tag) = LOWER(?) AND t.id IN ({placeholders}) ORDER BY t.id",
+                [tag, *subtree],
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT t.id, t.pid, t.symbol, t.title FROM tasks t "
+                "JOIN tags g ON g.task_id = t.id WHERE LOWER(g.tag) = LOWER(?) ORDER BY t.id",
+                (tag,),
+            ).fetchall()
         if not rows:
             print("(no matches)")
             return
@@ -1243,12 +1258,22 @@ class Bujo:
         today = datetime.date.today()
         return date == (today.month, today.day)
 
-    def find(self, query):
-        rows = self.conn.execute(
-            "SELECT id, pid, symbol, title FROM tasks "
-            "WHERE pid IS NOT NULL AND LOWER(title) LIKE ? ESCAPE '\\' ORDER BY id",
-            (f"%{self._like_escape(query.lower())}%",),
-        ).fetchall()
+    def find(self, query, target_id=None):
+        if target_id is not None:
+            subtree = self._subtree_ids(target_id)
+            placeholders = ", ".join("?" * len(subtree))
+            rows = self.conn.execute(
+                f"SELECT id, pid, symbol, title FROM tasks "
+                f"WHERE pid IS NOT NULL AND id IN ({placeholders}) "
+                f"AND LOWER(title) LIKE ? ESCAPE '\\' ORDER BY id",
+                [*subtree, f"%{self._like_escape(query.lower())}%"],
+            ).fetchall()
+        else:
+            rows = self.conn.execute(
+                "SELECT id, pid, symbol, title FROM tasks "
+                "WHERE pid IS NOT NULL AND LOWER(title) LIKE ? ESCAPE '\\' ORDER BY id",
+                (f"%{self._like_escape(query.lower())}%",),
+            ).fetchall()
         if not rows:
             print("(no matches)")
             return
@@ -1491,15 +1516,23 @@ def main():
                 else:
                     app.remove_tag(tokens[1], tokens[2:])
         elif head == "f":
-            query = line[1:].strip()
+            rest = line[1:].strip()
+            parts = rest.split(None, 1)
+            target_id = None
+            if parts and re.match(r"^\^\d*$", parts[0]):
+                target_id = int(parts[0][1:]) if len(parts[0]) > 1 else app.current_id
+                rest = parts[1] if len(parts) > 1 else ""
+            query = rest.strip()
             if len(query) >= 2 and query[0] == '"' and query[-1] == '"':
                 query = query[1:-1]
             if not query:
-                print('usage: f "text"')
+                print('usage: f "text" | f #<tag> | f ^ "text" | f ^<id> "text" | f ^<id> #<tag>')
+            elif target_id is not None and not app._get(target_id):
+                print(f"no such id: {target_id}")
             elif query.startswith("#") and len(query) > 1:
-                app.find_by_tag(query[1:])
+                app.find_by_tag(query[1:], target_id)
             else:
-                app.find(query)
+                app.find(query, target_id)
         elif head == "log":
             args = tokens[1:]
             if args and not all(a.isdigit() for a in args):

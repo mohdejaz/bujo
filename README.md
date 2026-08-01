@@ -107,8 +107,13 @@ ro mm.dd        roll all open items (* o) from the current folder into
                 items are skipped since they're already relocated by
                 their own move commands; @ meetings never roll over; must
                 be run from inside a folder
-f "text"        find all entries whose text contains string (case-insensitive)
-f #<tag>        find all entries tagged with <tag> (exact match)
+f "text"        find all entries whose text contains string (case-insensitive);
+                searches the whole journal (global) by default
+f #<tag>        find all entries tagged with <tag> (exact match); also global
+                by default
+f ^ "text"      restrict a text/tag find to the current task's subtree
+                (local); combine with #<tag> too, e.g. f ^ #<tag>
+f ^<id> "text"  restrict a text/tag find to <id>'s subtree instead
 ls              list open tasks, notes, meetings, events & folders
 ls * - x @ ⊘ &  list only the given kinds (space separated, any combo):
                   *  open tasks
