@@ -39,6 +39,11 @@ BUJO_DB=/path/to/bujo.db python3 bujo.py
 - **Meeting** (`@`) — a time-prefixed entry (`hh:mm`).
 - **Event** (`o`) — a calendar entry, always filed under the root-level `cal`
   folder.
+- Deleting with `~` is a toggle, not a hard delete — it marks the entry (and
+  its children) with `~` and remembers the prior symbol(s), so running `~`
+  again restores them.
+- Entries can be given a recurrence rule with `schd` so they're
+  auto-copied into matching daily folders as those folders get created.
 - Every entry gets a numeric **id**, which you use to reference it in
   commands like `x`, `b`, `!`, `>`, `~`, `tag`, etc.
 
@@ -47,7 +52,9 @@ BUJO_DB=/path/to/bujo.db python3 bujo.py
 ```
 * <text>        create a new task
 - <text>        create a new note
-@ hh:mm <text>  create a new meeting, time-prefixed
+@ hh:mm <text>  create a new meeting, time-prefixed; meetings must be
+                filed directly under a folder (the current folder, or
+                ^<id> where <id> is a folder)
                 for *, -, and @: prefix <text> with ^<id> to create
                 under <id> instead of the current task, without cding
                 into it first, e.g. `- ^5 remember X`
@@ -62,6 +69,20 @@ cp <id> <folder> [folder...]
                 folders (created if needed) as fresh open copies; entries
                 with children can't be duplicated; a bare mm.dd folder
                 name is auto-expanded to mm.dd.dow
+schd <dow [dow...]> <id>
+                recur <id> on the given weekday(s) (mon tue wed thu fri
+                sat sun); works from anywhere
+schd <dom [dom...]> <id>
+                recur <id> on the given day(s) of month (1-31); works
+                from anywhere
+schd <id>       show <id>'s current recurrence rule(s); works from
+                anywhere
+                recurring entries are copied as fresh open items into a
+                daily folder (mm.dd.dow) the moment that folder is
+                first created (via +, >, <, or cp); entries with
+                children, folders, events, or deleted entries can't be
+                scheduled
+unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
 x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
 b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 show in ls and still roll over with ro
@@ -70,9 +91,25 @@ b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 still picks them up and auto-unsnoozes them on rollover
 ! <id> [id...]  toggle priority on entries; priority entries sort first
                 in ls output
+top <id> [id...]
+                move entries to the top of their siblings (highest in
+                ls order); works from anywhere, siblings are all entries
+                sharing the same parent
+bot <id> [id...]
+                move entries to the bottom of their siblings
+above <id> <id> [id...]
+                move the second id onward to sit directly above the
+                first id, in the order given; all must share the same
+                parent as the first id
+below <id> <id> [id...]
+                move the second id onward to sit directly below the
+                first id, in the order given; all must share the same
+                parent as the first id
 `<id>           mark <id> as what you're currently working on; shown
                 in the prompt and highlighted in ls; picking a new
-                one switches
+                one switches (remembering the one you switched from);
+                marking the active task done auto-reverts to it
+`-              swap back to the previous working-on task
 `               clear the currently-working indicator
 > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
                 it if needed
@@ -80,9 +117,12 @@ b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 move entries to a root-level named folder, creating it
                 if needed; for a daily folder use mm.dd as the name,
                 auto-expanded to mm.dd.dow
-~ <id> [id...]  delete entries and all their children permanently
-~ <name>        delete a root-level folder (and its children), from
-                anywhere
+~ <id> [id...]  toggle delete on entries and all their children; marks
+                them with ~ instead of removing them (see with ls ~ or
+                ls f); running ~ again on an already-deleted id restores
+                it and its children to their prior symbol(s)
+~ <name>        toggle delete on a root-level folder (and its children),
+                from anywhere
 tag <name> <id> [id...]
                 tag entries with <name>; works from anywhere
 untag <name> <id> [id...]
@@ -115,17 +155,25 @@ f ^ "text"      restrict a text/tag find to the current task's subtree
                 (local); combine with #<tag> too, e.g. f ^ #<tag>
 f ^<id> "text"  restrict a text/tag find to <id>'s subtree instead
 ls              list open tasks, notes, meetings, events & folders
-ls * - x @ ⊘ &  list only the given kinds (space separated, any combo):
+ls * - x @ ⊘ & ~  list only the given kinds (space separated, any combo):
                   *  open tasks
                   -  notes
                   x  completed tasks
                   @  meetings
                   ⊘  blocked tasks
                   &  snoozed tasks
+                  ~  deleted entries
 ls f            list all entries, every kind, no filtering
 ls date         add "date" to any ls form above (e.g. ls date, ls f date,
-                ls * date) to prefix each entry with its create date (mm/dd)
+                ls * date) to show each entry's create date (mm/dd)
+                just before its text
+ls !            add "!" to any ls form above (e.g. ls !, ls f !,
+                ls * !) to show only priority entries
 ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
+ls ^<id> [filters]
+                list <id>'s children (its notes, subtasks, etc.) without
+                switching into it; takes the same filters as plain ls,
+                e.g. ls ^5, ls ^5 f, ls ^5 - date
 log             show the last 20 action log entries, most recent first
 log <id> [id...]
                 show all action log entries for id(s), most recent first
