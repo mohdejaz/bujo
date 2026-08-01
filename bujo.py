@@ -23,6 +23,20 @@ Commands (typed at the prompt):
                     root-level folders (created if needed) as fresh open
                     copies; tasks/notes with children can't be duplicated;
                     a bare mm.dd folder name is auto-expanded to mm.dd.dow
+    schd <dow [dow...]> <id>
+                    recur <id> on the given weekday(s) (mon tue wed thu fri
+                    sat sun); works from anywhere
+    schd <dom [dom...]> <id>
+                    recur <id> on the given day(s) of month (1-31); works
+                    from anywhere
+    schd <id>       show <id>'s current recurrence rule(s); works from
+                    anywhere
+                    recurring entries are copied as fresh open items into a
+                    daily folder (mm.dd.dow) the moment that folder is
+                    first created (via +, >, <, or cp); entries with
+                    children, folders, events, or deleted entries can't be
+                    scheduled
+    unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
     x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
     b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                     show in ls and still roll over with ro
@@ -181,6 +195,10 @@ TIME_RE = re.compile(r"^([01]?\d|2[0-3]):[0-5]\d$")
 TAG_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 PARENT_OVERRIDE_RE = re.compile(r"^\^(\d+)\s*")
 
+WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+DOW_TOKEN_RE = re.compile(r"^(?:" + "|".join(WEEKDAYS) + r")$", re.IGNORECASE)
+DOM_TOKEN_RE = re.compile(r"^(?:[1-9]|[12][0-9]|3[01])$")
+
 
 def extract_parent_override(text):
     text = text.lstrip()
@@ -200,6 +218,7 @@ class Bujo:
         self.current_id = self.root_id
         self._undo_snapshot = None
         self._undo_tags = None
+        self._undo_schedules = None
         self._undo_label = None
 
     def _snapshot(self, label):
@@ -209,13 +228,18 @@ class Bujo:
         self._undo_tags = self.conn.execute(
             "SELECT task_id, tag, cre_ts FROM tags ORDER BY task_id, tag"
         ).fetchall()
+        self._undo_schedules = self.conn.execute(
+            "SELECT task_id, kind, value, cre_ts FROM schedules ORDER BY task_id, kind, value"
+        ).fetchall()
         self._undo_label = label
 
     def undo(self):
         if self._undo_snapshot is None:
             print("nothing to undo")
             return
-        rows, tag_rows, label = self._undo_snapshot, self._undo_tags, self._undo_label
+        rows, tag_rows, schedule_rows, label = (
+            self._undo_snapshot, self._undo_tags, self._undo_schedules, self._undo_label
+        )
         self.conn.execute("PRAGMA foreign_keys = OFF")
         self.conn.execute("DELETE FROM tasks")
         self.conn.executemany(
@@ -228,6 +252,11 @@ class Bujo:
             "INSERT INTO tags (task_id, tag, cre_ts) VALUES (?, ?, ?)",
             tag_rows,
         )
+        self.conn.execute("DELETE FROM schedules")
+        self.conn.executemany(
+            "INSERT INTO schedules (task_id, kind, value, cre_ts) VALUES (?, ?, ?, ?)",
+            schedule_rows,
+        )
         self.conn.execute("PRAGMA foreign_keys = ON")
         self._log(None, "undo", detail=label)
         self.conn.commit()
@@ -235,6 +264,7 @@ class Bujo:
             self.current_id = self.root_id
         self._undo_snapshot = None
         self._undo_tags = None
+        self._undo_schedules = None
         self._undo_label = None
         print(f"undid: {label}")
 
@@ -290,6 +320,19 @@ class Bujo:
                 cre_ts  TEXT NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
                 PRIMARY KEY (task_id, tag),
                 FOREIGN KEY(task_id) REFERENCES tasks(id) ON DELETE CASCADE
+            )
+            """
+        )
+        self.conn.execute(
+            """
+            CREATE TABLE IF NOT EXISTS schedules (
+                id      INTEGER PRIMARY KEY AUTOINCREMENT,
+                task_id INTEGER NOT NULL,
+                kind    TEXT NOT NULL CHECK (kind IN ('dow', 'dom')),
+                value   TEXT NOT NULL,
+                cre_ts  TEXT NOT NULL DEFAULT (STRFTIME('%Y-%m-%d %H:%M:%f','now')),
+                UNIQUE(task_id, kind, value),
+                FOREIGN KEY(task_id) REFERENCES tasks(id)
             )
             """
         )
@@ -485,14 +528,18 @@ class Bujo:
         if self._find_folder(date_str):
             print(f"folder already exists: {date_str}")
             return
-        self.add_entry(FOLDER, date_str, parent_id=self.root_id)
+        folder_id = self.add_entry(FOLDER, date_str, parent_id=self.root_id)
+        if DATE_DOW_RE.match(date_str):
+            self._apply_due_schedules(folder_id, date_str)
 
     def _get_or_create_folder(self, date_str):
         row = self._find_folder(date_str)
         if row:
             return row[0]
-        self.add_entry(FOLDER, date_str, parent_id=self.root_id)
-        return self._find_folder(date_str)[0]
+        folder_id = self.add_entry(FOLDER, date_str, parent_id=self.root_id)
+        if DATE_DOW_RE.match(date_str):
+            self._apply_due_schedules(folder_id, date_str)
+        return folder_id
 
     def move_ids(self, ids, dest_folder_id, new_symbol=None):
         moved = 0
@@ -654,6 +701,107 @@ class Bujo:
             self._log(entry_id, "duplicated", related_id=new_id, detail=f"-> {expanded}")
             print(f"{entry_id}: duplicated as {new_id} in {expanded}")
         self.conn.commit()
+
+    def _can_schedule(self, entry_id):
+        row = self._get(entry_id)
+        if not row:
+            return None, f"no such id: {entry_id}"
+        _id, pid, symbol, title = row
+        if entry_id == self.root_id:
+            return None, "cannot schedule root"
+        if symbol == FOLDER:
+            return None, "cannot schedule a folder"
+        if symbol == EVENT:
+            return None, "cannot schedule an event"
+        if symbol == DELETE_CMD:
+            return None, f"{entry_id} is deleted; undelete it first"
+        if self._has_children(entry_id):
+            return None, f"{entry_id} has children; scheduling entries with children isn't supported"
+        return row, None
+
+    def add_schedule(self, kind, values, ident):
+        if not ident.isdigit():
+            print(f"invalid id: {ident}")
+            return
+        entry_id = int(ident)
+        _row, err = self._can_schedule(entry_id)
+        if err:
+            print(err)
+            return
+        for value in values:
+            self.conn.execute(
+                "INSERT OR IGNORE INTO schedules (task_id, kind, value) VALUES (?, ?, ?)",
+                (entry_id, kind, value),
+            )
+        self._log(entry_id, "scheduled", detail=f"{kind}: {', '.join(values)}")
+        self.conn.commit()
+        print(f"{entry_id}: scheduled on {kind} {' '.join(values)}")
+
+    def show_schedule(self, ident):
+        if not ident.isdigit():
+            print(f"invalid id: {ident}")
+            return
+        entry_id = int(ident)
+        if not self._get(entry_id):
+            print(f"no such id: {entry_id}")
+            return
+        rows = self.conn.execute(
+            "SELECT kind, value FROM schedules WHERE task_id = ? ORDER BY kind, value",
+            (entry_id,),
+        ).fetchall()
+        if not rows:
+            print(f"{entry_id}: no schedule")
+            return
+        dows = [value for kind, value in rows if kind == "dow"]
+        doms = [value for kind, value in rows if kind == "dom"]
+        parts = []
+        if dows:
+            parts.append("dow " + " ".join(dows))
+        if doms:
+            parts.append("dom " + " ".join(doms))
+        print(f"{entry_id}: {'; '.join(parts)}")
+
+    def clear_schedule(self, ident):
+        if not ident.isdigit():
+            print(f"invalid id: {ident}")
+            return
+        entry_id = int(ident)
+        if not self._get(entry_id):
+            print(f"no such id: {entry_id}")
+            return
+        cur = self.conn.execute("DELETE FROM schedules WHERE task_id = ?", (entry_id,))
+        self.conn.commit()
+        if cur.rowcount:
+            self._log(entry_id, "unscheduled", detail=f"removed {cur.rowcount} rule(s)")
+            print(f"{entry_id}: cleared {cur.rowcount} schedule rule(s)")
+        else:
+            print(f"{entry_id}: no schedule")
+
+    def _apply_due_schedules(self, folder_id, date_str):
+        mm, dd, dow = date_str.split(".")
+        dom_value = str(int(dd))
+        dow_value = dow.lower()
+        rows = self.conn.execute(
+            "SELECT DISTINCT task_id FROM schedules WHERE (kind = 'dom' AND value = ?) "
+            "OR (kind = 'dow' AND value = ?)",
+            (dom_value, dow_value),
+        ).fetchall()
+        for (task_id,) in rows:
+            row, err = self._can_schedule(task_id)
+            if err:
+                continue
+            _id, pid, symbol, title = row
+            dup_symbol = TASK_OPEN if symbol in (TASK_OPEN, TASK_DONE, BLOCKED, SNOOZE) else symbol
+            new_id = self.add_entry(dup_symbol, title, parent_id=folder_id)
+            for tag in self._tags_for(task_id):
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", (new_id, tag)
+                )
+                self._log(new_id, "tagged", detail=f"{tag} (auto-scheduled)")
+            self._log(task_id, "auto_scheduled", related_id=new_id, detail=f"-> {date_str}")
+            print(f"auto-scheduled: {task_id} -> {new_id} in {date_str}")
+        if rows:
+            self.conn.commit()
 
     def _get_or_create_cal_folder(self):
         row = self._find_folder(CAL_FOLDER)
@@ -1673,6 +1821,42 @@ def main():
                 else:
                     app._snapshot(line)
                     app.duplicate_entry(tokens[1], names)
+        elif head == "schd":
+            usage = "usage: schd <dow [dow...]> <id> | schd <dom [dom...]> <id> | schd <id>"
+            if len(tokens) == 2 and tokens[1].isdigit():
+                app.show_schedule(tokens[1])
+            elif len(tokens) >= 3:
+                day_tokens = tokens[1:-1]
+                ident = tokens[-1]
+                first = day_tokens[0].lower()
+                if DOW_TOKEN_RE.match(first):
+                    kind, pattern = "dow", DOW_TOKEN_RE
+                elif DOM_TOKEN_RE.match(first):
+                    kind, pattern = "dom", DOM_TOKEN_RE
+                else:
+                    kind, pattern = None, None
+                if kind is None:
+                    print(usage)
+                else:
+                    bad = [t for t in day_tokens if not pattern.match(t)]
+                    if bad:
+                        print(f"invalid {kind} value(s): {', '.join(bad)}")
+                    else:
+                        values = (
+                            [t.lower() for t in day_tokens]
+                            if kind == "dow"
+                            else [str(int(t)) for t in day_tokens]
+                        )
+                        app._snapshot(line)
+                        app.add_schedule(kind, values, ident)
+            else:
+                print(usage)
+        elif head == "unschd":
+            if len(tokens) != 2 or not tokens[1].isdigit():
+                print("usage: unschd <id>")
+            else:
+                app._snapshot(line)
+                app.clear_schedule(tokens[1])
         elif line[0] == SNOOZE:
             arg = line[1:].strip()
             ids = arg.split()
