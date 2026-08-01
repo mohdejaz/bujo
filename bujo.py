@@ -1389,6 +1389,10 @@ class Bujo:
             )
         )
         width = self._term_width()
+        all_folders = all(row[2] == FOLDER for row in rows)
+        cell_width = 24 if all_folders else width
+        lines = []
+        plain_lines = []
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
             has_priority = bool(priority_map.get(entry_id, 0))
@@ -1399,13 +1403,38 @@ class Bujo:
             date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
             id_str = f"{entry_id:>4}"
             prefix = f"{id_str} {pmark:<1}{symbol} {date_str}"
-            available = width - len(prefix) - len(marker) - tags_visible_len
+            available = cell_width - len(prefix) - len(marker) - tags_visible_len
             display_title = self._truncate(title, available)
+            plain_line = f"{id_str} {pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
             if entry_id == active_id:
-                id_str = f"{WORKING_COLOR}{id_str}{COLOR_RESET}"
-            line = f"{id_str} {pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
-            print(line)
+                colored_id = f"{WORKING_COLOR}{id_str}{COLOR_RESET}"
+                line = f"{colored_id} {pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
+            else:
+                line = plain_line
+            lines.append(line)
+            plain_lines.append(plain_line)
+        if all_folders:
+            self._print_grid(lines, plain_lines, width)
+        else:
+            for line in lines:
+                print(line)
         print(f"{len(rows)} entries")
+
+    @staticmethod
+    def _print_grid(lines, plain_lines, width):
+        col_width = max(len(pl) for pl in plain_lines) + 2
+        num_cols = max(1, min(len(lines), width // col_width))
+        num_rows = -(-len(lines) // num_cols)
+        for r in range(num_rows):
+            row_parts = []
+            for c in range(num_cols):
+                idx = c * num_rows + r
+                if idx >= len(lines):
+                    continue
+                pad = col_width - len(plain_lines[idx])
+                cell = lines[idx] if c == num_cols - 1 else lines[idx] + " " * pad
+                row_parts.append(cell)
+            print("".join(row_parts).rstrip())
 
 
 def print_help():
