@@ -124,7 +124,6 @@ Commands (typed at the prompt):
     quit / exit     leave bujo
 """
 
-import calendar
 import datetime
 import os
 import re
@@ -153,9 +152,7 @@ except ImportError:
 DB_PATH = os.environ.get("BUJO_DB", os.path.expanduser("~/.bujo/bujo.db"))
 ROOT_TITLE = "root"
 WORKING_COLOR = "\033[7;32m"
-BOLD = "\033[1m"
 COLOR_RESET = "\033[0m"
-CAL_BLOCK_WIDTH = 20
 
 TASK_OPEN = "*"
 TASK_DONE = "x"
@@ -1414,73 +1411,12 @@ class Bujo:
                 line = plain_line
             lines.append(line)
             plain_lines.append(plain_line)
-        date_indices = (
-            {i for i, row in enumerate(rows) if self._folder_date(row[3]) is not None}
-            if hide_folder_ids
-            else set()
-        )
-        if date_indices:
-            months = {}
-            for i in date_indices:
-                mm, dd = self._folder_date(rows[i][3])
-                months.setdefault(mm, set()).add(dd)
-            today = datetime.date.today()
-            blocks = [
-                self._month_calendar_lines(mm, days, today)
-                for mm, days in sorted(months.items())
-            ]
-            self._print_calendar_blocks(blocks, width)
-            other_indices = [i for i in range(len(rows)) if i not in date_indices]
-            if other_indices:
-                print()
-                self._print_grid(
-                    [lines[i] for i in other_indices],
-                    [plain_lines[i] for i in other_indices],
-                    width,
-                )
-        elif all_folders:
+        if all_folders:
             self._print_grid(lines, plain_lines, width)
         else:
             for line in lines:
                 print(line)
         print(f"{len(rows)} entries")
-
-    @staticmethod
-    def _month_calendar_lines(month, days_with_folder, today):
-        year = today.year
-        weeks = calendar.Calendar(firstweekday=6).monthdayscalendar(year, month)
-        lines = [
-            calendar.month_name[month].center(CAL_BLOCK_WIDTH),
-            "Su Mo Tu We Th Fr Sa",
-        ]
-        for week in weeks:
-            cells = []
-            for day in week:
-                if day == 0:
-                    cells.append("  ")
-                    continue
-                text = f"{day:2d}"
-                if month == today.month and day == today.day:
-                    text = f"{WORKING_COLOR}{text}{COLOR_RESET}"
-                elif day in days_with_folder:
-                    text = f"{BOLD}{text}{COLOR_RESET}"
-                cells.append(text)
-            lines.append(" ".join(cells))
-        return lines
-
-    @staticmethod
-    def _print_calendar_blocks(blocks, width):
-        gap = 2
-        per_row = max(1, min(len(blocks), (width + gap) // (CAL_BLOCK_WIDTH + gap)))
-        blank_line = " " * CAL_BLOCK_WIDTH
-        for start in range(0, len(blocks), per_row):
-            group = blocks[start : start + per_row]
-            max_lines = max(len(block) for block in group)
-            for i in range(max_lines):
-                row_parts = [block[i] if i < len(block) else blank_line for block in group]
-                print((" " * gap).join(row_parts).rstrip())
-            if start + per_row < len(blocks):
-                print()
 
     @staticmethod
     def _print_grid(lines, plain_lines, width):
