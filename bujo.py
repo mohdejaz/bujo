@@ -31,6 +31,16 @@ Commands (typed at the prompt):
                     still picks them up and auto-unsnoozes them on rollover
     ! <id> [id...]  toggle priority on entries; priority entries sort first
                     in ls output
+    top <id> [id...]
+                    move entries to the top of their siblings (highest in
+                    ls order); works from anywhere, siblings are all entries
+                    sharing the same parent
+    bot <id> [id...]
+                    move entries to the bottom of their siblings
+    up <id> [id...]
+                    move entries up one position among their siblings
+    down <id> [id...]
+                    move entries down one position among their siblings
     `<id>           mark <id> as what you're currently working on; shown
                     in the prompt and highlighted in ls; picking a new
                     one switches (remembering the one you switched from);
@@ -185,7 +195,7 @@ class Bujo:
 
     def _snapshot(self, label):
         self._undo_snapshot = self.conn.execute(
-            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol FROM tasks ORDER BY id"
+            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank FROM tasks ORDER BY id"
         ).fetchall()
         self._undo_tags = self.conn.execute(
             "SELECT task_id, tag, cre_ts FROM tags ORDER BY task_id, tag"
@@ -200,8 +210,8 @@ class Bujo:
         self.conn.execute("PRAGMA foreign_keys = OFF")
         self.conn.execute("DELETE FROM tasks")
         self.conn.executemany(
-            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         self.conn.execute("DELETE FROM tags")
@@ -246,6 +256,9 @@ class Bujo:
             self.conn.execute("ALTER TABLE tasks ADD COLUMN priority INTEGER NOT NULL DEFAULT 0")
         if "prev_symbol" not in existing:
             self.conn.execute("ALTER TABLE tasks ADD COLUMN prev_symbol TEXT")
+        if "rank" not in existing:
+            self.conn.execute("ALTER TABLE tasks ADD COLUMN rank INTEGER")
+            self.conn.execute("UPDATE tasks SET rank = id WHERE rank IS NULL")
         # no FK on entry_id/related_id: deleted entries must stay in their own lineage
         self.conn.execute(
             """
@@ -578,6 +591,7 @@ class Bujo:
             (pid, symbol, title),
         )
         entry_id = cur.lastrowid
+        self.conn.execute("UPDATE tasks SET rank = ? WHERE id = ?", (entry_id, entry_id))
         self._log(entry_id, "created", related_id=pid, detail=f"{symbol} {title}")
         self._log(pid, "child_created", related_id=entry_id, detail=f"{symbol} {title}")
         for tag in self._tags_for(pid):
@@ -792,6 +806,115 @@ class Bujo:
             )
             self._log(entry_id, "updated", detail=f"symbol {symbol}->{new_symbol}")
             print(f"{entry_id}: {'snoozed' if new_symbol == SNOOZE else 'unsnoozed'}")
+        self.conn.commit()
+
+    def _resolve_movable(self, raw_id):
+        if not raw_id.isdigit():
+            print(f"invalid id: {raw_id}")
+            return None
+        entry_id = int(raw_id)
+        row = self._get(entry_id)
+        if not row:
+            print(f"no such id: {entry_id}")
+            return None
+        pid = row[1]
+        if pid is None:
+            print("cannot reorder root")
+            return None
+        return entry_id, pid
+
+    def _rank_group_bounds(self, pid):
+        row = self.conn.execute(
+            "SELECT MIN(rank), MAX(rank) FROM tasks WHERE pid = ?", (pid,)
+        ).fetchone()
+        return row[0], row[1]
+
+    def move_top(self, ids):
+        for raw_id in ids:
+            resolved = self._resolve_movable(raw_id)
+            if resolved is None:
+                continue
+            entry_id, pid = resolved
+            _, max_rank = self._rank_group_bounds(pid)
+            new_rank = (max_rank if max_rank is not None else 0) + 1
+            self.conn.execute(
+                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (new_rank, entry_id),
+            )
+            self._log(entry_id, "reordered", detail="moved to top")
+            print(f"{entry_id}: moved to top")
+        self.conn.commit()
+
+    def move_bottom(self, ids):
+        for raw_id in ids:
+            resolved = self._resolve_movable(raw_id)
+            if resolved is None:
+                continue
+            entry_id, pid = resolved
+            min_rank, _ = self._rank_group_bounds(pid)
+            new_rank = (min_rank if min_rank is not None else 0) - 1
+            self.conn.execute(
+                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (new_rank, entry_id),
+            )
+            self._log(entry_id, "reordered", detail="moved to bottom")
+            print(f"{entry_id}: moved to bottom")
+        self.conn.commit()
+
+    def move_up(self, ids):
+        for raw_id in ids:
+            resolved = self._resolve_movable(raw_id)
+            if resolved is None:
+                continue
+            entry_id, pid = resolved
+            cur_rank = self.conn.execute(
+                "SELECT rank FROM tasks WHERE id = ?", (entry_id,)
+            ).fetchone()[0]
+            neighbor = self.conn.execute(
+                "SELECT id, rank FROM tasks WHERE pid = ? AND rank > ? ORDER BY rank ASC LIMIT 1",
+                (pid, cur_rank),
+            ).fetchone()
+            if not neighbor:
+                print(f"{entry_id}: already at top")
+                continue
+            neighbor_id, neighbor_rank = neighbor
+            self.conn.execute(
+                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (neighbor_rank, entry_id),
+            )
+            self.conn.execute("UPDATE tasks SET rank = ? WHERE id = ?", (cur_rank, neighbor_id))
+            self._log(entry_id, "reordered", related_id=neighbor_id, detail="moved up")
+            print(f"{entry_id}: moved up")
+        self.conn.commit()
+
+    def move_down(self, ids):
+        for raw_id in ids:
+            resolved = self._resolve_movable(raw_id)
+            if resolved is None:
+                continue
+            entry_id, pid = resolved
+            cur_rank = self.conn.execute(
+                "SELECT rank FROM tasks WHERE id = ?", (entry_id,)
+            ).fetchone()[0]
+            neighbor = self.conn.execute(
+                "SELECT id, rank FROM tasks WHERE pid = ? AND rank < ? ORDER BY rank DESC LIMIT 1",
+                (pid, cur_rank),
+            ).fetchone()
+            if not neighbor:
+                print(f"{entry_id}: already at bottom")
+                continue
+            neighbor_id, neighbor_rank = neighbor
+            self.conn.execute(
+                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (neighbor_rank, entry_id),
+            )
+            self.conn.execute("UPDATE tasks SET rank = ? WHERE id = ?", (cur_rank, neighbor_id))
+            self._log(entry_id, "reordered", related_id=neighbor_id, detail="moved down")
+            print(f"{entry_id}: moved down")
         self.conn.commit()
 
     def _active(self):
@@ -1225,9 +1348,21 @@ class Bujo:
                     [row[0] for row in rows],
                 )
             )
+        rank_map = dict(
+            self.conn.execute(
+                f"SELECT id, rank FROM tasks WHERE id IN ({placeholders})",
+                [row[0] for row in rows],
+            )
+        )
         active = self._active()
         active_id = active[0] if active else None
-        rows.sort(key=lambda row: (row[0] != active_id, -priority_map.get(row[0], 0), -row[0]))
+        rows.sort(
+            key=lambda row: (
+                row[0] != active_id,
+                -priority_map.get(row[0], 0),
+                -rank_map.get(row[0], row[0]),
+            )
+        )
         width = self._term_width()
         for entry_id, _pid, symbol, title in rows:
             marker = "/" if self._has_children(entry_id) else ""
@@ -1437,6 +1572,30 @@ def main():
             else:
                 app._snapshot(line)
                 app.toggle_blocked(tokens[1:])
+        elif head == "top":
+            if len(tokens) < 2:
+                print("usage: top <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.move_top(tokens[1:])
+        elif head == "bot":
+            if len(tokens) < 2:
+                print("usage: bot <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.move_bottom(tokens[1:])
+        elif head == "up":
+            if len(tokens) < 2:
+                print("usage: up <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.move_up(tokens[1:])
+        elif head == "down":
+            if len(tokens) < 2:
+                print("usage: down <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.move_down(tokens[1:])
         elif head == "e":
             if len(tokens) < 3:
                 print("usage: e <id> <new text> | e <name> <new name>")
