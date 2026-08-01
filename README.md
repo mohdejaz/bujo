@@ -8,6 +8,8 @@ folders like `07.18.sat`), folders contain tasks/notes/meetings/events, and
 tasks can contain their own child tasks and notes. You navigate the tree with
 `use`/`cd` and act on entries by their numeric id.
 
+![bujo calendar view](bujo-calendar.png)
+
 ## Requirements
 
 - Python 3
