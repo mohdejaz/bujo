@@ -41,7 +41,8 @@ BUJO_DB=/path/to/bujo.db python3 bujo.py
   folder.
 - Deleting with `~` is a toggle, not a hard delete — it marks the entry (and
   its children) with `~` and remembers the prior symbol(s), so running `~`
-  again restores them.
+  again restores them. `~~` permanently purges an entry that's already
+  marked `~`, removing it (and its children) from the database for good.
 - Entries can be given a recurrence rule with `schd` so they're
   auto-copied into matching daily folders as those folders get created.
 - Every entry gets a numeric **id**, which you use to reference it in
@@ -123,6 +124,10 @@ below <id> <id> [id...]
                 it and its children to their prior symbol(s)
 ~ <name>        toggle delete on a root-level folder (and its children),
                 from anywhere
+~~ <id> [id...] permanently purge already-deleted (~) entries and their
+                children; irreversible except via undo run right after;
+                refuses ids that aren't currently marked ~
+~~ <name>       purge an already-deleted root-level folder, from anywhere
 tag <name> <id> [id...]
                 tag entries with <name>; works from anywhere
 untag <name> <id> [id...]

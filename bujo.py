@@ -77,6 +77,10 @@ Commands (typed at the prompt):
                     it and its children to their prior symbol(s)
     ~ <name>        toggle delete on a root-level folder (and its children),
                     from anywhere
+    ~~ <id> [id...] permanently purge already-deleted (~) entries and their
+                    children; irreversible except via undo run right after;
+                    refuses ids that aren't currently marked ~
+    ~~ <name>       purge an already-deleted root-level folder, from anywhere
     tag <name> <id> [id...]
                     tag entries with <name>; works from anywhere
     untag <name> <id> [id...]
@@ -179,6 +183,7 @@ FOLDER = "+"
 CAL_FOLDER = "cal"
 PRIORITY_CMD = "!"
 DELETE_CMD = "~"
+PURGE_CMD = "~~"
 WORKING_CMD = "`"
 BLOCKED = "⊘"  # ⊘
 SNOOZE = "&"
@@ -1299,6 +1304,49 @@ class Bujo:
                 self._log(sub_id, "undeleted", related_id=entry_id, detail="cascade undelete")
         print(f"{entry_id}: restored")
 
+    def purge(self, ids):
+        for raw_id in ids:
+            if not raw_id.isdigit():
+                print(f"invalid id: {raw_id}")
+                continue
+            entry_id = int(raw_id)
+            row = self._get(entry_id)
+            if not row:
+                print(f"no such id: {entry_id}")
+                continue
+            if entry_id == self.root_id:
+                print("cannot purge root")
+                continue
+            _id, pid, symbol, title = row
+            if symbol != DELETE_CMD:
+                print(f"{entry_id} is not deleted; ~ it first")
+                continue
+            self._purge(entry_id, pid, title)
+        self.conn.commit()
+
+    def _purge(self, entry_id, pid, title):
+        subtree = self._subtree_ids(entry_id)
+        placeholders = ", ".join("?" * len(subtree))
+        self.conn.execute(
+            f"DELETE FROM schedules WHERE task_id IN ({placeholders})", subtree
+        )
+        self.conn.execute(
+            f"UPDATE active_task SET task_id = NULL WHERE task_id IN ({placeholders})",
+            subtree,
+        )
+        self.conn.execute(
+            f"UPDATE active_task SET prev_task_id = NULL WHERE prev_task_id IN ({placeholders})",
+            subtree,
+        )
+        self._log(entry_id, "purged", related_id=pid, detail=title)
+        for sub_id in subtree:
+            if sub_id != entry_id:
+                self._log(sub_id, "purged", related_id=entry_id, detail="cascade purge")
+        self.conn.execute(f"DELETE FROM tasks WHERE id IN ({placeholders})", subtree)
+        if self.current_id in subtree:
+            self.current_id = pid if pid is not None else self.root_id
+        print(f"{entry_id}: purged")
+
     def change_task(self, arg):
         arg = arg.strip()
         if arg == "..":
@@ -1900,6 +1948,21 @@ def main():
             else:
                 app._snapshot(line)
                 app.toggle_delete(tokens[1:])
+        elif head == PURGE_CMD:
+            if len(tokens) < 2:
+                print("usage: ~~ <id> [id...] | ~~ <name>")
+            elif len(tokens) == 2 and not tokens[1].isdigit():
+                row = app._find_folder_any_state(tokens[1])
+                if not row:
+                    print(f"no such folder: {tokens[1]}")
+                elif row[2] != DELETE_CMD:
+                    print(f"{tokens[1]} is not deleted; ~ it first")
+                else:
+                    app._snapshot(line)
+                    app.purge([str(row[0])])
+            else:
+                app._snapshot(line)
+                app.purge(tokens[1:])
         elif line[0] == WORKING_CMD:
             arg = line[1:].strip()
             if not arg:
