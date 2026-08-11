@@ -1532,14 +1532,6 @@ class Bujo:
                 )
             }
             rows = [row for row in rows if row[0] in priority_ids]
-        event_indices = [i for i, row in enumerate(rows) if row[2] == EVENT]
-        if event_indices:
-            events_sorted = sorted(
-                (rows[i] for i in event_indices),
-                key=lambda row: self._event_date(row[3]) or (99, 99),
-            )
-            for idx, event_row in zip(event_indices, events_sorted):
-                rows[idx] = event_row
         if not rows:
             print("(empty)")
             return
@@ -1581,6 +1573,14 @@ class Bujo:
             )
             for idx, folder_row in zip(folder_indices, folders_sorted):
                 rows[idx] = folder_row
+        event_indices = [i for i, row in enumerate(rows) if row[2] == EVENT]
+        if event_indices:
+            events_sorted = sorted(
+                (rows[i] for i in event_indices),
+                key=lambda row: self._event_date(row[3]) or (99, 99),
+            )
+            for idx, event_row in zip(event_indices, events_sorted):
+                rows[idx] = event_row
         width = self._term_width()
         all_folders = all(row[2] == FOLDER for row in rows)
         hide_folder_ids = all_folders and is_default
