@@ -1428,6 +1428,15 @@ class Bujo:
         return (mm, dd)
 
     @staticmethod
+    def _meeting_time(title):
+        time_str = title.split(maxsplit=1)[0]
+        try:
+            hh, mm = (int(part) for part in time_str.split(":"))
+        except ValueError:
+            return None
+        return (hh, mm)
+
+    @staticmethod
     def _folder_date(title):
         parts = title.split(".")
         if len(parts) < 2:
@@ -1581,6 +1590,14 @@ class Bujo:
             )
             for idx, event_row in zip(event_indices, events_sorted):
                 rows[idx] = event_row
+        meeting_indices = [i for i, row in enumerate(rows) if row[2] == MEETING]
+        if meeting_indices:
+            meetings_sorted = sorted(
+                (rows[i] for i in meeting_indices),
+                key=lambda row: self._meeting_time(row[3]) or (99, 99),
+            )
+            for idx, meeting_row in zip(meeting_indices, meetings_sorted):
+                rows[idx] = meeting_row
         width = self._term_width()
         all_folders = all(row[2] == FOLDER for row in rows)
         hide_folder_ids = all_folders and is_default
