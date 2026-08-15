@@ -4,11 +4,11 @@
 Root is a task. Tasks can contain child tasks and notes.
 
 Commands (typed at the prompt):
-    * <text>        create a new task
-    - <text>        create a new note
+    * <text>        create a new task (alias: t <text>)
+    - <text>        create a new note (alias: n <text>)
     @ hh:mm <text>  create a new meeting, time-prefixed; meetings must be
                     filed directly under a folder (the current folder, or
-                    ^<id> where <id> is a folder)
+                    ^<id> where <id> is a folder) (alias: m hh:mm <text>)
                     for *, -, and @: prefix <text> with ^<id> to create
                     under <id> instead of the current task, without cding
                     into it first, e.g. `- ^5 remember X`
@@ -187,6 +187,9 @@ PURGE_CMD = "~~"
 WORKING_CMD = "`"
 BLOCKED = "⊘"  # ⊘
 SNOOZE = "&"
+
+# word-like aliases for the symbol commands; used with a space, e.g. `t buy milk`
+COMMAND_ALIASES = {"t": TASK_OPEN, "n": NOTE, "m": MEETING}
 
 ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 
@@ -1673,6 +1676,11 @@ def main():
 
         tokens = line.split()
         head = tokens[0].lower()
+
+        if head in COMMAND_ALIASES:
+            line = COMMAND_ALIASES[head] + line[len(tokens[0]):]
+            tokens = line.split()
+            head = tokens[0].lower()
 
         override_pid = None
         if line[0] in (TASK_OPEN, NOTE):
