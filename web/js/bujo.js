@@ -1936,8 +1936,8 @@
   }
 
   const HELP_TEXT = `bujo — commands
-tip: check rows in a list, then
-type a bare verb to act on them.
+tip: act on entries by id,
+e.g. x 3  |  ! 3 4
 
 ADD
   * text     task   (t)
@@ -1947,7 +1947,7 @@ ADD
   + name     new folder
   ^id text   add under id
 
-MARK / MOVE (ids or checked)
+MARK / MOVE (by id)
   x done      b blocked
   & snooze    ! priority
   d delete    dd purge
@@ -1964,12 +1964,12 @@ EDIT
   \`id / \`- / \`  working-on
 
 NAVIGATE / VIEW
-  use id|name|..|/  (cd)
-  ls [* - x @ ⊘ & ~]
+  use id|name|..|/  (cd, u)
+  ls [* - x @ ⊘ & ~]  (l)
   ls f | ls date | ls !
   ls ^id | ls id (stats)
   f "text" | f #tag
-  ro mm.dd  roll into folder
+  ro mm.dd  roll (r)
   log  pwd  undo  cls  help`;
 
   return { Bujo, escapeHtml };

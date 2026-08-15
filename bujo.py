@@ -94,7 +94,7 @@ Commands (typed at the prompt):
     use cal         change into the root-level "cal" folder, from anywhere
     use ..          move up to the parent task
     use /           move to the root task
-    cd              alias for use
+    cd, u           alias for use
     + <name>        create a new folder at root, from anywhere; for a daily
                     folder use mm.dd as the name, auto-expanded to mm.dd.dow
     ro mm.dd        roll all open items (* o) from the current folder into
@@ -104,7 +104,7 @@ Commands (typed at the prompt):
                     nested under a task still move with it; < and >
                     items are skipped since they're already relocated by
                     their own move commands; @ meetings never roll over; must
-                    be run from inside a folder
+                    be run from inside a folder (alias: r)
     f "text"        find all entries whose text contains string (case-insensitive);
                     searches the whole journal (global) by default
     f #<tag>        find all entries tagged with <tag> (exact match); also global
@@ -113,6 +113,7 @@ Commands (typed at the prompt):
                     (local); combine with #<tag> too, e.g. f ^ #<tag>
     f ^<id> "text"  restrict a text/tag find to <id>'s subtree instead
     ls              list open tasks, notes, meetings, events & folders
+                    (alias: l)
     ls * - x @ ⊘ & ~  list only the given kinds (space separated, any combo):
                       *  open tasks
                       -  notes
