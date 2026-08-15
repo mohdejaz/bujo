@@ -1536,7 +1536,7 @@
           const coloredId = `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `;
           html = `${coloredId}${escapeHtml(`${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`)}`;
         }
-        lines.push({ plain: plainLine, html, entryId, active: entryId === activeId });
+        lines.push({ plain: plainLine, html, entryId, active: entryId === activeId, done: symbol === TASK_DONE });
         plainLines.push(plainLine);
       }
       if (allFolders) {
@@ -1548,6 +1548,7 @@
           if (selectable) {
             rec.entryId = line.entryId;
             rec.active = line.active;
+            rec.done = line.done;
           }
           this._buf.push(rec);
         }

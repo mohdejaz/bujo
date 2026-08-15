@@ -27,6 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/configure-pages@v5
+      - name: Stamp service-worker cache with commit SHA
+        run: sed -i "s/__BUILD_ID__/${GITHUB_SHA}/" web/sw.js
       - name: Upload web/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

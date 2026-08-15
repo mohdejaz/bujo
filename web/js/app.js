@@ -162,9 +162,12 @@
     for (const e of entries) {
       const txt = e.html != null ? e.html : escapeHtml(e.t);
       if (e.entryId != null) {
+        // completed (x) tasks show a disabled checkbox — no selecting them
+        const doneCls = e.done ? " done" : "";
+        const disabled = e.done ? " disabled" : "";
         rows +=
-          `<label class="erow${e.active ? " active" : ""}">` +
-          `<input type="checkbox" class="ecb" data-id="${e.entryId}">` +
+          `<label class="erow${e.active ? " active" : ""}${doneCls}">` +
+          `<input type="checkbox" class="ecb" data-id="${e.entryId}"${disabled}>` +
           `<span class="etext">${txt}</span></label>`;
       } else {
         rows += `<div class="eline">${txt}</div>`;
@@ -209,6 +212,15 @@
     if (!raw.trim()) return;
     history.push(raw);
     historyIdx = history.length;
+    // app-level command: "ids" prints the ids of the currently selected
+    // (checked) entries — selection is a UI concept, so it never hits the engine.
+    if (raw.trim().toLowerCase() === "ids") {
+      appendUser(raw.trim());
+      const ids = getCheckedIds();
+      if (ids.length) pushMsg("bot", escapeHtml(ids.join(" ")));
+      else appendSystem("no entries selected");
+      return;
+    }
     // echo the full command that actually runs — a bare selection-verb like "x"
     // is expanded to "x 3 4" and shown that way — then run it; list stays as-is.
     const expanded = expandSelection(raw);
