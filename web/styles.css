@@ -97,6 +97,12 @@ body {
   font-size: var(--fs);
   -webkit-overflow-scrolling: touch;
 }
+/* bottom-anchor results: when short (e.g. after cls) they sit just above the
+   command bar instead of at the top; when long, the margin collapses and the
+   log scrolls normally. */
+#output > :first-child {
+  margin-top: auto;
+}
 
 .msg {
   display: flex;
