@@ -146,65 +146,6 @@ body {
   border-radius: 3px;
 }
 
-/* ---- interactive (checkbox) list ---- */
-.msg.list .bubble.listbubble {
-  white-space: normal;
-  padding: 6px 8px;
-  max-width: 100%;
-  width: 100%;
-}
-.erow {
-  display: flex;
-  align-items: baseline;
-  gap: 9px;
-  padding: 4px 4px;
-  border-radius: 6px;
-}
-.erow + .erow {
-  border-top: 1px solid var(--line);
-}
-.erow input.ecb {
-  flex: none;
-  width: 18px;
-  height: 18px;
-  margin: 0;
-  align-self: center;
-  accent-color: var(--accent);
-}
-.erow .etext {
-  flex: 1;
-  min-width: 0;
-  white-space: pre;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.erow.active {
-  background: var(--active-bg);
-  color: var(--active-fg);
-}
-.erow.active .etext {
-  color: inherit;
-}
-/* completed (x) tasks: checkbox disabled, row dimmed — not selectable */
-.erow.done input.ecb {
-  cursor: default;
-  opacity: 0.4;
-}
-.erow.done .etext {
-  color: var(--dim);
-}
-.eline {
-  white-space: pre;
-  color: var(--dim);
-  padding: 3px 4px 1px;
-}
-.msg.stale {
-  opacity: 0.5;
-}
-.msg.stale input.ecb {
-  pointer-events: none;
-}
-
 /* ---- composer ---- */
 #composer {
   background: var(--bar);

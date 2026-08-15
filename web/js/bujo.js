@@ -99,7 +99,6 @@
       this.db = db;
       this.width = 80;
       this.compactIds = false; // app sets true: size id column to fit, save space
-      this.selectable = false; // app sets true: hide ids, tag entry lines for checkboxes
       this._buf = [];
       this.dirty = false;
       this._undoSnapshot = null;
@@ -1513,9 +1512,6 @@
       const idWidth = this.compactIds
         ? Math.max(1, Math.max.apply(null, rows.map((r) => String(r[0]).length)))
         : 4;
-      // selectable mode (app/checkbox UI): drop the id column from entry rows and
-      // tag each buffer line with its entryId so the app can render a checkbox.
-      const selectable = this.selectable && !allFolders;
       const lines = [];
       const plainLines = [];
       for (const [entryId, , symbol, title] of rows) {
@@ -1526,7 +1522,7 @@
         const tagsVisibleLen = tags.reduce((n, t) => n + t.length + 2, 0);
         const pmark = showPmark ? ljust(hasPriority ? PRIORITY_CMD : "", 1) : "";
         const dateStr = showDate ? `${this._datePrefix(dateMap[entryId])} ` : "";
-        const idStr = hideFolderIds || selectable ? "" : `${rjust(entryId, idWidth)} `;
+        const idStr = hideFolderIds ? "" : `${rjust(entryId, idWidth)} `;
         const prefix = `${idStr}${pmark}${symbol} ${dateStr}`;
         const available = cellWidth - prefix.length - marker.length - tagsVisibleLen;
         const displayTitle = this._truncate(title, available);
@@ -1536,7 +1532,7 @@
           const coloredId = `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `;
           html = `${coloredId}${escapeHtml(`${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`)}`;
         }
-        lines.push({ plain: plainLine, html, entryId, active: entryId === activeId, done: symbol === TASK_DONE });
+        lines.push({ plain: plainLine, html });
         plainLines.push(plainLine);
       }
       if (allFolders) {
@@ -1545,11 +1541,6 @@
         for (const line of lines) {
           const rec = { t: line.plain };
           if (line.html) rec.html = line.html;
-          if (selectable) {
-            rec.entryId = line.entryId;
-            rec.active = line.active;
-            rec.done = line.done;
-          }
           this._buf.push(rec);
         }
       }
