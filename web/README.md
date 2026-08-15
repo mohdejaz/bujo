@@ -30,8 +30,19 @@ reference for behavior (verified by `harness/parity.py`).
 > **Note:** over plain-HTTP LAN, iOS won't register the service worker, so
 > *Add to Home Screen* / full offline are deferred. Everything is built
 > PWA-ready (`manifest.webmanifest`, local `vendor/sql.js`, `sw.js`), so hosting
-> this folder on HTTPS later (e.g. GitHub Pages) enables install + offline with
-> no code changes.
+> this folder on HTTPS enables install + offline with no code changes.
+
+## Deploy to GitHub Pages
+
+`.github/workflows/pages.yml` publishes this `web/` folder as the site root, so
+the app lives at `https://<user>.github.io/<repo>/` (HTTPS → install + offline
+work). One-time setup:
+
+1. In the GitHub repo, go to **Settings → Pages** and set **Source** to
+   **GitHub Actions**.
+2. Push to `main` (any change under `web/`) — the workflow builds and deploys.
+   You can also trigger it manually from the **Actions** tab
+   (*Deploy web PWA to GitHub Pages* → *Run workflow*).
 
 ## Import / export
 
