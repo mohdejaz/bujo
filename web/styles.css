@@ -185,6 +185,14 @@ body {
 .erow.active .etext {
   color: inherit;
 }
+/* completed (x) tasks: checkbox disabled, row dimmed — not selectable */
+.erow.done input.ecb {
+  cursor: default;
+  opacity: 0.4;
+}
+.erow.done .etext {
+  color: var(--dim);
+}
 .eline {
   white-space: pre;
   color: var(--dim);
