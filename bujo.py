@@ -189,7 +189,7 @@ BLOCKED = "⊘"  # ⊘
 SNOOZE = "&"
 
 # word-like aliases for the symbol commands; used with a space, e.g. `t buy milk`
-COMMAND_ALIASES = {"t": TASK_OPEN, "n": NOTE, "m": MEETING}
+COMMAND_ALIASES = {"t": TASK_OPEN, "n": NOTE, "m": MEETING, "u": "use", "l": "ls", "r": "ro"}
 
 ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 

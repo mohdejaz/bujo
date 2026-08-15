@@ -32,7 +32,7 @@
   const BLOCKED = "⊘"; // ⊘
   const SNOOZE = "&";
 
-  const COMMAND_ALIASES = { t: TASK_OPEN, n: NOTE, m: MEETING, d: DELETE_CMD, dd: PURGE_CMD };
+  const COMMAND_ALIASES = { t: TASK_OPEN, n: NOTE, m: MEETING, d: DELETE_CMD, dd: PURGE_CMD, u: "use", l: "ls", r: "ro" };
   const ROLLOVER_SYMBOLS = new Set([TASK_OPEN, BLOCKED, EVENT, SNOOZE]);
   const ROOT_BLOCKED_HEADS = new Set([EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b", "cp"]);
   const ROOT_BLOCKED_PREFIXES = new Set([TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE]);
