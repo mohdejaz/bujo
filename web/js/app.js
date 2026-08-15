@@ -23,41 +23,6 @@
   let charWidth = 8;
   const history = [];
   let historyIdx = -1;
-  let activeListEl = null; // the newest interactive list (its checkboxes = selection)
-
-  // verbs whose ids come straight after the verb
-  const ID_VERBS = new Set(["x", "b", "&", "!", ">", "top", "bot", "d", "dd", "~", "~~"]);
-  // verbs with one leading arg (folder / tag name) before the ids
-  const ARG_VERBS = { "<": 1, tag: 1, untag: 1 };
-
-  function getCheckedIds() {
-    if (!activeListEl || !activeListEl.querySelectorAll) return [];
-    return Array.from(activeListEl.querySelectorAll("input.ecb:checked")).map((cb) =>
-      cb.getAttribute("data-id")
-    );
-  }
-
-  // If a bare selection-verb is typed while boxes are checked, expand it to
-  // "verb [arg] <checked ids>". Explicit ids or non-selection verbs pass through.
-  function expandSelection(line) {
-    const checked = getCheckedIds();
-    if (!checked.length) return line;
-    const toks = line.trim().split(/\s+/);
-    const head = toks[0].toLowerCase();
-    const hasDigit = (arr) => arr.some((t) => /^\d+$/.test(t));
-    if (ID_VERBS.has(head)) {
-      if (hasDigit(toks.slice(1))) return line;
-      return head + " " + checked.join(" ");
-    }
-    if (head in ARG_VERBS) {
-      const need = ARG_VERBS[head];
-      const args = toks.slice(1, 1 + need);
-      if (args.length < need) return line;
-      if (hasDigit(toks.slice(1 + need))) return line;
-      return [head, ...args, ...checked].join(" ");
-    }
-    return line;
-  }
 
   // ---- font size (persisted) ----
   const FONT_MIN = 11;
@@ -146,40 +111,10 @@
       if (okOnEmpty !== false) pushMsg("bot empty", "ok");
       return;
     }
-    if (entries.some((e) => e.entryId != null)) {
-      appendList(entries);
-      return;
-    }
     const inner = entries
       .map((entry) => (entry.html != null ? entry.html : escapeHtml(entry.t)))
       .join("\n");
     pushMsg("bot", inner);
-  }
-
-  // render an interactive list: a checkbox in front of each entry (no id)
-  function appendList(entries) {
-    let rows = "";
-    for (const e of entries) {
-      const txt = e.html != null ? e.html : escapeHtml(e.t);
-      if (e.entryId != null) {
-        // completed (x) tasks show a disabled checkbox — no selecting them
-        const doneCls = e.done ? " done" : "";
-        const disabled = e.done ? " disabled" : "";
-        rows +=
-          `<label class="erow${e.active ? " active" : ""}${doneCls}">` +
-          `<input type="checkbox" class="ecb" data-id="${e.entryId}"${disabled}>` +
-          `<span class="etext">${txt}</span></label>`;
-      } else {
-        rows += `<div class="eline">${txt}</div>`;
-      }
-    }
-    const msg = document.createElement("div");
-    msg.className = "msg bot list";
-    msg.innerHTML = `<div class="bubble listbubble">${rows}</div>`;
-    if (activeListEl) activeListEl.className += " stale";
-    activeListEl = msg;
-    outputEl.appendChild(msg);
-    outputEl.scrollTop = outputEl.scrollHeight;
   }
 
   async function persist() {
@@ -195,7 +130,6 @@
     const dirty = app.dirty;
     if (app._clearScreen) {
       outputEl.innerHTML = "";
-      activeListEl = null;
       app._clearScreen = false;
     } else {
       appendBot(buf, okOnEmpty);
@@ -212,20 +146,9 @@
     if (!raw.trim()) return;
     history.push(raw);
     historyIdx = history.length;
-    // app-level command: "ids" prints the ids of the currently selected
-    // (checked) entries — selection is a UI concept, so it never hits the engine.
-    if (raw.trim().toLowerCase() === "ids") {
-      appendUser(raw.trim());
-      const ids = getCheckedIds();
-      if (ids.length) pushMsg("bot", escapeHtml(ids.join(" ")));
-      else appendSystem("no entries selected");
-      return;
-    }
-    // echo the full command that actually runs — a bare selection-verb like "x"
-    // is expanded to "x 3 4" and shown that way — then run it; list stays as-is.
-    const expanded = expandSelection(raw);
-    appendUser(expanded);
-    await runEngine(expanded);
+    const line = raw.trim();
+    appendUser(line);
+    await runEngine(line);
   });
 
   // up/down command history (hardware keyboards / iPad)
@@ -271,7 +194,6 @@
       const newDb = new SQL.Database(bytes);
       const newApp = new Bujo(newDb);
       newApp.compactIds = true;
-      newApp.selectable = true;
       if (db) db.close();
       db = newDb;
       app = newApp;
@@ -294,7 +216,6 @@
     db = bytes ? new SQL.Database(bytes) : new SQL.Database();
     app = new Bujo(db);
     app.compactIds = true;
-    app.selectable = true;
     updateWidth();
     if (!bytes) await persist(); // seed empty db
     appendSystem("bujo — type 'help' for commands");

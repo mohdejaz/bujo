@@ -17,9 +17,10 @@ const BujoStorage = (() => {
 })();
 
 function mkEl() {
-  const el = {
+  return {
     className: "",
     textContent: "",
+    innerHTML: "",
     style: { cssText: "" },
     value: "",
     files: [],
@@ -28,8 +29,6 @@ function mkEl() {
     scrollTop: 0,
     scrollHeight: 0,
     _handlers: {},
-    _html: "",
-    _checkboxes: [],
     appendChild(c) {
       this.children.push(c);
     },
@@ -43,30 +42,7 @@ function mkEl() {
     getBoundingClientRect() {
       return { width: (this.textContent || "").length * 8 };
     },
-    querySelectorAll(sel) {
-      let cbs = this._checkboxes;
-      if (/:checked/.test(sel)) cbs = cbs.filter((c) => c.checked);
-      return cbs;
-    },
   };
-  // parse data-id="N" out of assigned innerHTML into fake checkbox handles
-  Object.defineProperty(el, "innerHTML", {
-    get() {
-      return this._html;
-    },
-    set(v) {
-      this._html = v;
-      const ids = [];
-      const re = /data-id="(\d+)"/g;
-      let m;
-      while ((m = re.exec(v))) ids.push(m[1]);
-      this._checkboxes = ids.map((id) => ({
-        checked: false,
-        getAttribute: (k) => (k === "data-id" ? id : null),
-      }));
-    },
-  });
-  return el;
 }
 
 const els = {};
@@ -109,49 +85,42 @@ setTimeout(async () => {
     els.cmd.value = cmd;
     await submit({ preventDefault() {} });
   }
+  const last = () => els.output.children[els.output.children.length - 1].innerHTML;
+
   await type("+ 08.16.sun");
   await type("use 08.16.sun");
   await type("* buy milk");
   await type("* call sam");
-  await type("`3");
   await type("ls");
 
-  const last = () => els.output.children[els.output.children.length - 1].innerHTML;
+  const listHtml = last();
+  console.log("--- ls output ---");
+  console.log(listHtml);
 
-  // check both rows, then a bare verb that prints messages: should apply to the
-  // checked entries, SHOW the messages, and NOT refresh the list.
-  const listMsg = els.output.children[els.output.children.length - 1];
-  listMsg._checkboxes.forEach((cb) => (cb.checked = true));
-  await type("!");
-  const afterPri = last();
-  const showedMessage = /priority set/.test(afterPri);
-  const didNotRefresh = !afterPri.includes('class="ecb"');
-  // the echoed user command should be the expanded form "! 3 4", not bare "!"
-  const echoedFull = els.output.children.some((c) => c.innerHTML.includes("! 3 4"));
-  console.log("after checking all + '!':", afterPri);
-  console.log("echoed full command '! 3 4':", echoedFull);
+  // ids are shown inline now (no checkboxes) — grab the id of the "buy milk" row
+  const milkLine = listHtml.split("\n").find((l) => /buy milk/.test(l)) || "";
+  const buyMilkId = (milkLine.match(/(\d+)/) || [])[1];
+  const idsInline = /buy milk/.test(listHtml) && !!buyMilkId;
+  console.log("buy milk id:", buyMilkId);
 
-  // selection persists (no refresh) -> a second verb hits the same entries
-  await type("x");
-  await type("ls"); // manual refresh only
-  const applied = last().includes("(empty)");
-  console.log("manual ls after 'x':", last());
-  const selectionWorked = showedMessage && didNotRefresh && applied && echoedFull;
-  console.log("messages shown:", showedMessage, "| no auto-refresh:", didNotRefresh, "| applied:", applied);
+  // a direct id command should apply and persist; done tasks drop from default ls
+  await type("x " + buyMilkId);
+  await type("ls");
+  const afterHtml = last();
+  console.log("ls after 'x " + buyMilkId + "':", afterHtml);
+  const directCmdApplied = !!buyMilkId && !/buy milk/.test(afterHtml);
 
   const html = els.output.children.map((c) => c.innerHTML);
-  console.log("--- last rendered message ---");
-  console.log(html[html.length - 1]);
-
+  const noCheckboxes = !html.some((l) => l.includes('class="ecb"'));
   const persisted = BujoStorage._get();
-  const hasCheckbox = html.some((l) => l.includes('class="ecb"'));
-  const hasActiveRow = html.some((l) => l.includes("erow active"));
+
   console.log("\npersisted bytes:", persisted ? persisted.length : "NONE");
-  console.log("checkbox rows rendered:", hasCheckbox);
-  console.log("active row highlighted:", hasActiveRow);
+  console.log("ids shown inline:", idsInline);
+  console.log("no checkboxes rendered:", noCheckboxes);
+  console.log("direct id command applied:", directCmdApplied);
   console.log("prompt now:", els.prompt.textContent);
 
-  if (!persisted || !hasCheckbox || !selectionWorked) {
+  if (!persisted || !idsInline || !noCheckboxes || !directCmdApplied) {
     console.error("SMOKE FAIL");
     process.exit(1);
   }
