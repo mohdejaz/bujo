@@ -94,6 +94,7 @@ Commands (typed at the prompt):
     use cal         change into the root-level "cal" folder, from anywhere
     use ..          move up to the parent task
     use /           move to the root task
+    use             (no args) show the full path to the current folder/entry
     cd, u           alias for use
     + <name>        create a new folder at root, from anywhere; for a daily
                     folder use mm.dd as the name, auto-expanded to mm.dd.dow
@@ -136,10 +137,9 @@ Commands (typed at the prompt):
     log             show the last 20 action log entries, most recent first
     log <id> [id...]
                     show all action log entries for id(s), most recent first
-    pwd             show the path to the current task
     undo            undo the last mutating command
     cls / c         clear the screen
-    help            show this help
+    help / h        show this help
     quit / exit     leave bujo
 """
 
@@ -1700,10 +1700,8 @@ def main():
 
         if head in ("quit", "exit", "q"):
             break
-        elif head == "help":
+        elif head in ("help", "h"):
             print_help()
-        elif head == "pwd":
-            print(app.path())
         elif head == "undo":
             app.undo()
         elif head in ("cls", "c"):
@@ -1751,7 +1749,10 @@ def main():
                     else:
                         app.list_children(args, show_date=show_date, priority_only=priority_only, target_id=target_id)
         elif head in ("use", "cd"):
-            app.change_task(tokens[1] if len(tokens) >= 2 else "..")
+            if len(tokens) >= 2:
+                app.change_task(tokens[1])
+            else:
+                print(app.path() or "/")
         elif head in ("tag", "untag"):
             if len(tokens) < 3 or not TAG_RE.match(tokens[1]):
                 print(f"usage: {head} <name> <id> [id...]")

@@ -53,6 +53,6 @@ ls @
 log 3
 undo
 ls @
-pwd
+use
 unschd 3
 schd 3
