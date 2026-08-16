@@ -143,7 +143,6 @@
     e.preventDefault();
     const raw = cmdEl.value;
     cmdEl.value = "";
-    setAutocorrect(false); // back to command mode for the next line
     if (!raw.trim()) return;
     history.push(raw);
     historyIdx = history.length;
@@ -151,53 +150,6 @@
     appendUser(line);
     await runEngine(line);
   });
-
-  // ---- autocorrect only while typing free text (task/note/meeting/find/edit) ----
-  // The command bar mixes terse commands with prose. Keep autocorrect off for the
-  // command word (so `cls`, `ro`, ids, tags aren't "corrected") and turn it on once
-  // the caret moves into the free-text argument.
-  //
-  // iOS Safari reads autocorrect/spellcheck only when the field is focused, so a
-  // mid-line attribute change won't apply until we blur+refocus. We do that only on
-  // the transition (at most once per line) and restore the caret to avoid churn.
-  const ALIAS_TO_HEAD = { t: "*", n: "-", m: "@" }; // free-text aliases -> canonical head
-  const TEXT_START = { "*": 1, "-": 1, "@": 1, f: 1, e: 2 }; // token index where prose begins
-  let autocorrectOn = false;
-
-  function autocorrectDesired(value) {
-    const v = value.replace(/^\s+/, "");
-    if (!v) return false;
-    // symbol-attached task/note, e.g. "*buy milk" / "-idea"
-    if ((v[0] === "*" || v[0] === "-") && !/^\s/.test(v.slice(1))) {
-      return v.slice(1).trim().length > 0;
-    }
-    const toks = v.split(/\s+/);
-    let head = toks[0].toLowerCase();
-    head = ALIAS_TO_HEAD[head] || head;
-    const start = TEXT_START[head];
-    if (start === undefined) return false;
-    const caretTokenIdx = /\s$/.test(value) ? toks.length : toks.length - 1;
-    return caretTokenIdx >= start;
-  }
-
-  function setAutocorrect(on) {
-    if (on === autocorrectOn) return;
-    autocorrectOn = on;
-    cmdEl.setAttribute("autocorrect", on ? "on" : "off");
-    cmdEl.setAttribute("autocapitalize", on ? "sentences" : "none");
-    cmdEl.setAttribute("spellcheck", on ? "true" : "false");
-    if (document.activeElement === cmdEl) {
-      const s = cmdEl.selectionStart;
-      const e = cmdEl.selectionEnd;
-      cmdEl.blur();
-      cmdEl.focus();
-      try {
-        cmdEl.setSelectionRange(s, e);
-      } catch (_) {}
-    }
-  }
-
-  cmdEl.addEventListener("input", () => setAutocorrect(autocorrectDesired(cmdEl.value)));
 
   // up/down command history (hardware keyboards / iPad)
   cmdEl.addEventListener("keydown", (e) => {
