@@ -132,7 +132,7 @@ Commands (typed at the prompt):
                     switching into it; takes the same filters as plain ls,
                     e.g. ls ^5, ls ^5 f, ls ^5 - date
     cls / c         clear the screen
-    help / h        show this help
+    help / h / ?    show this help
     quit / exit     leave bujo
 """
 
@@ -1704,7 +1704,7 @@ def main():
 
         if head in ("quit", "exit", "q"):
             break
-        elif head in ("help", "h"):
+        elif head in ("help", "h", "?"):
             print_help()
         elif head in ("cls", "c"):
             os.system("cls" if os.name == "nt" else "clear")

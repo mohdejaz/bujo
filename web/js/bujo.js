@@ -1605,7 +1605,7 @@
     _dispatch(line, tokens, head) {
       if (head === "quit" || head === "exit" || head === "q") {
         this._p("(quit is a no-op in the web app)");
-      } else if (head === "help" || head === "h") {
+      } else if (head === "help" || head === "h" || head === "?") {
         this._printHelp();
       } else if (head === "cls" || head === "c") {
         this._buf = [];
@@ -1950,7 +1950,7 @@ NAVIGATE / VIEW
   ls ^id | ls id (stats)
   f "text" | f #tag
   ro mm.dd  roll (r)
-  cls (c)  help (h)`;
+  cls (c)  help (h, ?)`;
 
   return { Bujo, escapeHtml };
 });
