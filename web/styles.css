@@ -158,14 +158,6 @@ body {
   border-top: 1px solid var(--line);
   padding: 6px 10px calc(env(safe-area-inset-bottom) + 8px);
 }
-#prompt {
-  color: var(--dim);
-  font-size: max(11px, calc(var(--fs) - 2px)); /* scales with A-/A+ */
-  padding: 2px 6px 5px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 #promptForm {
   display: flex;
   align-items: flex-end;

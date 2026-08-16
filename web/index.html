@@ -19,6 +19,7 @@
     <header id="bar">
       <span id="title">bujo</span>
       <span id="tools">
+        <button id="helpBtn" title="Show help" aria-label="Show help">?</button>
         <button id="themeBtn" title="Toggle light/dark" aria-label="Toggle light/dark">☀</button>
         <button id="fontDown" title="Smaller text" aria-label="Smaller text">A−</button>
         <button id="fontUp" title="Larger text" aria-label="Larger text">A+</button>
@@ -31,7 +32,6 @@
     <main id="output" aria-live="polite"></main>
 
     <div id="composer">
-      <div id="prompt">(root)&nbsp;»</div>
       <form id="promptForm" autocomplete="off">
         <input
           id="cmd"

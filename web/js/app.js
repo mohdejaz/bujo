@@ -9,13 +9,13 @@
   const outputEl = document.getElementById("output");
   const formEl = document.getElementById("promptForm");
   const cmdEl = document.getElementById("cmd");
-  const promptEl = document.getElementById("prompt");
   const importBtn = document.getElementById("importBtn");
   const exportBtn = document.getElementById("exportBtn");
   const fileInput = document.getElementById("fileInput");
   const fontDown = document.getElementById("fontDown");
   const fontUp = document.getElementById("fontUp");
   const themeBtn = document.getElementById("themeBtn");
+  const helpBtn = document.getElementById("helpBtn");
 
   let SQL = null;
   let db = null;
@@ -74,15 +74,6 @@
     if (app) app.width = cols;
   }
 
-  // ---- prompt / context line ----
-  function activeSuffix() {
-    const active = app._active();
-    return active ? ` » ${active[0]}` : "";
-  }
-  function refreshPrompt() {
-    promptEl.textContent = `(${app.path()})${activeSuffix()} »`;
-  }
-
   // ---- chat rendering ----
   function pushMsg(cls, innerHtml) {
     const msg = document.createElement("div");
@@ -135,7 +126,6 @@
       appendBot(buf, okOnEmpty);
     }
     if (dirty) await persist();
-    refreshPrompt();
     return dirty;
   }
 
@@ -174,6 +164,12 @@
   fontDown.addEventListener("click", () => applyFontSize(fontSize - 1));
   fontUp.addEventListener("click", () => applyFontSize(fontSize + 1));
 
+  helpBtn.addEventListener("click", async () => {
+    appendUser("help");
+    await runEngine("help");
+    cmdEl.focus();
+  });
+
   exportBtn.addEventListener("click", () => {
     const blob = new Blob([db.export()], { type: "application/octet-stream" });
     const url = URL.createObjectURL(blob);
@@ -201,7 +197,6 @@
       await persist();
       outputEl.innerHTML = "";
       appendSystem(`imported ${file.name} (${bytes.length} bytes)`);
-      refreshPrompt();
     } catch (e) {
       appendSystem("import failed: " + e.message);
     }
@@ -219,7 +214,6 @@
     updateWidth();
     if (!bytes) await persist(); // seed empty db
     appendSystem("bujo — type 'help' for commands");
-    refreshPrompt();
     cmdEl.focus();
 
     if ("serviceWorker" in navigator && location.protocol === "https:") {

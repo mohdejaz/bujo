@@ -1605,10 +1605,8 @@
     _dispatch(line, tokens, head) {
       if (head === "quit" || head === "exit" || head === "q") {
         this._p("(quit is a no-op in the web app)");
-      } else if (head === "help") {
+      } else if (head === "help" || head === "h") {
         this._printHelp();
-      } else if (head === "pwd") {
-        this._p(this.path());
       } else if (head === "undo") {
         this.undo();
       } else if (head === "cls" || head === "c") {
@@ -1617,7 +1615,8 @@
       } else if (head === "ls") {
         this._cmdLs(tokens);
       } else if (head === "use" || head === "cd") {
-        this.changeTask(tokens.length >= 2 ? tokens[1] : "..");
+        if (tokens.length >= 2) this.changeTask(tokens[1]);
+        else this._p(this.path() || "/");
       } else if (head === "tag" || head === "untag") {
         if (tokens.length < 3 || !TAG_RE.test(tokens[1])) this._p(`usage: ${head} <name> <id> [id...]`);
         else {
@@ -1969,7 +1968,7 @@ NAVIGATE / VIEW
   ls ^id | ls id (stats)
   f "text" | f #tag
   ro mm.dd  roll (r)
-  log  pwd  undo  cls (c)  help`;
+  log  undo  cls (c)  help (h)`;
 
   return { Bujo, escapeHtml };
 });
