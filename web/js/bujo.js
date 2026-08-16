@@ -32,9 +32,9 @@
   const BLOCKED = "⊘"; // ⊘
   const SNOOZE = "&";
 
-  const COMMAND_ALIASES = { t: TASK_OPEN, n: NOTE, m: MEETING, d: DELETE_CMD, dd: PURGE_CMD, u: "use", l: "ls", r: "ro" };
+  const COMMAND_ALIASES = { t: TASK_OPEN, n: NOTE, m: MEETING, d: DELETE_CMD, dd: PURGE_CMD, u: "use", l: "ls", r: "ro", g: "tag", ug: "untag", s: "schd", us: "unschd" };
   const ROLLOVER_SYMBOLS = new Set([TASK_OPEN, BLOCKED, EVENT, SNOOZE]);
-  const ROOT_BLOCKED_HEADS = new Set([EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b", "cp"]);
+  const ROOT_BLOCKED_HEADS = new Set([EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"]);
   const ROOT_BLOCKED_PREFIXES = new Set([TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE]);
 
   const DATE_RE = /^\d{1,2}\.\d{1,2}$/;
@@ -1607,8 +1607,6 @@
         this._p("(quit is a no-op in the web app)");
       } else if (head === "help" || head === "h") {
         this._printHelp();
-      } else if (head === "undo") {
-        this.undo();
       } else if (head === "cls" || head === "c") {
         this._buf = [];
         this._clearScreen = true;
@@ -1626,10 +1624,6 @@
         }
       } else if (head === "f") {
         this._cmdFind(line);
-      } else if (head === "log") {
-        const args = tokens.slice(1);
-        if (args.length && !args.every(isDigits)) this._p("usage: log | log <id> [id...]");
-        else this.showLog(args.length ? args : null);
       } else if (head === "ro") {
         if (tokens.length !== 2 || !(DATE_RE.test(tokens[1]) || DATE_DOW_RE.test(tokens[1])))
           this._p("usage: ro mm.dd | ro mm.dd.dow");
@@ -1725,17 +1719,6 @@
         else {
           this._snapshot(line);
           this.editText(tokens[1], tokens.slice(2).join(" "));
-        }
-      } else if (head === "cp") {
-        if (tokens.length < 3 || !isDigits(tokens[1])) this._p("usage: cp <id> <folder> [folder...]");
-        else {
-          const names = tokens.slice(2);
-          const bad = names.filter((n) => !FOLDER_NAME_RE.test(n) || isDigits(n));
-          if (bad.length) this._p(`invalid folder name(s): ${bad.join(", ")}`);
-          else {
-            this._snapshot(line);
-            this.duplicateEntry(tokens[1], names);
-          }
         }
       } else if (head === "schd") {
         this._cmdSchd(tokens, line);
@@ -1955,10 +1938,9 @@ MARK / MOVE (by id)
 
 EDIT
   e id text   edit / rename
-  cp id name… copy to folders
-  tag/untag name id
-  schd dow|dom id  recur
-  unschd id   stop recurring
+  tag/untag name id  (g, ug)
+  schd dow|dom id  recur (s)
+  unschd id   stop recurring (us)
   \`id / \`- / \`  working-on
 
 NAVIGATE / VIEW
@@ -1968,7 +1950,7 @@ NAVIGATE / VIEW
   ls ^id | ls id (stats)
   f "text" | f #tag
   ro mm.dd  roll (r)
-  log  undo  cls (c)  help (h)`;
+  cls (c)  help (h)`;
 
   return { Bujo, escapeHtml };
 });

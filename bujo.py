@@ -18,11 +18,6 @@ Commands (typed at the prompt):
                     prefix is kept and only the text after it is replaced
     e <name> <new name>
                     rename a root-level folder, from anywhere
-    cp <id> <folder> [folder...]
-                    duplicate a task/note/meeting into one or more
-                    root-level folders (created if needed) as fresh open
-                    copies; tasks/notes with children can't be duplicated;
-                    a bare mm.dd folder name is auto-expanded to mm.dd.dow
     schd <dow [dow...]> <id>
                     recur <id> on the given weekday(s) (mon tue wed thu fri
                     sat sun); works from anywhere
@@ -37,6 +32,7 @@ Commands (typed at the prompt):
                     children, folders, events, or deleted entries can't be
                     scheduled
     unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
+    s, us           aliases for schd, unschd
     x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
     b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                     show in ls and still roll over with ro
@@ -78,7 +74,7 @@ Commands (typed at the prompt):
     ~ <name>        toggle delete on a root-level folder (and its children),
                     from anywhere
     ~~ <id> [id...] permanently purge already-deleted (~) entries and their
-                    children; irreversible except via undo run right after;
+                    children; irreversible;
                     refuses ids that aren't currently marked ~
     ~~ <name>       purge an already-deleted root-level folder, from anywhere
     tag <name> <id> [id...]
@@ -87,6 +83,7 @@ Commands (typed at the prompt):
                     remove <name> from entries; works from anywhere
                     new children inherit their parent's tags by default
                     at creation time (untag afterward if unwanted)
+    g, ug           aliases for tag, untag
     use <id>        change into a child task, note, event, or meeting
     use <name>      change into a root-level folder, to create sub tasks,
                     notes, events, meetings etc. under it; <name> may be
@@ -134,10 +131,6 @@ Commands (typed at the prompt):
                     list <id>'s children (its notes, subtasks, etc.) without
                     switching into it; takes the same filters as plain ls,
                     e.g. ls ^5, ls ^5 f, ls ^5 - date
-    log             show the last 20 action log entries, most recent first
-    log <id> [id...]
-                    show all action log entries for id(s), most recent first
-    undo            undo the last mutating command
     cls / c         clear the screen
     help / h        show this help
     quit / exit     leave bujo
@@ -190,11 +183,22 @@ BLOCKED = "⊘"  # ⊘
 SNOOZE = "&"
 
 # word-like aliases for the symbol commands; used with a space, e.g. `t buy milk`
-COMMAND_ALIASES = {"t": TASK_OPEN, "n": NOTE, "m": MEETING, "u": "use", "l": "ls", "r": "ro"}
+COMMAND_ALIASES = {
+    "t": TASK_OPEN,
+    "n": NOTE,
+    "m": MEETING,
+    "u": "use",
+    "l": "ls",
+    "r": "ro",
+    "g": "tag",
+    "ug": "untag",
+    "s": "schd",
+    "us": "unschd",
+}
 
 ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 
-ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b", "cp"}
+ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"}
 ROOT_BLOCKED_PREFIXES = {TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE}
 
 DATE_RE = re.compile(r"^\d{1,2}\.\d{1,2}$")
@@ -1702,8 +1706,6 @@ def main():
             break
         elif head in ("help", "h"):
             print_help()
-        elif head == "undo":
-            app.undo()
         elif head in ("cls", "c"):
             os.system("cls" if os.name == "nt" else "clear")
         elif head == "ls":
@@ -1780,12 +1782,6 @@ def main():
                 app.find_by_tag(query[1:], target_id)
             else:
                 app.find(query, target_id)
-        elif head == "log":
-            args = tokens[1:]
-            if args and not all(a.isdigit() for a in args):
-                print("usage: log | log <id> [id...]")
-            else:
-                app.show_log(args if args else None)
         elif head == "ro":
             if len(tokens) != 2 or not (DATE_RE.match(tokens[1]) or DATE_DOW_RE.match(tokens[1])):
                 print("usage: ro mm.dd | ro mm.dd.dow")
@@ -1882,17 +1878,6 @@ def main():
             else:
                 app._snapshot(line)
                 app.edit_text(tokens[1], " ".join(tokens[2:]))
-        elif head == "cp":
-            if len(tokens) < 3 or not tokens[1].isdigit():
-                print("usage: cp <id> <folder> [folder...]")
-            else:
-                names = tokens[2:]
-                bad = [n for n in names if not FOLDER_NAME_RE.match(n) or n.isdigit()]
-                if bad:
-                    print(f"invalid folder name(s): {', '.join(bad)}")
-                else:
-                    app._snapshot(line)
-                    app.duplicate_entry(tokens[1], names)
         elif head == "schd":
             usage = "usage: schd <dow [dow...]> <id> | schd <dom [dom...]> <id> | schd <id>"
             if len(tokens) == 2 and tokens[1].isdigit():

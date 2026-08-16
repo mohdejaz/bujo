@@ -23,14 +23,14 @@ ls
 `-
 `
 tag work 3 4
-tag home 5
+g home 5
+ug work 4
 ls 3
 f "proposal"
 f #work
 f ^ "sam"
-cp 3 07.21.mon
 schd 15 3
-schd wed 4
+s wed 4
 schd 3
 + 09.15
 ls f
@@ -50,9 +50,7 @@ ls
 ~ 6
 ~~ 6
 ls @
-log 3
-undo
 ls @
 use
-unschd 3
+us 3
 schd 3
