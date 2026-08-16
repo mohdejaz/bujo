@@ -1611,14 +1611,13 @@
         this._p(this.path());
       } else if (head === "undo") {
         this.undo();
-      } else if (head === "cls") {
+      } else if (head === "cls" || head === "c") {
         this._buf = [];
         this._clearScreen = true;
       } else if (head === "ls") {
         this._cmdLs(tokens);
       } else if (head === "use" || head === "cd") {
-        if (tokens.length < 2) this._p("usage: use <id> | use <name> | use .. | use /");
-        else this.changeTask(tokens[1]);
+        this.changeTask(tokens.length >= 2 ? tokens[1] : "..");
       } else if (head === "tag" || head === "untag") {
         if (tokens.length < 3 || !TAG_RE.test(tokens[1])) this._p(`usage: ${head} <name> <id> [id...]`);
         else {
@@ -1970,7 +1969,7 @@ NAVIGATE / VIEW
   ls ^id | ls id (stats)
   f "text" | f #tag
   ro mm.dd  roll (r)
-  log  pwd  undo  cls  help`;
+  log  pwd  undo  cls (c)  help`;
 
   return { Bujo, escapeHtml };
 });

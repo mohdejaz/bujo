@@ -138,7 +138,7 @@ Commands (typed at the prompt):
                     show all action log entries for id(s), most recent first
     pwd             show the path to the current task
     undo            undo the last mutating command
-    cls             clear the screen
+    cls / c         clear the screen
     help            show this help
     quit / exit     leave bujo
 """
@@ -1706,7 +1706,7 @@ def main():
             print(app.path())
         elif head == "undo":
             app.undo()
-        elif head == "cls":
+        elif head in ("cls", "c"):
             os.system("cls" if os.name == "nt" else "clear")
         elif head == "ls":
             args = tokens[1:]
@@ -1751,10 +1751,7 @@ def main():
                     else:
                         app.list_children(args, show_date=show_date, priority_only=priority_only, target_id=target_id)
         elif head in ("use", "cd"):
-            if len(tokens) < 2:
-                print("usage: use <id> | use <name> | use .. | use /")
-            else:
-                app.change_task(tokens[1])
+            app.change_task(tokens[1] if len(tokens) >= 2 else "..")
         elif head in ("tag", "untag"):
             if len(tokens) < 3 or not TAG_RE.match(tokens[1]):
                 print(f"usage: {head} <name> <id> [id...]")
