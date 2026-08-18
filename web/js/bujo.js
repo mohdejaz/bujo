@@ -624,25 +624,46 @@
       let skipped = 0;
       const srcIdToLocalId = { [srcApp.root_id]: this.root_id };
       const newlyAddedSrcIds = new Set();
-      for (const [id, pid, uuid, symbol, title, creTs, updTs, priority, prevSymbol] of srcTasks) {
-        if (id === srcApp.root_id) continue;
-        if (uuidToLocalId[uuid] != null) {
-          skipped += 1;
-          srcIdToLocalId[id] = uuidToLocalId[uuid];
-          continue;
+
+      // insert in dependency order (parent before child) via repeated sweeps,
+      // rather than assuming `ORDER BY id` puts parents first: some older
+      // dbs have had ids renumbered so a task's pid can be numerically
+      // greater than its own id.
+      let pending = srcTasks.filter((row) => row[0] !== srcApp.root_id);
+      while (pending.length) {
+        const next = [];
+        for (const row of pending) {
+          const pid = row[1];
+          if (pid != null && srcIdToLocalId[pid] == null) {
+            next.push(row);
+            continue;
+          }
+          const [id, , uuid, symbol, title, creTs, updTs, priority, prevSymbol] = row;
+          const localPid = pid == null ? this.root_id : srcIdToLocalId[pid];
+          if (uuidToLocalId[uuid] != null) {
+            skipped += 1;
+            srcIdToLocalId[id] = uuidToLocalId[uuid];
+            continue;
+          }
+          this._run(
+            "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [localPid, symbol, title, creTs, updTs, priority, prevSymbol, uuid]
+          );
+          const newId = this._lastId();
+          this._run("UPDATE tasks SET rank = ? WHERE id = ?", [newId, newId]);
+          srcIdToLocalId[id] = newId;
+          uuidToLocalId[uuid] = newId;
+          newlyAddedSrcIds.add(id);
+          this._log(newId, "merged", localPid, `${symbol} ${title}`);
+          added += 1;
         }
-        const localPid = srcIdToLocalId[pid];
-        this._run(
-          "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-          [localPid, symbol, title, creTs, updTs, priority, prevSymbol, uuid]
-        );
-        const newId = this._lastId();
-        this._run("UPDATE tasks SET rank = ? WHERE id = ?", [newId, newId]);
-        srcIdToLocalId[id] = newId;
-        uuidToLocalId[uuid] = newId;
-        newlyAddedSrcIds.add(id);
-        this._log(newId, "merged", localPid, `${symbol} ${title}`);
-        added += 1;
+        if (next.length === pending.length) {
+          // no row resolved this sweep: the remainder reference a pid that
+          // never appears (cyclic or dangling) — re-parent them under root
+          // rather than dropping them.
+          for (const row of next) row[1] = null;
+        }
+        pending = next;
       }
 
       // only copy tags/schedules for newly-inserted tasks — already-existing

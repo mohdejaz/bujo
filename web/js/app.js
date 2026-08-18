@@ -201,7 +201,7 @@
       await persist();
       appendSystem(`merged ${file.name}: ${added} new, ${skipped} already present`);
     } catch (e) {
-      appendSystem("import failed: " + e.message);
+      appendSystem("import failed: " + (e instanceof Error ? e.message : e));
     } finally {
       if (tmpDb) tmpDb.close();
     }
