@@ -1916,7 +1916,19 @@
     });
   }
 
-  const HELP_TEXT = `bujo — commands
+  const HELP_TEXT = `bujo — a command-line bullet journal
+rapid-log tasks/notes/meetings into
+folders (collections); migrate what's
+not done with > (tomorrow) or < name.
+
+DEMO
+  + 07.18.fri   new daily folder
+  use 07.18.fri   step into it
+  * write proposal   log a task
+  ls   see what's logged
+  x 1   mark done
+  > 2   migrate to tomorrow
+
 tip: act on entries by id,
 e.g. x 3  |  ! 3 4
 
