@@ -129,14 +129,24 @@
     return dirty;
   }
 
+  // the command bar always starts ready to log a task: prefilled with "* "
+  // so typing immediately continues the task text; deleting it still lets
+  // you type any other command (-, @, +, ls, etc).
+  const TASK_PREFIX = "*";
+  const DEFAULT_CMD = TASK_PREFIX + " ";
+  function resetCmd() {
+    cmdEl.value = DEFAULT_CMD;
+    if (cmdEl.setSelectionRange) cmdEl.setSelectionRange(DEFAULT_CMD.length, DEFAULT_CMD.length);
+  }
+
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const raw = cmdEl.value;
-    cmdEl.value = "";
-    if (!raw.trim()) return;
+    resetCmd();
+    const line = raw.trim();
+    if (!line || line === TASK_PREFIX) return;
     history.push(raw);
     historyIdx = history.length;
-    const line = raw.trim();
     appendUser(line);
     await runEngine(line);
   });
@@ -155,7 +165,7 @@
         cmdEl.value = history[historyIdx];
       } else {
         historyIdx = history.length;
-        cmdEl.value = "";
+        resetCmd();
       }
       e.preventDefault();
     }
@@ -212,6 +222,7 @@
     updateWidth();
     if (!bytes) await persist(); // seed empty db
     appendSystem("bujo — type 'help' for commands");
+    resetCmd();
     cmdEl.focus();
 
     if ("serviceWorker" in navigator && location.protocol === "https:") {
