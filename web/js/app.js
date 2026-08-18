@@ -129,14 +129,11 @@
     return dirty;
   }
 
-  // the command bar always starts ready to log a task: prefilled with "* "
-  // so typing immediately continues the task text; deleting it still lets
-  // you type any other command (-, @, +, ls, etc).
-  const TASK_PREFIX = "*";
-  const DEFAULT_CMD = TASK_PREFIX + " ";
+  // the command bar starts empty; the engine treats input with no
+  // recognized command char/word (-, @, +, ls, etc.) as a task by default,
+  // so typing straight into an empty bar still rapid-logs a task.
   function resetCmd() {
-    cmdEl.value = DEFAULT_CMD;
-    if (cmdEl.setSelectionRange) cmdEl.setSelectionRange(DEFAULT_CMD.length, DEFAULT_CMD.length);
+    cmdEl.value = "";
   }
 
   formEl.addEventListener("submit", async (e) => {
@@ -144,7 +141,7 @@
     const raw = cmdEl.value;
     resetCmd();
     const line = raw.trim();
-    if (!line || line === TASK_PREFIX) return;
+    if (!line) return;
     history.push(raw);
     historyIdx = history.length;
     appendUser(line);
