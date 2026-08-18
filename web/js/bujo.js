@@ -148,7 +148,7 @@
     // --- snapshot / undo (bujo.py:232-277) ---
     _snapshot(label) {
       this._undoSnapshot = this._all(
-        "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank FROM tasks ORDER BY id"
+        "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank, uuid FROM tasks ORDER BY id"
       );
       this._undoTags = this._all(
         "SELECT task_id, tag, cre_ts FROM tags ORDER BY task_id, tag"
@@ -172,7 +172,7 @@
       this._run("DELETE FROM tasks");
       for (const r of rows) {
         this._run(
-          "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           r
         );
       }
@@ -210,6 +210,7 @@
         priority INTEGER NOT NULL DEFAULT 0,
         prev_symbol TEXT,
         rank     INTEGER,
+        uuid     TEXT,
         FOREIGN KEY(pid) REFERENCES tasks(id)
       )`);
       // migrations for DBs imported from older bujo.py versions
@@ -230,6 +231,13 @@
         this.db.run("ALTER TABLE tasks ADD COLUMN rank INTEGER");
         this.db.run("UPDATE tasks SET rank = id WHERE rank IS NULL");
       }
+      if (!cols.has("uuid")) this.db.run("ALTER TABLE tasks ADD COLUMN uuid TEXT");
+      for (const [id] of this._all("SELECT id FROM tasks WHERE uuid IS NULL")) {
+        this.db.run("UPDATE tasks SET uuid = ? WHERE id = ?", [crypto.randomUUID(), id]);
+      }
+      this.db.run(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_tasks_uuid ON tasks(uuid) WHERE uuid IS NOT NULL"
+      );
       this.db.run(`CREATE TABLE IF NOT EXISTS log (
         id         INTEGER PRIMARY KEY AUTOINCREMENT,
         entry_id   INTEGER,
@@ -276,8 +284,8 @@
       const row = this._one("SELECT id FROM tasks WHERE pid IS NULL ORDER BY id LIMIT 1");
       if (row) return row[0];
       this._run(
-        "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts) VALUES (NULL, ?, ?, STRFTIME('%Y-%m-%d %H:%M:%f','now'), STRFTIME('%Y-%m-%d %H:%M:%f','now'))",
-        [TASK_OPEN, ROOT_TITLE]
+        "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, uuid) VALUES (NULL, ?, ?, STRFTIME('%Y-%m-%d %H:%M:%f','now'), STRFTIME('%Y-%m-%d %H:%M:%f','now'), ?)",
+        [TASK_OPEN, ROOT_TITLE, crypto.randomUUID()]
       );
       const id = this._lastId();
       this._log(id, "created", null, `${TASK_OPEN} ${ROOT_TITLE}`);
@@ -569,8 +577,8 @@
       }
       const pid = parentId == null ? this.current_id : parentId;
       this._run(
-        "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts) VALUES (?, ?, ?, STRFTIME('%Y-%m-%d %H:%M:%f','now'), STRFTIME('%Y-%m-%d %H:%M:%f','now'))",
-        [pid, symbol, title]
+        "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, uuid) VALUES (?, ?, ?, STRFTIME('%Y-%m-%d %H:%M:%f','now'), STRFTIME('%Y-%m-%d %H:%M:%f','now'), ?)",
+        [pid, symbol, title, crypto.randomUUID()]
       );
       const entryId = this._lastId();
       this._run("UPDATE tasks SET rank = ? WHERE id = ?", [entryId, entryId]);
@@ -581,6 +589,72 @@
         this._log(entryId, "tagged", null, `${tag} (inherited)`);
       }
       return entryId;
+    }
+
+    // merge entries from another bujo database into this one. additive only:
+    // tasks already present locally (matched by uuid) are left untouched, only
+    // unseen uuids get inserted. `sourceDb` is a raw sql.js Database.
+    mergeFrom(sourceDb) {
+      const srcApp = new Bujo(sourceDb);
+      const srcTasks = srcApp._all(
+        "SELECT id, pid, uuid, symbol, title, cre_ts, upd_ts, priority, prev_symbol FROM tasks ORDER BY id"
+      );
+      const srcTags = srcApp._all("SELECT task_id, tag, cre_ts FROM tags");
+      const srcSchedules = srcApp._all("SELECT task_id, kind, value, cre_ts FROM schedules");
+
+      const uuidToLocalId = {};
+      for (const [uuid, id] of this._all("SELECT uuid, id FROM tasks WHERE uuid IS NOT NULL")) {
+        uuidToLocalId[uuid] = id;
+      }
+
+      const srcIdToUuid = {};
+      for (const [id, , uuid] of srcTasks) srcIdToUuid[id] = uuid;
+      uuidToLocalId[srcIdToUuid[srcApp.root_id]] = this.root_id;
+
+      let added = 0;
+      let skipped = 0;
+      const srcIdToLocalId = { [srcApp.root_id]: this.root_id };
+      const newlyAddedSrcIds = new Set();
+      for (const [id, pid, uuid, symbol, title, creTs, updTs, priority, prevSymbol] of srcTasks) {
+        if (id === srcApp.root_id) continue;
+        if (uuidToLocalId[uuid] != null) {
+          skipped += 1;
+          srcIdToLocalId[id] = uuidToLocalId[uuid];
+          continue;
+        }
+        const localPid = srcIdToLocalId[pid];
+        this._run(
+          "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+          [localPid, symbol, title, creTs, updTs, priority, prevSymbol, uuid]
+        );
+        const newId = this._lastId();
+        this._run("UPDATE tasks SET rank = ? WHERE id = ?", [newId, newId]);
+        srcIdToLocalId[id] = newId;
+        uuidToLocalId[uuid] = newId;
+        newlyAddedSrcIds.add(id);
+        this._log(newId, "merged", localPid, `${symbol} ${title}`);
+        added += 1;
+      }
+
+      // only copy tags/schedules for newly-inserted tasks — already-existing
+      // local tasks are left fully untouched, per the additive-only policy.
+      for (const [taskId, tag, creTs] of srcTags) {
+        if (!newlyAddedSrcIds.has(taskId)) continue;
+        this._run(
+          "INSERT OR IGNORE INTO tags (task_id, tag, cre_ts) VALUES (?, ?, ?)",
+          [srcIdToLocalId[taskId], tag, creTs]
+        );
+      }
+      for (const [taskId, kind, value, creTs] of srcSchedules) {
+        if (!newlyAddedSrcIds.has(taskId)) continue;
+        this._run(
+          "INSERT OR IGNORE INTO schedules (task_id, kind, value, cre_ts) VALUES (?, ?, ?, ?)",
+          [srcIdToLocalId[taskId], kind, value, creTs]
+        );
+      }
+
+      if (added > 0) this._log(null, "merged", null, `merged ${added} entries`);
+      return { added, skipped };
     }
 
     duplicateEntry(ident, folderNames) {

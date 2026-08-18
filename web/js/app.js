@@ -186,19 +186,17 @@
     fileInput.value = "";
     if (!file) return;
     const bytes = new Uint8Array(await file.arrayBuffer());
+    let tmpDb;
     try {
-      const newDb = new SQL.Database(bytes);
-      const newApp = new Bujo(newDb);
-      newApp.compactIds = true;
-      if (db) db.close();
-      db = newDb;
-      app = newApp;
+      tmpDb = new SQL.Database(bytes);
+      const { added, skipped } = app.mergeFrom(tmpDb);
       updateWidth();
       await persist();
-      outputEl.innerHTML = "";
-      appendSystem(`imported ${file.name} (${bytes.length} bytes)`);
+      appendSystem(`merged ${file.name}: ${added} new, ${skipped} already present`);
     } catch (e) {
       appendSystem("import failed: " + e.message);
+    } finally {
+      if (tmpDb) tmpDb.close();
     }
   });
 
