@@ -14,6 +14,9 @@
   --frame: #05070a; /* desktop: area around the centered app card */
   --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
   --fs: 13px; /* body/output size; adjusted by A-/A+ */
+  /* effective size used everywhere text needs to match; never below 16px
+     so focusing #cmd doesn't trigger iOS Safari's zoom-on-focus */
+  --fs-eff: max(16px, var(--fs));
 }
 
 :root[data-theme="light"] {
@@ -94,8 +97,31 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: var(--fs);
+  font-size: var(--fs-eff);
   -webkit-overflow-scrolling: touch;
+}
+#output,
+.msg .bubble {
+  scrollbar-width: thin;
+  scrollbar-color: var(--dim) transparent;
+}
+#output::-webkit-scrollbar,
+.msg .bubble::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+#output::-webkit-scrollbar-track,
+.msg .bubble::-webkit-scrollbar-track {
+  background: transparent;
+}
+#output::-webkit-scrollbar-thumb,
+.msg .bubble::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 3px;
+}
+#output:hover::-webkit-scrollbar-thumb,
+.msg .bubble:hover::-webkit-scrollbar-thumb {
+  background: var(--dim);
 }
 /* bottom-anchor results: when short (e.g. after cls) they sit just above the
    command bar instead of at the top; when long, the margin collapses and the
@@ -109,7 +135,7 @@ body {
   max-width: 100%;
 }
 .msg .bubble {
-  font-size: var(--fs);
+  font-size: var(--fs-eff);
   line-height: 1.4;
   border-radius: 14px;
   padding: 8px 11px;
@@ -171,8 +197,7 @@ body {
   flex: 1;
   min-width: 0;
   font-family: var(--mono);
-  /* scales with A-/A+, but never below 16px (stops iOS Safari zooming on focus) */
-  font-size: max(16px, var(--fs));
+  font-size: var(--fs-eff);
   color: var(--fg);
   background: transparent;
   border: none;

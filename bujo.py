@@ -1,7 +1,27 @@
 #!/usr/bin/env python3
 """bujo - a command line bullet journal.
 
+Bullet journaling is a paper method for tracking tasks, notes, and events as
+short, single-line entries ("rapid logging"), grouped into pages/collections
+(here: folders), with unfinished tasks periodically migrated forward instead
+of left to rot. bujo brings that to the terminal: folders are your
+collections (daily folders like mm.dd.dow, or named ones like "cal"), each
+entry is a task/note/meeting/event, and `>`/`<` do the migrating.
+
 Root is a task. Tasks can contain child tasks and notes.
+
+Demo (commands you'd type, following each prompt):
+    (root) » + 07.18.fri              new daily folder (a collection)
+    (root) » use 07.18.fri            step into it
+    (07.18.fri) » * write proposal    log a task
+    (07.18.fri) » - call Sam re: budget
+    (07.18.fri) » @ 14:00 sync w/ design
+    (07.18.fri) » ls                  see what's logged so far
+       1 * write proposal
+       2 - call Sam re: budget
+       3 @ 14:00 sync w/ design
+    (07.18.fri) » x 1                 done - mark it off
+    (07.18.fri) » > 2                 not done - migrate it to tomorrow
 
 Commands (typed at the prompt):
     * <text>        create a new task (alias: t <text>)
