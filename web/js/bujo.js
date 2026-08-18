@@ -37,6 +37,15 @@
   const ROOT_BLOCKED_HEADS = new Set([EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"]);
   const ROOT_BLOCKED_PREFIXES = new Set([TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE]);
 
+  // heads/prefixes _dispatch actually switches on (mirrors the branches
+  // below); anything outside this set falls through to task creation.
+  const KNOWN_HEADS = new Set([
+    "quit", "exit", "q", "help", "h", "cls", "c", "ls", "use", "cd", "tag", "untag", "f", "ro",
+    "top", "bot", "above", "below", "e", "schd", "unschd",
+    EVENT, MEETING, TASK_DONE, "b", MIGRATED, SCHEDULED, DELETE_CMD, PURGE_CMD,
+  ]);
+  const KNOWN_PREFIXES = new Set([FOLDER, TASK_OPEN, NOTE, SNOOZE, PRIORITY_CMD, WORKING_CMD]);
+
   const DATE_RE = /^\d{1,2}\.\d{1,2}$/;
   const DATE_DOW_RE = /^\d{1,2}\.\d{1,2}\.[A-Za-z]+$/;
   const FOLDER_NAME_RE = /^[^\s/]+$/;
@@ -1650,6 +1659,14 @@
 
       if (Object.prototype.hasOwnProperty.call(COMMAND_ALIASES, head)) {
         line = COMMAND_ALIASES[head] + line.slice(tokens[0].length);
+        tokens = tokenize(line);
+        head = tokens[0].toLowerCase();
+      }
+
+      // no recognized command char/word: rapid-log it as a task, same as
+      // typing `* <line>`.
+      if (!KNOWN_HEADS.has(head) && !KNOWN_PREFIXES.has(line[0])) {
+        line = TASK_OPEN + " " + line;
         tokens = tokenize(line);
         head = tokens[0].toLowerCase();
       }
