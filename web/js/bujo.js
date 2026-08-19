@@ -41,7 +41,7 @@
   // below); anything outside this set falls through to task creation.
   const KNOWN_HEADS = new Set([
     "quit", "exit", "q", "help", "h", "cls", "c", "ls", "use", "cd", "tag", "untag", "f", "ro",
-    "top", "bot", "above", "below", "e", "schd", "unschd",
+    "top", "bot", "above", "below", "e", "schd", "unschd", "wipe",
     EVENT, MEETING, TASK_DONE, "b", MIGRATED, SCHEDULED, DELETE_CMD, PURGE_CMD,
   ]);
   const KNOWN_PREFIXES = new Set([FOLDER, TASK_OPEN, NOTE, SNOOZE, PRIORITY_CMD, WORKING_CMD]);
@@ -1413,6 +1413,19 @@
       this._p(`${entryId}: purged`);
     }
 
+    wipeAll() {
+      this._run("PRAGMA foreign_keys = OFF");
+      this._run("DELETE FROM tasks");
+      this._run("DELETE FROM tags");
+      this._run("DELETE FROM schedules");
+      this._run("DELETE FROM log");
+      this._run("UPDATE active_task SET task_id = NULL, prev_task_id = NULL WHERE id = 1");
+      this._run("PRAGMA foreign_keys = ON");
+      this.root_id = this._getOrCreateRoot();
+      this.current_id = this.root_id;
+      this._p("database wiped clean");
+    }
+
     changeTask(arg) {
       arg = arg.trim();
       if (arg === "..") {
@@ -1923,6 +1936,14 @@
           this._snapshot(line);
           this.purge(tokens.slice(1));
         }
+      } else if (head === "wipe") {
+        if (tokens.length !== 2 || tokens[1] !== "confirm") {
+          this._p("this permanently erases the ENTIRE database (all folders, entries, tags, schedules, log)");
+          this._p("usage: wipe confirm");
+        } else {
+          this._snapshot(line);
+          this.wipeAll();
+        }
       } else if (line[0] === WORKING_CMD) {
         const arg = line.slice(1).trim();
         if (!arg) this.stop();
@@ -2101,7 +2122,10 @@ NAVIGATE / VIEW
   ls ^id | ls id (stats)
   f "text" | f #tag
   ro mm.dd  roll (r)
-  cls (c)  help (h)`;
+  cls (c)  help (h)
+
+DANGER
+  wipe confirm  erase ENTIRE db`;
 
   return { Bujo, escapeHtml };
 });

@@ -152,6 +152,9 @@ Commands (typed at the prompt):
                     switching into it; takes the same filters as plain ls,
                     e.g. ls ^5, ls ^5 f, ls ^5 - date
     cls / c         clear the screen
+    wipe confirm    permanently erase the ENTIRE database (all folders,
+                    entries, tags, schedules, log); irreversible except for
+                    one immediate `undo` right after
     help / h        show this help
     quit / exit     leave bujo
 """
@@ -1375,6 +1378,19 @@ class Bujo:
             self.current_id = pid if pid is not None else self.root_id
         print(f"{entry_id}: purged")
 
+    def wipe_all(self):
+        self.conn.execute("PRAGMA foreign_keys = OFF")
+        self.conn.execute("DELETE FROM tasks")
+        self.conn.execute("DELETE FROM tags")
+        self.conn.execute("DELETE FROM schedules")
+        self.conn.execute("DELETE FROM log")
+        self.conn.execute("UPDATE active_task SET task_id = NULL, prev_task_id = NULL WHERE id = 1")
+        self.conn.execute("PRAGMA foreign_keys = ON")
+        self.root_id = self._get_or_create_root()
+        self.current_id = self.root_id
+        self.conn.commit()
+        print("database wiped clean")
+
     def change_task(self, arg):
         arg = arg.strip()
         if arg == "..":
@@ -1992,6 +2008,13 @@ def main():
             else:
                 app._snapshot(line)
                 app.purge(tokens[1:])
+        elif head == "wipe":
+            if len(tokens) != 2 or tokens[1] != "confirm":
+                print("this permanently erases the ENTIRE database (all folders, entries, tags, schedules, log)")
+                print("usage: wipe confirm")
+            else:
+                app._snapshot(line)
+                app.wipe_all()
         elif line[0] == WORKING_CMD:
             arg = line[1:].strip()
             if not arg:

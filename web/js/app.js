@@ -11,6 +11,7 @@
   const cmdEl = document.getElementById("cmd");
   const importBtn = document.getElementById("importBtn");
   const exportBtn = document.getElementById("exportBtn");
+  const wipeBtn = document.getElementById("wipeBtn");
   const fileInput = document.getElementById("fileInput");
   const fontDown = document.getElementById("fontDown");
   const fontUp = document.getElementById("fontUp");
@@ -185,6 +186,13 @@
     a.download = "bujo.db";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  wipeBtn.addEventListener("click", async () => {
+    if (!confirm("Erase the ENTIRE database? This deletes every folder and entry.")) return;
+    appendUser("wipe confirm");
+    await runEngine("wipe confirm");
+    cmdEl.focus();
   });
 
   importBtn.addEventListener("click", () => fileInput.click());
