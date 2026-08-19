@@ -164,6 +164,7 @@ import os
 import re
 import shutil
 import sqlite3
+import subprocess
 import sys
 
 for _stream in (sys.stdout, sys.stderr):
@@ -425,6 +426,15 @@ class Bujo:
         return (
             self.conn.execute(
                 "SELECT 1 FROM tasks WHERE pid = ? LIMIT 1", (entry_id,)
+            ).fetchone()
+            is not None
+        )
+
+    def _has_open_children(self, entry_id):
+        return (
+            self.conn.execute(
+                "SELECT 1 FROM tasks WHERE pid = ? AND symbol = ? LIMIT 1",
+                (entry_id, TASK_OPEN),
             ).fetchone()
             is not None
         )
@@ -866,6 +876,9 @@ class Bujo:
             row = self._get(entry_id)
             if not row:
                 print(f"no such id: {entry_id}")
+                continue
+            if symbol == TASK_DONE and self._has_open_children(entry_id):
+                print(f"{entry_id} has open children; close them first")
                 continue
             self.conn.execute(
                 "UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') WHERE id = ?",
@@ -1692,13 +1705,31 @@ class Bujo:
             print("".join(row_parts).rstrip())
 
 
+def get_version():
+    """Best-effort 'tag-build#-commit' string from git; 'dev' outside a git checkout."""
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--long", "--always"],
+            cwd=os.path.dirname(os.path.abspath(__file__)),
+            capture_output=True,
+            text=True,
+            timeout=2,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            return result.stdout.strip()
+    except Exception:
+        pass
+    return "dev"
+
+
 def print_help():
+    print(f"bujo {get_version()}")
     print(__doc__)
 
 
 def main():
     app = Bujo(DB_PATH)
-    print("bujo - type 'help' for commands, 'quit' to exit")
+    print(f"bujo {get_version()} - type 'help' for commands, 'quit' to exit")
     print(f"using database: {DB_PATH}")
 
     while True:
