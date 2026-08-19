@@ -14,6 +14,15 @@
 })(typeof self !== "undefined" ? self : this, function () {
   "use strict";
 
+  // Stamped with `git describe --tags --long` at deploy time (see
+  // .github/workflows/pages.yml), same convention as sw.js's __BUILD_ID__.
+  // Left as the literal placeholder locally, which versionString() below
+  // reports as "dev".
+  const VERSION = "__BUJO_VERSION__";
+  function versionString() {
+    return VERSION.startsWith("__") ? "dev" : VERSION;
+  }
+
   // ---- constants (mirror bujo.py:170-208) ------------------------------
   const ROOT_TITLE = "root";
   const TASK_OPEN = "*";
@@ -312,6 +321,14 @@
     }
     _hasChildren(entryId) {
       return this._one("SELECT 1 FROM tasks WHERE pid = ? LIMIT 1", [entryId]) !== null;
+    }
+    _hasOpenChildren(entryId) {
+      return (
+        this._one("SELECT 1 FROM tasks WHERE pid = ? AND symbol = ? LIMIT 1", [
+          entryId,
+          TASK_OPEN,
+        ]) !== null
+      );
     }
     _childCount(entryId) {
       return this._one("SELECT COUNT(*) FROM tasks WHERE pid = ?", [entryId])[0];
@@ -901,6 +918,10 @@
         const row = this._get(entryId);
         if (!row) {
           this._p(`no such id: ${entryId}`);
+          continue;
+        }
+        if (symbol === TASK_DONE && this._hasOpenChildren(entryId)) {
+          this._p(`${entryId} has open children; close them first`);
           continue;
         }
         this._run(
@@ -2048,6 +2069,7 @@
     }
 
     _printHelp() {
+      this._p(`bujo ${versionString()}`);
       for (const l of HELP_TEXT.split("\n")) this._p(l);
     }
   }
@@ -2127,5 +2149,5 @@ NAVIGATE / VIEW
 DANGER
   wipe confirm  erase ENTIRE db`;
 
-  return { Bujo, escapeHtml };
+  return { Bujo, escapeHtml, versionString };
 });

@@ -3,7 +3,7 @@
 (function () {
   "use strict";
 
-  const { Bujo, escapeHtml } = window.BujoModule;
+  const { Bujo, escapeHtml, versionString } = window.BujoModule;
   const storage = window.BujoStorage;
 
   const outputEl = document.getElementById("output");
@@ -11,7 +11,6 @@
   const cmdEl = document.getElementById("cmd");
   const importBtn = document.getElementById("importBtn");
   const exportBtn = document.getElementById("exportBtn");
-  const wipeBtn = document.getElementById("wipeBtn");
   const fileInput = document.getElementById("fileInput");
   const fontDown = document.getElementById("fontDown");
   const fontUp = document.getElementById("fontUp");
@@ -137,6 +136,14 @@
     cmdEl.value = "";
   }
 
+  // focus() alone can leave the caret wherever it last was (or at 0 on
+  // some browsers), so pin it after any text the user already typed.
+  function focusCmdEnd() {
+    cmdEl.focus();
+    const end = cmdEl.value.length;
+    cmdEl.setSelectionRange(end, end);
+  }
+
   formEl.addEventListener("submit", async (e) => {
     e.preventDefault();
     const raw = cmdEl.value;
@@ -169,13 +176,32 @@
     }
   });
 
+  // Keep focus in the command bar. The output pane isn't a focusable
+  // element, so clicking it never steals DOM focus on its own — but on
+  // mobile, tapping anything outside the active input blurs it and
+  // dismisses the keyboard regardless. A plain click/tap (no selection
+  // made) returns focus immediately; an active text selection is left
+  // alone so it can be copied, and focus returns once the copy happens.
+  function outputHasSelection() {
+    const sel = window.getSelection();
+    return !!sel && !sel.isCollapsed && outputEl.contains(sel.anchorNode);
+  }
+  function returnFocusIfNoSelection() {
+    if (!outputHasSelection()) focusCmdEnd();
+  }
+  outputEl.addEventListener("mouseup", returnFocusIfNoSelection);
+  outputEl.addEventListener("touchend", returnFocusIfNoSelection);
+  document.addEventListener("copy", () => {
+    if (outputHasSelection()) focusCmdEnd();
+  });
+
   fontDown.addEventListener("click", () => applyFontSize(fontSize - 1));
   fontUp.addEventListener("click", () => applyFontSize(fontSize + 1));
 
   helpBtn.addEventListener("click", async () => {
     appendUser("help");
     await runEngine("help");
-    cmdEl.focus();
+    focusCmdEnd();
   });
 
   exportBtn.addEventListener("click", () => {
@@ -186,13 +212,6 @@
     a.download = "bujo.db";
     a.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  });
-
-  wipeBtn.addEventListener("click", async () => {
-    if (!confirm("Erase the ENTIRE database? This deletes every folder and entry.")) return;
-    appendUser("wipe confirm");
-    await runEngine("wipe confirm");
-    cmdEl.focus();
   });
 
   importBtn.addEventListener("click", () => fileInput.click());
@@ -226,9 +245,9 @@
     app.compactIds = true;
     updateWidth();
     if (!bytes) await persist(); // seed empty db
-    appendSystem("bujo — type 'help' for commands");
+    appendSystem(`bujo ${versionString()} — type 'help' for commands`);
     resetCmd();
-    cmdEl.focus();
+    focusCmdEnd();
 
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       navigator.serviceWorker.register("sw.js").catch(() => {});
