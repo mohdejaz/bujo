@@ -176,25 +176,6 @@
     }
   });
 
-  // Keep focus in the command bar. The output pane isn't a focusable
-  // element, so clicking it never steals DOM focus on its own — but on
-  // mobile, tapping anything outside the active input blurs it and
-  // dismisses the keyboard regardless. A plain click/tap (no selection
-  // made) returns focus immediately; an active text selection is left
-  // alone so it can be copied, and focus returns once the copy happens.
-  function outputHasSelection() {
-    const sel = window.getSelection();
-    return !!sel && !sel.isCollapsed && outputEl.contains(sel.anchorNode);
-  }
-  function returnFocusIfNoSelection() {
-    if (!outputHasSelection()) focusCmdEnd();
-  }
-  outputEl.addEventListener("mouseup", returnFocusIfNoSelection);
-  outputEl.addEventListener("touchend", returnFocusIfNoSelection);
-  document.addEventListener("copy", () => {
-    if (outputHasSelection()) focusCmdEnd();
-  });
-
   fontDown.addEventListener("click", () => applyFontSize(fontSize - 1));
   fontUp.addEventListener("click", () => applyFontSize(fontSize + 1));
 
