@@ -14,8 +14,8 @@
   --frame: #05070a; /* desktop: area around the centered app card */
   --mono: ui-monospace, "SF Mono", "Menlo", "Consolas", monospace;
   --fs: 13px; /* body/output size; adjusted by A-/A+ */
-  /* effective size used everywhere text needs to match; never below 16px
-     so focusing #cmd doesn't trigger iOS Safari's zoom-on-focus */
+  /* used only for #cmd; never below 16px so focusing it doesn't trigger
+     iOS Safari's zoom-on-focus (would otherwise mask A-/A+ at small sizes) */
   --fs-eff: max(16px, var(--fs));
 }
 
@@ -97,7 +97,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  font-size: var(--fs-eff);
+  font-size: var(--fs);
   -webkit-overflow-scrolling: touch;
 }
 #output,
@@ -135,7 +135,7 @@ body {
   max-width: 100%;
 }
 .msg .bubble {
-  font-size: var(--fs-eff);
+  font-size: var(--fs);
   line-height: 1.4;
   border-radius: 14px;
   padding: 8px 11px;
