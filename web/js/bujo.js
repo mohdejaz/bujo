@@ -601,8 +601,13 @@
     }
 
     // merge entries from another bujo database into this one. additive only:
-    // tasks already present locally (matched by uuid) are left untouched, only
-    // unseen uuids get inserted. `sourceDb` is a raw sql.js Database.
+    // tasks already present locally are left untouched, only unseen entries
+    // get inserted. `sourceDb` is a raw sql.js Database.
+    //
+    // folders are additionally matched by (parent, title) rather than only
+    // by uuid: two devices that independently created "the same" folder
+    // (e.g. today's daily log) give it different uuids, so a uuid-only
+    // match would duplicate the folder instead of merging its contents.
     mergeFrom(sourceDb) {
       const srcApp = new Bujo(sourceDb);
       const srcTasks = srcApp._all(
@@ -614,6 +619,15 @@
       const uuidToLocalId = {};
       for (const [uuid, id] of this._all("SELECT uuid, id FROM tasks WHERE uuid IS NOT NULL")) {
         uuidToLocalId[uuid] = id;
+      }
+
+      const folderKey = (pid, title) => `${pid} ${title}`;
+      const localFolderByKey = {};
+      for (const [pid, id, title] of this._all(
+        "SELECT pid, id, title FROM tasks WHERE symbol = ?",
+        [FOLDER]
+      )) {
+        localFolderByKey[folderKey(pid, title)] = id;
       }
 
       const srcIdToUuid = {};
@@ -645,6 +659,18 @@
             srcIdToLocalId[id] = uuidToLocalId[uuid];
             continue;
           }
+          if (symbol === FOLDER) {
+            const key = folderKey(localPid, title);
+            const existingFolderId = localFolderByKey[key];
+            if (existingFolderId != null) {
+              // same folder (by parent + name) already exists locally: don't
+              // duplicate it, just merge this folder's children into it.
+              skipped += 1;
+              srcIdToLocalId[id] = existingFolderId;
+              uuidToLocalId[uuid] = existingFolderId;
+              continue;
+            }
+          }
           this._run(
             "INSERT INTO tasks (pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
             [localPid, symbol, title, creTs, updTs, priority, prevSymbol, uuid]
@@ -653,6 +679,7 @@
           this._run("UPDATE tasks SET rank = ? WHERE id = ?", [newId, newId]);
           srcIdToLocalId[id] = newId;
           uuidToLocalId[uuid] = newId;
+          if (symbol === FOLDER) localFolderByKey[folderKey(localPid, title)] = newId;
           newlyAddedSrcIds.add(id);
           this._log(newId, "merged", localPid, `${symbol} ${title}`);
           added += 1;
