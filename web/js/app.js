@@ -217,6 +217,30 @@
 
   window.addEventListener("resize", updateWidth);
 
+  // Periodically pull focus back to the command bar so the user can keep typing
+  // without clicking. Hold off while the user is selecting/copying text.
+  function isSelectingText() {
+    // A selection somewhere on the page (e.g. copying output).
+    const sel = window.getSelection && window.getSelection();
+    if (sel && !sel.isCollapsed && String(sel).length > 0) return true;
+    // A selection inside the command input itself.
+    if (
+      document.activeElement === cmdEl &&
+      cmdEl.selectionStart !== cmdEl.selectionEnd
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  setInterval(() => {
+    if (isSelectingText()) return;
+    if (document.activeElement !== cmdEl) cmdEl.focus();
+    // Place the cursor at the end of the current text.
+    const end = cmdEl.value.length;
+    cmdEl.setSelectionRange(end, end);
+  }, 4000);
+
   async function boot() {
     applyFontSize(fontSize);
     SQL = await initSqlJs({ locateFile: (f) => "vendor/" + f });
