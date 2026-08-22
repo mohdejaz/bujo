@@ -200,6 +200,13 @@
     const file = fileInput.files && fileInput.files[0];
     fileInput.value = "";
     if (!file) return;
+    const proceed = window.confirm(
+      `Import ${file.name}?\n\nThis will replace ALL current data. Your existing entries will be permanently discarded and cannot be recovered.\n\nExport a backup first if you want to keep them.`
+    );
+    if (!proceed) {
+      appendSystem("import cancelled");
+      return;
+    }
     const bytes = new Uint8Array(await file.arrayBuffer());
     let newDb;
     try {
