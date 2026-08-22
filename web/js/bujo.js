@@ -527,8 +527,28 @@
       return moved;
     }
 
+    _currentFolderDate() {
+      // Walk up from the current node to the nearest mm.dd.dow folder and
+      // return its calendar date, or null if not inside a dated folder.
+      let nodeId = this.current_id;
+      while (nodeId != null) {
+        const row = this._get(nodeId);
+        if (!row) break;
+        const [, pid, symbol, title] = row;
+        if (symbol === FOLDER && DATE_DOW_RE.test(title)) {
+          const [mm, dd] = title.split(".");
+          const d = new Date(new Date().getFullYear(), Number(mm) - 1, Number(dd));
+          if (Number(d.getMonth()) === Number(mm) - 1 && Number(d.getDate()) === Number(dd))
+            return d;
+          return null;
+        }
+        nodeId = pid;
+      }
+      return null;
+    }
+
     migrateTomorrow(ids) {
-      const t = new Date();
+      const t = this._currentFolderDate() || new Date();
       t.setDate(t.getDate() + 1);
       const dateStr = `${p2(t.getMonth() + 1)}.${p2(t.getDate())}.${t
         .toLocaleDateString("en-US", { weekday: "short" })
