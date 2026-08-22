@@ -624,8 +624,27 @@ class Bujo:
         self.conn.commit()
         return moved
 
+    def _current_folder_date(self):
+        """Walk up from the current node to the nearest mm.dd.dow folder and
+        return its calendar date, or None if not inside a dated folder."""
+        node_id = self.current_id
+        while node_id is not None:
+            row = self._get(node_id)
+            if not row:
+                break
+            _, pid, symbol, title = row
+            if symbol == FOLDER and DATE_DOW_RE.match(title):
+                mm, dd, _dow = title.split(".")
+                try:
+                    return datetime.date(datetime.date.today().year, int(mm), int(dd))
+                except ValueError:
+                    return None
+            node_id = pid
+        return None
+
     def migrate_tomorrow(self, ids):
-        tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+        base = self._current_folder_date() or datetime.date.today()
+        tomorrow = base + datetime.timedelta(days=1)
         date_str = f"{tomorrow.month:02d}.{tomorrow.day:02d}.{tomorrow.strftime('%a').lower()}"
         folder_id = self._get_or_create_folder(date_str)
         moved = self.move_ids(ids, folder_id)
