@@ -201,17 +201,23 @@
     fileInput.value = "";
     if (!file) return;
     const bytes = new Uint8Array(await file.arrayBuffer());
-    let tmpDb;
+    let newDb;
     try {
-      tmpDb = new SQL.Database(bytes);
-      const { added, skipped } = app.mergeFrom(tmpDb);
+      newDb = new SQL.Database(bytes); // throws if not a valid SQLite file
+      const newApp = new Bujo(newDb); // creates/validates the bujo schema
+      newApp.compactIds = true;
+      // replace the current db wholesale — old data is discarded, not merged
+      const oldDb = db;
+      db = newDb;
+      app = newApp;
+      oldDb.close();
+      outputEl.innerHTML = "";
       updateWidth();
       await persist();
-      appendSystem(`merged ${file.name}: ${added} new, ${skipped} already present`);
+      appendSystem(`imported ${file.name} — previous data replaced`);
     } catch (e) {
+      if (newDb) newDb.close();
       appendSystem("import failed: " + (e instanceof Error ? e.message : e));
-    } finally {
-      if (tmpDb) tmpDb.close();
     }
   });
 
