@@ -79,6 +79,29 @@
       .replace(/>/g, "&gt;");
   }
 
+  // CSS class for a bullet-journal symbol, so the web UI can color-code the
+  // leading glyph in a listing (purely cosmetic; the plain `.t` text is
+  // unchanged, so the parity harness is unaffected).
+  const SYMBOL_CLASS = {
+    "*": "g-task",
+    "-": "g-note",
+    "@": "g-meeting",
+    o: "g-event",
+    x: "g-done",
+    "⊘": "g-block",
+    "&": "g-snooze",
+    "~": "g-del",
+    "+": "g-folder",
+    ">": "g-move",
+    "<": "g-move",
+  };
+  function symbolClass(sym) {
+    return SYMBOL_CLASS[sym] || "g-sym";
+  }
+  function glyphSpan(sym) {
+    return `<span class="${symbolClass(sym)}">${escapeHtml(sym)}</span>`;
+  }
+
   // Python str.split() with no args: split on runs of whitespace, drop empties.
   function tokenize(s) {
     s = s.trim();
@@ -547,6 +570,52 @@
       return null;
     }
 
+    // True bullet-journal migration: the original entry stays on the current
+    // page marked > (migrated) or < (scheduled) as a permanent record, while a
+    // fresh open-task copy — carrying its tags and children — is placed in the
+    // destination folder. The original is then locked (see _locked).
+    _migrate(ids, destFolderId, markerSymbol) {
+      let moved = 0;
+      for (const rawId of ids) {
+        if (!isDigits(rawId)) {
+          this._p(`invalid id: ${rawId}`);
+          continue;
+        }
+        const entryId = parseInt(rawId, 10);
+        const row = this._get(entryId);
+        if (!row) {
+          this._p(`no such id: ${entryId}`);
+          continue;
+        }
+        const [, , symbol, title] = row;
+        if (entryId === this.root_id) {
+          this._p("cannot migrate root");
+          continue;
+        }
+        if (symbol === FOLDER) {
+          this._p(`${entryId} is a folder; can't migrate`);
+          continue;
+        }
+        if (symbol === EVENT) {
+          this._p(`${entryId} is an event; can't migrate`);
+          continue;
+        }
+        if (this._locked(entryId, symbol)) continue;
+        const copyId = this.addEntry(TASK_OPEN, title, destFolderId);
+        for (const tag of this._tagsFor(entryId))
+          this._run("INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", [copyId, tag]);
+        // carry children forward under the copy, leaving a childless marker
+        this._run("UPDATE tasks SET pid = ? WHERE pid = ?", [copyId, entryId]);
+        this._run(
+          "UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') WHERE id = ?",
+          [markerSymbol, entryId]
+        );
+        this._log(entryId, "migrated", copyId, `${symbol}->${markerSymbol}; copy ${copyId} in ${destFolderId}`);
+        moved += 1;
+      }
+      return moved;
+    }
+
     migrateTomorrow(ids) {
       const t = this._currentFolderDate() || new Date();
       t.setDate(t.getDate() + 1);
@@ -554,8 +623,8 @@
         .toLocaleDateString("en-US", { weekday: "short" })
         .toLowerCase()}`;
       const folderId = this._getOrCreateFolder(dateStr);
-      const moved = this.moveIds(ids, folderId, null);
-      this._p(`moved ${moved} item(s) to ${dateStr}`);
+      const moved = this._migrate(ids, folderId, MIGRATED);
+      this._p(`migrated ${moved} item(s) to ${dateStr}`);
     }
 
     moveToDate(dest, ids) {
@@ -565,8 +634,8 @@
         return;
       }
       const folderId = this._getOrCreateFolder(expanded);
-      const moved = this.moveIds(ids, folderId, TASK_OPEN);
-      this._p(`moved ${moved} item(s) to ${expanded}`);
+      const moved = this._migrate(ids, folderId, SCHEDULED);
+      this._p(`scheduled ${moved} item(s) to ${expanded}`);
     }
 
     rollover(dstDate) {
@@ -661,10 +730,7 @@
         this._p("cannot duplicate an event; use o directly for each date");
         return;
       }
-      if (symbol === DELETE_CMD) {
-        this._p(`${entryId} is deleted; undelete it first`);
-        return;
-      }
+      if (this._locked(entryId, symbol)) return;
       if (this._hasChildren(entryId)) {
         this._p(`${entryId} has children; duplicating entries with children isn't supported`);
         return;
@@ -696,7 +762,8 @@
       if (entryId === this.root_id) return [null, "cannot schedule root"];
       if (symbol === FOLDER) return [null, "cannot schedule a folder"];
       if (symbol === EVENT) return [null, "cannot schedule an event"];
-      if (symbol === DELETE_CMD) return [null, `${entryId} is deleted; undelete it first`];
+      const lockedReason = this._lockedReason(symbol);
+      if (lockedReason) return [null, `${entryId} is ${lockedReason} and can't be changed`];
       if (this._hasChildren(entryId))
         return [null, `${entryId} has children; scheduling entries with children isn't supported`];
       return [row, null];
@@ -814,6 +881,24 @@
       return pid === this.root_id && symbol === FOLDER && title.toLowerCase() === CAL_FOLDER;
     }
 
+    // Bullet-journal rule: once an entry is migrated (>), scheduled (<) or
+    // deleted (~) it becomes a permanent record on the page and can't be
+    // changed. `~~` (purge) is the only escape hatch.
+    _lockedReason(symbol) {
+      if (symbol === MIGRATED) return "migrated";
+      if (symbol === SCHEDULED) return "scheduled";
+      if (symbol === DELETE_CMD) return "deleted";
+      return null;
+    }
+    _locked(entryId, symbol) {
+      const reason = this._lockedReason(symbol);
+      if (reason) {
+        this._p(`${entryId} is ${reason} and can't be changed`);
+        return true;
+      }
+      return false;
+    }
+
     mark(ids, symbol) {
       for (const rawId of ids) {
         if (!isDigits(rawId)) {
@@ -826,6 +911,7 @@
           this._p(`no such id: ${entryId}`);
           continue;
         }
+        if (this._locked(entryId, row[2])) continue;
         if (symbol === TASK_DONE && this._hasOpenChildren(entryId)) {
           this._p(`${entryId} has open children; close them first`);
           continue;
@@ -859,6 +945,7 @@
           this._p("cannot rename root");
           return;
         }
+        if (this._locked(entryId, symbol)) return;
         if (symbol === FOLDER && title.toLowerCase() === CAL_FOLDER) {
           this._p("cannot rename the cal folder");
           return;
@@ -914,11 +1001,12 @@
           continue;
         }
         const entryId = parseInt(rawId, 10);
-        const row = this._one("SELECT priority FROM tasks WHERE id = ?", [entryId]);
+        const row = this._one("SELECT priority, symbol FROM tasks WHERE id = ?", [entryId]);
         if (!row) {
           this._p(`no such id: ${entryId}`);
           continue;
         }
+        if (this._locked(entryId, row[1])) continue;
         const newPriority = row[0] ? 0 : 1;
         this._run(
           "UPDATE tasks SET priority = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') WHERE id = ?",
@@ -999,6 +1087,7 @@
         this._p("cannot reorder root");
         return null;
       }
+      if (this._locked(entryId, row[2])) return null;
       return [entryId, pid];
     }
 
@@ -1167,10 +1256,12 @@
           continue;
         }
         const entryId = parseInt(rawId, 10);
-        if (!this._get(entryId)) {
+        const row = this._get(entryId);
+        if (!row) {
           this._p(`no such id: ${entryId}`);
           continue;
         }
+        if (this._locked(entryId, row[2])) continue;
         this._run("INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, LOWER(?))", [entryId, name]);
         if (this._changes() === 0) {
           this._p(`${entryId}: already tagged '${name}'`);
@@ -1188,10 +1279,12 @@
           continue;
         }
         const entryId = parseInt(rawId, 10);
-        if (!this._get(entryId)) {
+        const row = this._get(entryId);
+        if (!row) {
           this._p(`no such id: ${entryId}`);
           continue;
         }
+        if (this._locked(entryId, row[2])) continue;
         this._run("DELETE FROM tags WHERE task_id = ? AND tag = LOWER(?)", [entryId, name]);
         if (this._changes() === 0) {
           this._p(`${entryId}: not tagged '${name}'`);
@@ -1249,8 +1342,17 @@
           continue;
         }
         const [, pid, symbol, title] = row;
-        if (symbol === DELETE_CMD) this._undelete(entryId, pid, title);
-        else this._delete(entryId, pid, symbol, title);
+        // deletion is one-way; ~ marks a permanent record on the page (~~ purges)
+        if (symbol === DELETE_CMD) {
+          this._p(`${entryId} is already deleted`);
+          continue;
+        }
+        const reason = this._lockedReason(symbol);
+        if (reason) {
+          this._p(`${entryId} is ${reason} and can't be deleted; ~~ to purge`);
+          continue;
+        }
+        this._delete(entryId, pid, symbol, title);
       }
     }
 
@@ -1316,7 +1418,8 @@
           continue;
         }
         const [, pid, symbol, title] = row;
-        if (symbol !== DELETE_CMD) {
+        // purge is the escape hatch for any locked record (~ migrated > sched <)
+        if (!this._lockedReason(symbol)) {
           this._p(`${entryId} is not deleted; ~ it first`);
           continue;
         }
@@ -1585,19 +1688,40 @@
         const available = cellWidth - prefix.length - marker.length - tagsVisibleLen;
         const displayTitle = this._truncate(title, available);
         const plainLine = `${idStr}${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`;
-        let html = null;
-        if (entryId === activeId && idStr) {
-          const coloredId = `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `;
-          html = `${coloredId}${escapeHtml(`${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`)}`;
-        }
-        lines.push({ plain: plainLine, html });
+        // Rich markup: color the symbol glyph (and the ! priority marker), and
+        // keep the green highlight on the active entry's id. Text is identical.
+        const idHtml =
+          entryId === activeId && idStr
+            ? `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `
+            : escapeHtml(idStr);
+        const pmarkHtml =
+          pmark === PRIORITY_CMD
+            ? `<span class="g-pri">${escapeHtml(PRIORITY_CMD)}</span>`
+            : escapeHtml(pmark);
+        // Wrap the title separately so done/deleted rows can strike just the
+        // text (the `cls` below is applied to the whole row for the dim).
+        const titleHtml = `<span class="ttl">${escapeHtml(displayTitle)}</span>`;
+        const rest = `${escapeHtml(` ${dateStr}`)}${titleHtml}${escapeHtml(`${marker}${tagSuffix}`)}`;
+        const html = `${idHtml}${pmarkHtml}${glyphSpan(symbol)}${rest}`;
+        const cls =
+          symbol === TASK_DONE
+            ? "done"
+            : symbol === DELETE_CMD
+            ? "del"
+            : symbol === MIGRATED || symbol === SCHEDULED
+            ? "moved"
+            : null;
+        lines.push({ plain: plainLine, html, id: entryId, cls });
         plainLines.push(plainLine);
       }
       if (allFolders) {
-        this._printGrid(plainLines, width);
+        this._printGrid(plainLines, width, rows.map((r) => r[0]));
       } else {
         for (const line of lines) {
-          const rec = { t: line.plain };
+          // `id` lets the web UI make the row tappable; `cls` flags done/deleted
+          // rows for dim/strikethrough. Harness reads only `.t`.
+          const rec = { t: line.plain, id: line.id };
+          if (line.cls) rec.cls = line.cls;
           if (line.html) rec.html = line.html;
           this._buf.push(rec);
         }
@@ -1605,20 +1729,35 @@
       this._p(`${rows.length} entries`);
     }
 
-    _printGrid(plainLines, width) {
+    // `ids` (optional, parallel to plainLines) makes each folder cell tappable
+    // in the web UI by wrapping its name in a data-id span. The plain `.t` text
+    // is byte-identical to the no-ids path, so the parity harness is unaffected.
+    _printGrid(plainLines, width, ids) {
       const colWidth = Math.max.apply(null, plainLines.map((pl) => pl.length)) + 2;
       const numCols = Math.max(1, Math.min(plainLines.length, Math.floor(width / colWidth)));
       const numRows = Math.ceil(plainLines.length / numCols);
       for (let r = 0; r < numRows; r++) {
         const parts = [];
+        const htmlParts = [];
         for (let c = 0; c < numCols; c++) {
           const idx = c * numRows + r;
           if (idx >= plainLines.length) continue;
           const pad = colWidth - plainLines[idx].length;
-          const cell = c === numCols - 1 ? plainLines[idx] : plainLines[idx] + " ".repeat(pad);
+          const isLast = c === numCols - 1;
+          const cell = isLast ? plainLines[idx] : plainLines[idx] + " ".repeat(pad);
           parts.push(cell);
+          if (ids && ids[idx] != null) {
+            const padStr = isLast ? "" : " ".repeat(pad);
+            htmlParts.push(
+              `<span class="row" data-id="${ids[idx]}">${escapeHtml(plainLines[idx])}</span>${padStr}`
+            );
+          } else {
+            htmlParts.push(escapeHtml(cell));
+          }
         }
-        this._p(parts.join("").replace(/\s+$/, ""));
+        const plain = parts.join("").replace(/\s+$/, "");
+        if (ids) this._buf.push({ t: plain, html: htmlParts.join("") });
+        else this._p(plain);
       }
     }
 

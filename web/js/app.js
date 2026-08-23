@@ -103,7 +103,15 @@
       return;
     }
     const inner = entries
-      .map((entry) => (entry.html != null ? entry.html : escapeHtml(entry.t)))
+      .map((entry) => {
+        const content = entry.html != null ? entry.html : escapeHtml(entry.t);
+        // list rows carry an id → make the whole line tappable (folder grids
+        // already embed their own per-cell `.row` spans, so skip those here).
+        // `cls` (done/del) drives the dim + strikethrough treatment.
+        return entry.id != null
+          ? `<span class="row${entry.cls ? " " + entry.cls : ""}" data-id="${entry.id}">${content}</span>`
+          : content;
+      })
       .join("\n");
     pushMsg("bot", inner);
   }
@@ -228,6 +236,142 @@
     }
   });
 
+  // ---- tap layer: chips + tappable entries + action sheet -------------------
+  // All of this just synthesizes ordinary commands and feeds them to the same
+  // engine, so command-bar users and tap users share one code path.
+
+  function prefill(text) {
+    cmdEl.value = text;
+    focusCmdEnd();
+  }
+
+  // apply a command for its side effects without rendering its output
+  async function runSilent(line) {
+    app.runCommand(line);
+    const dirty = app.dirty;
+    if (app._clearScreen) app._clearScreen = false;
+    if (dirty) await persist();
+  }
+
+  // echo the synthesized command (so tapping teaches the syntax), run it, and
+  // for mutations re-list the current folder so the change is visible.
+  async function runTap(cmd, refresh) {
+    appendUser(cmd);
+    if (refresh) {
+      await runSilent(cmd);
+      await runEngine("ls", false);
+    } else {
+      await runEngine(cmd, false);
+    }
+    focusCmdEnd();
+  }
+
+  function dailyFolderName() {
+    const d = new Date();
+    const p2 = (n) => String(n).padStart(2, "0");
+    const dow = d.toLocaleDateString("en-US", { weekday: "short" }).toLowerCase();
+    return `${p2(d.getMonth() + 1)}.${p2(d.getDate())}.${dow}`;
+  }
+
+  async function openToday() {
+    const name = dailyFolderName();
+    await runSilent(`+ ${name}`); // creates it if missing; harmless if it exists
+    appendUser(`use ${name}`);
+    await runSilent(`use ${name}`);
+    await runEngine("ls", false);
+    focusCmdEnd();
+  }
+
+  const quickbar = document.getElementById("quickbar");
+  quickbar.addEventListener("click", async (e) => {
+    const btn = e.target.closest(".chip");
+    if (!btn) return;
+    switch (btn.dataset.act) {
+      case "task":
+        return prefill("* ");
+      case "note":
+        return prefill("- ");
+      case "meeting":
+        return prefill("@ ");
+      case "today":
+        return openToday();
+      case "list":
+        appendUser("ls");
+        await runEngine("ls");
+        return focusCmdEnd();
+      case "help":
+        appendUser("help");
+        await runEngine("help");
+        return focusCmdEnd();
+    }
+  });
+
+  // ---- action sheet ----
+  let sheetEl = null;
+  function ensureSheet() {
+    if (sheetEl) return;
+    sheetEl = document.createElement("div");
+    sheetEl.id = "sheet";
+    sheetEl.innerHTML =
+      '<div id="sheetPanel"><div id="sheetTitle"></div><div id="sheetActions"></div></div>';
+    document.body.appendChild(sheetEl);
+    sheetEl.addEventListener("click", (e) => {
+      if (e.target === sheetEl) closeSheet(); // tap the backdrop to dismiss
+    });
+  }
+  function closeSheet() {
+    if (sheetEl) sheetEl.classList.remove("open");
+  }
+  function openSheet(id) {
+    ensureSheet();
+    const row = app._get(Number(id));
+    if (!row) {
+      appendSystem(`entry ${id} is no longer here`);
+      return;
+    }
+    const symbol = row[2];
+    const title = row[3];
+    const isFolder = symbol === "+";
+    const canOpen = isFolder || app._hasChildren(Number(id));
+
+    const actions = [];
+    if (canOpen) actions.push({ label: "open", cmd: `use ${id}`, refresh: true });
+    if (!isFolder) {
+      actions.push({ label: "done", cmd: `x ${id}`, refresh: true });
+      actions.push({ label: "priority", cmd: `! ${id}`, refresh: true });
+      actions.push({ label: "tomorrow", cmd: `> ${id}`, refresh: true });
+    }
+    actions.push({ label: "edit", edit: true });
+    actions.push({ label: "delete", cmd: `d ${id}`, refresh: true, danger: true });
+
+    sheetEl.querySelector("#sheetTitle").textContent = `#${id}  ${symbol} ${title}`;
+    const wrap = sheetEl.querySelector("#sheetActions");
+    wrap.innerHTML = "";
+    for (const a of actions) {
+      const b = document.createElement("button");
+      b.className = "sheet-btn" + (a.danger ? " danger" : "");
+      b.textContent = a.label;
+      b.addEventListener("click", async () => {
+        closeSheet();
+        if (a.edit) return prefill(`e ${id} `);
+        await runTap(a.cmd, a.refresh);
+      });
+      wrap.appendChild(b);
+    }
+    sheetEl.classList.add("open");
+  }
+
+  outputEl.addEventListener("click", (e) => {
+    const row = e.target.closest(".row");
+    if (!row || isSelectingText()) return;
+    const id = row.getAttribute("data-id");
+    if (id) openSheet(id);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeSheet();
+  });
+
   window.addEventListener("resize", updateWidth);
 
   // Periodically pull focus back to the command bar so the user can keep typing
@@ -262,8 +406,16 @@
     app = new Bujo(db);
     app.compactIds = true;
     updateWidth();
-    if (!bytes) await persist(); // seed empty db
     appendSystem(`bujo ${versionString()} — type 'help' for commands`);
+    if (!bytes) {
+      // first launch: create today's folder and start the user inside it, ready
+      // to log. (current folder isn't persisted, so this only runs on a fresh db.)
+      const name = dailyFolderName();
+      await runSilent(`+ ${name}`); // seeds + persists the empty db too
+      await runSilent(`use ${name}`);
+      appendSystem(`started today's folder: ${name}`);
+      await runEngine("ls", false);
+    }
     resetCmd();
     focusCmdEnd();
 
