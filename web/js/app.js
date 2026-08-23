@@ -116,6 +116,38 @@
     pushMsg("bot", inner);
   }
 
+  // --- Overdue meeting monitor -------------------------------------------
+  // Polls the current folder for open meetings whose time has passed and
+  // surfaces each one once per session — in-app and, if permitted, as a
+  // desktop notification. Keyed by uuid (falling back to id) so navigating
+  // away and back doesn't re-alert.
+  const alertedMeetings = new Set();
+  function notify(title, body) {
+    if (typeof Notification === "undefined") return;
+    if (Notification.permission !== "granted") return;
+    try {
+      new Notification(title, { body });
+    } catch (e) {
+      /* some engines throw unless spawned from a service worker — ignore */
+    }
+  }
+  function checkOverdueMeetings() {
+    if (!app) return;
+    let overdue;
+    try {
+      overdue = app.overdueMeetings();
+    } catch (e) {
+      return; // never let the monitor break the app
+    }
+    for (const m of overdue) {
+      const key = m.uuid != null ? "u:" + m.uuid : "i:" + m.id;
+      if (alertedMeetings.has(key)) continue;
+      alertedMeetings.add(key);
+      appendSystem(`⏰ meeting past due: ${m.title}`);
+      notify("Meeting past due", m.title);
+    }
+  }
+
   // Guard against IndexedDB being unavailable or hanging (Safari private mode,
   // storage-partitioned PWA contexts, a blocked upgrade): the app must still
   // boot and render rather than wait forever on a blank screen.
@@ -459,6 +491,19 @@
     if ("serviceWorker" in navigator && location.protocol === "https:") {
       navigator.serviceWorker.register("sw.js").catch(() => {});
     }
+
+    // Ask for desktop-notification permission once, then watch the current
+    // folder for meetings that slip past their time. In-app alerts fire even
+    // if permission is denied.
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      try {
+        Notification.requestPermission();
+      } catch (e) {
+        /* older callback-style API — in-app alerts still work */
+      }
+    }
+    checkOverdueMeetings();
+    setInterval(checkOverdueMeetings, 30000);
   }
 
   boot().catch((e) => {
