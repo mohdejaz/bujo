@@ -105,14 +105,16 @@
     const inner = entries
       .map((entry) => {
         const content = entry.html != null ? entry.html : escapeHtml(entry.t);
-        // list rows carry an id → make the whole line tappable (folder grids
-        // already embed their own per-cell `.row` spans, so skip those here).
-        // `cls` (done/del) drives the dim + strikethrough treatment.
+        // One block per line, so CSS can space entries apart and wrap long
+        // text. List rows carry an id → make the whole line tappable (folder
+        // grids already embed their own per-cell `.row` spans, so those stay
+        // non-wrapping `pre` and skip the `row` class here). `cls` (done/del)
+        // drives the dim + strikethrough treatment.
         return entry.id != null
-          ? `<span class="row${entry.cls ? " " + entry.cls : ""}" data-id="${entry.id}">${content}</span>`
-          : content;
+          ? `<div class="line row${entry.cls ? " " + entry.cls : ""}" data-id="${entry.id}">${content}</div>`
+          : `<div class="line">${content}</div>`;
       })
-      .join("\n");
+      .join("");
     pushMsg("bot", inner);
   }
 

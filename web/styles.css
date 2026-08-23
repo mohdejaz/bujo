@@ -351,11 +351,25 @@ body {
   text-decoration-thickness: 1px;
 }
 
+/* Each engine-output line is its own block so entries get vertical breathing
+   room. Lines inherit the bubble's `pre` (keeps column alignment, e.g. folder
+   grids); only tappable entry rows opt into wrapping below. */
+.bubble .line {
+  display: block;
+  padding: 3px 0;
+}
+
 /* ---- tappable entries (the "no commands needed" layer) ---- */
 .bubble .row {
   cursor: pointer;
   border-radius: 4px;
   transition: background 0.12s ease;
+}
+/* Long entry text wraps instead of scrolling sideways; leading alignment
+   spaces are preserved (`pre-wrap`) and unbroken strings can still break. */
+.bubble .line.row {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 @media (hover: hover) {
   .bubble .row:hover {
