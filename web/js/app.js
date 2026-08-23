@@ -348,7 +348,13 @@
     const canOpen = isFolder || app._hasChildren(Number(id));
 
     const actions = [];
-    if (canOpen) actions.push({ label: "open", cmd: `use ${id}`, refresh: true });
+    if (canOpen) {
+      // root folders hide their id in the grid, so open by name (matches what's
+      // on screen and is reproducible); everything else opens by its shown id.
+      const isRootFolder = isFolder && row[1] === app.root_id;
+      const openCmd = isRootFolder ? `use ${title}` : `use ${id}`;
+      actions.push({ label: "open", cmd: openCmd, refresh: true });
+    }
     if (!isFolder) {
       actions.push({ label: "done", cmd: `x ${id}`, refresh: true });
       actions.push({ label: "priority", cmd: `! ${id}`, refresh: true });
