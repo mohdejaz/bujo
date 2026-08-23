@@ -642,13 +642,62 @@ class Bujo:
             node_id = pid
         return None
 
+    # True bullet-journal migration: the original entry stays on the current
+    # page marked > (migrated) or < (scheduled) as a permanent record, while a
+    # fresh open-task copy — carrying its tags and children — is placed in the
+    # destination folder. The original is then locked (see _locked).
+    def _migrate(self, ids, dest_folder_id, marker_symbol):
+        moved = 0
+        for raw_id in ids:
+            if not raw_id.isdigit():
+                print(f"invalid id: {raw_id}")
+                continue
+            entry_id = int(raw_id)
+            row = self._get(entry_id)
+            if not row:
+                print(f"no such id: {entry_id}")
+                continue
+            _id, _pid, symbol, title = row
+            if entry_id == self.root_id:
+                print("cannot migrate root")
+                continue
+            if symbol == FOLDER:
+                print(f"{entry_id} is a folder; can't migrate")
+                continue
+            if symbol == EVENT:
+                print(f"{entry_id} is an event; can't migrate")
+                continue
+            if self._locked(entry_id, symbol):
+                continue
+            copy_id = self.add_entry(TASK_OPEN, title, parent_id=dest_folder_id)
+            for tag in self._tags_for(entry_id):
+                self.conn.execute(
+                    "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", (copy_id, tag)
+                )
+            # carry children forward under the copy, leaving a childless marker
+            self.conn.execute("UPDATE tasks SET pid = ? WHERE pid = ?", (copy_id, entry_id))
+            self.conn.execute(
+                "UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (marker_symbol, entry_id),
+            )
+            self._log(
+                entry_id,
+                "migrated",
+                related_id=copy_id,
+                detail=f"{symbol}->{marker_symbol}; copy {copy_id} in {dest_folder_id}",
+            )
+            moved += 1
+        self.conn.commit()
+        return moved
+
     def migrate_tomorrow(self, ids):
         base = self._current_folder_date() or datetime.date.today()
         tomorrow = base + datetime.timedelta(days=1)
         date_str = f"{tomorrow.month:02d}.{tomorrow.day:02d}.{tomorrow.strftime('%a').lower()}"
         folder_id = self._get_or_create_folder(date_str)
-        moved = self.move_ids(ids, folder_id)
-        print(f"moved {moved} item(s) to {date_str}")
+        moved = self._migrate(ids, folder_id, MIGRATED)
+        print(f"migrated {moved} item(s) to {date_str}")
 
     def move_to_date(self, dest, ids):
         expanded = self._expand_date_name(dest)
@@ -656,8 +705,8 @@ class Bujo:
             print(f"invalid date: {dest}")
             return
         folder_id = self._get_or_create_folder(expanded)
-        moved = self.move_ids(ids, folder_id, new_symbol=TASK_OPEN)
-        print(f"moved {moved} item(s) to {expanded}")
+        moved = self._migrate(ids, folder_id, SCHEDULED)
+        print(f"scheduled {moved} item(s) to {expanded}")
 
     def rollover(self, dst_date):
         expanded = self._expand_date_name(dst_date)
@@ -742,8 +791,7 @@ class Bujo:
         if symbol == EVENT:
             print("cannot duplicate an event; use o directly for each date")
             return
-        if symbol == DELETE_CMD:
-            print(f"{entry_id} is deleted; undelete it first")
+        if self._locked(entry_id, symbol):
             return
         if self._has_children(entry_id):
             print(f"{entry_id} has children; duplicating entries with children isn't supported")
@@ -778,8 +826,9 @@ class Bujo:
             return None, "cannot schedule a folder"
         if symbol == EVENT:
             return None, "cannot schedule an event"
-        if symbol == DELETE_CMD:
-            return None, f"{entry_id} is deleted; undelete it first"
+        locked_reason = self._locked_reason(symbol)
+        if locked_reason:
+            return None, f"{entry_id} is {locked_reason} and can't be changed"
         if self._has_children(entry_id):
             return None, f"{entry_id} has children; scheduling entries with children isn't supported"
         return row, None
@@ -886,6 +935,25 @@ class Bujo:
         _id, pid, symbol, title = row
         return pid == self.root_id and symbol == FOLDER and title.lower() == CAL_FOLDER.lower()
 
+    # Bullet-journal rule: once an entry is migrated (>), scheduled (<) or
+    # deleted (~) it becomes a permanent record on the page and can't be
+    # changed. `~~` (purge) is the only escape hatch.
+    def _locked_reason(self, symbol):
+        if symbol == MIGRATED:
+            return "migrated"
+        if symbol == SCHEDULED:
+            return "scheduled"
+        if symbol == DELETE_CMD:
+            return "deleted"
+        return None
+
+    def _locked(self, entry_id, symbol):
+        reason = self._locked_reason(symbol)
+        if reason:
+            print(f"{entry_id} is {reason} and can't be changed")
+            return True
+        return False
+
     def mark(self, ids, symbol):
         for raw_id in ids:
             if not raw_id.isdigit():
@@ -895,6 +963,8 @@ class Bujo:
             row = self._get(entry_id)
             if not row:
                 print(f"no such id: {entry_id}")
+                continue
+            if self._locked(entry_id, row[2]):
                 continue
             if symbol == TASK_DONE and self._has_open_children(entry_id):
                 print(f"{entry_id} has open children; close them first")
@@ -923,6 +993,8 @@ class Bujo:
             _id, pid, symbol, title = row
             if entry_id == self.root_id:
                 print("cannot rename root")
+                return
+            if self._locked(entry_id, symbol):
                 return
             if symbol == FOLDER and title.lower() == CAL_FOLDER.lower():
                 print("cannot rename the cal folder")
@@ -970,10 +1042,12 @@ class Bujo:
                 continue
             entry_id = int(raw_id)
             row = self.conn.execute(
-                "SELECT priority FROM tasks WHERE id = ?", (entry_id,)
+                "SELECT priority, symbol FROM tasks WHERE id = ?", (entry_id,)
             ).fetchone()
             if not row:
                 print(f"no such id: {entry_id}")
+                continue
+            if self._locked(entry_id, row[1]):
                 continue
             new_priority = 0 if row[0] else 1
             self.conn.execute(
@@ -1045,6 +1119,8 @@ class Bujo:
         pid = row[1]
         if pid is None:
             print("cannot reorder root")
+            return None
+        if self._locked(entry_id, row[2]):
             return None
         return entry_id, pid
 
@@ -1225,8 +1301,11 @@ class Bujo:
                 print(f"invalid id: {raw_id}")
                 continue
             entry_id = int(raw_id)
-            if not self._get(entry_id):
+            row = self._get(entry_id)
+            if not row:
                 print(f"no such id: {entry_id}")
+                continue
+            if self._locked(entry_id, row[2]):
                 continue
             cur = self.conn.execute(
                 "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, LOWER(?))",
@@ -1245,8 +1324,11 @@ class Bujo:
                 print(f"invalid id: {raw_id}")
                 continue
             entry_id = int(raw_id)
-            if not self._get(entry_id):
+            row = self._get(entry_id)
+            if not row:
                 print(f"no such id: {entry_id}")
+                continue
+            if self._locked(entry_id, row[2]):
                 continue
             cur = self.conn.execute(
                 "DELETE FROM tags WHERE task_id = ? AND tag = LOWER(?)",
@@ -1313,10 +1395,15 @@ class Bujo:
                 print("cannot delete root")
                 continue
             _id, pid, symbol, title = row
+            # deletion is one-way; ~ marks a permanent record on the page (~~ purges)
             if symbol == DELETE_CMD:
-                self._undelete(entry_id, pid, title)
-            else:
-                self._delete(entry_id, pid, symbol, title)
+                print(f"{entry_id} is already deleted")
+                continue
+            reason = self._locked_reason(symbol)
+            if reason:
+                print(f"{entry_id} is {reason} and can't be deleted; ~~ to purge")
+                continue
+            self._delete(entry_id, pid, symbol, title)
         self.conn.commit()
 
     def _delete(self, entry_id, pid, symbol, title):
@@ -1381,7 +1468,8 @@ class Bujo:
                 print("cannot purge root")
                 continue
             _id, pid, symbol, title = row
-            if symbol != DELETE_CMD:
+            # purge is the escape hatch for any locked record (~ migrated > sched <)
+            if not self._locked_reason(symbol):
                 print(f"{entry_id} is not deleted; ~ it first")
                 continue
             self._purge(entry_id, pid, title)

@@ -21,8 +21,11 @@ def normalize_py(text):
     out = []
     for line in text.split("\n"):
         line = ANSI.sub("", line)
-        if line.startswith("bujo - type ") or line.startswith("using database:"):
-            continue  # startup banner, not command output
+        if (line.startswith("bujo ") and "type 'help'" in line) or line.startswith(
+            "using database:"
+        ):
+            continue  # startup banner (e.g. "bujo <version> - type 'help' ..."),
+            # not command output
         if line.startswith("# "):
             out.append(line[2:])
         elif PROMPT.match(line):

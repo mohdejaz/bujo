@@ -36,6 +36,18 @@ function mkEl() {
     focus() {},
     click() {},
     setAttribute() {},
+    getAttribute() {
+      return null;
+    },
+    setSelectionRange() {},
+    closest() {
+      return null;
+    },
+    querySelector() {
+      return mkEl();
+    },
+    classList: { add() {}, remove() {} },
+    dataset: {},
     addEventListener(type, fn) {
       this._handlers[type] = fn;
     },
@@ -48,7 +60,7 @@ function mkEl() {
 const els = {};
 [
   "output", "promptForm", "cmd", "prompt", "importBtn", "exportBtn", "fileInput",
-  "fontDown", "fontUp", "themeBtn",
+  "fontDown", "fontUp", "themeBtn", "helpBtn", "quickbar",
 ].forEach((id) => (els[id] = mkEl()));
 
 global.window = {
@@ -61,6 +73,8 @@ global.document = {
   getElementById: (id) => els[id],
   createElement: () => mkEl(),
   querySelector: () => null,
+  addEventListener() {},
+  body: mkEl(),
   documentElement: { style: { setProperty() {} }, setAttribute() {} },
 };
 global.location = { protocol: "http:" };
