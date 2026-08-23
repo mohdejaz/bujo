@@ -1560,6 +1560,32 @@
       return date[0] === today.getMonth() + 1 && date[1] === today.getDate();
     }
 
+    // Open meetings (still `@`) in the current folder whose HH:MM time — on the
+    // folder's own mm.dd date — has already passed. Only meaningful when the
+    // current node is a dated daily folder; named folders (e.g. cal) carry no
+    // date to judge against, so they yield nothing. Year is assumed current
+    // since folders don't store one. Returns [{id, uuid, title, when}].
+    overdueMeetings() {
+      const folder = this._get(this.current_id);
+      if (!folder || folder[2] !== FOLDER) return [];
+      const date = this._folderDate(folder[3]);
+      if (date === null) return [];
+      const [mm, dd] = date;
+      const now = new Date();
+      const out = [];
+      for (const [id, , symbol, title] of this._children(this.current_id)) {
+        if (symbol !== MEETING) continue;
+        const t = this._meetingTime(title);
+        if (t === null) continue;
+        const when = new Date(now.getFullYear(), mm - 1, dd, t[0], t[1], 0, 0);
+        if (when.getTime() <= now.getTime()) {
+          const row = this._one("SELECT uuid FROM tasks WHERE id = ?", [id]);
+          out.push({ id, uuid: row ? row[0] : null, title, when });
+        }
+      }
+      return out;
+    }
+
     find(query, targetId) {
       let rows;
       if (targetId != null) {
