@@ -116,11 +116,24 @@
     pushMsg("bot", inner);
   }
 
+  // Guard against IndexedDB being unavailable or hanging (Safari private mode,
+  // storage-partitioned PWA contexts, a blocked upgrade): the app must still
+  // boot and render rather than wait forever on a blank screen.
+  let storageOk = true;
+  function withTimeout(promise, ms, label) {
+    return Promise.race([
+      promise,
+      new Promise((_, reject) => setTimeout(() => reject(new Error(`${label} timed out`)), ms)),
+    ]);
+  }
+
   async function persist() {
+    if (!storageOk) return; // storage already known-bad; stay in memory
     try {
-      await storage.saveBytes(db.export());
+      await withTimeout(storage.saveBytes(db.export()), 5000, "save");
     } catch (e) {
-      appendSystem("warning: could not save to storage: " + e.message);
+      storageOk = false;
+      appendSystem("warning: on-device storage unavailable — changes won't be saved this session");
     }
   }
 
@@ -401,12 +414,19 @@
   async function boot() {
     applyFontSize(fontSize);
     SQL = await initSqlJs({ locateFile: (f) => "vendor/" + f });
-    const bytes = await storage.loadBytes();
+    let bytes = null;
+    try {
+      bytes = await withTimeout(storage.loadBytes(), 5000, "load");
+    } catch (e) {
+      storageOk = false; // fall back to an in-memory db so we still render
+    }
     db = bytes ? new SQL.Database(bytes) : new SQL.Database();
     app = new Bujo(db);
     app.compactIds = true;
     updateWidth();
     appendSystem(`bujo ${versionString()} — type 'help' for commands`);
+    if (!storageOk)
+      appendSystem("note: on-device storage is unavailable — this session won't be saved");
     if (!bytes) {
       // first launch: create today's folder and start the user inside it, ready
       // to log. (current folder isn't persisted, so this only runs on a fresh db.)
