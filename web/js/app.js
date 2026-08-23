@@ -353,6 +353,7 @@
       actions.push({ label: "done", cmd: `x ${id}`, refresh: true });
       actions.push({ label: "priority", cmd: `! ${id}`, refresh: true });
       actions.push({ label: "tomorrow", cmd: `> ${id}`, refresh: true });
+      actions.push({ label: "collection", schedule: true }); // < <name> <id>
     }
     actions.push({ label: "edit", edit: true });
     actions.push({ label: "delete", cmd: `d ${id}`, refresh: true, danger: true });
@@ -367,6 +368,12 @@
       b.addEventListener("click", async () => {
         closeSheet();
         if (a.edit) return prefill(`e ${id} `);
+        if (a.schedule) {
+          // < needs a target collection name, so ask for it, then run < <name> <id>
+          const name = window.prompt("Schedule to which collection? (a name, or mm.dd)");
+          if (name && name.trim()) await runTap(`< ${name.trim()} ${id}`, true);
+          return;
+        }
         await runTap(a.cmd, a.refresh);
       });
       wrap.appendChild(b);
