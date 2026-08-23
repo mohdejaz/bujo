@@ -352,6 +352,7 @@
     if (!isFolder) {
       actions.push({ label: "done", cmd: `x ${id}`, refresh: true });
       actions.push({ label: "priority", cmd: `! ${id}`, refresh: true });
+      actions.push({ label: "snooze", cmd: `& ${id}`, refresh: true });
       actions.push({ label: "tomorrow", cmd: `> ${id}`, refresh: true });
       actions.push({ label: "collection", schedule: true }); // < <name> <id>
     }
@@ -412,10 +413,13 @@
 
   setInterval(() => {
     if (isSelectingText()) return;
-    if (document.activeElement !== cmdEl) cmdEl.focus();
-    // Place the cursor at the end of the current text.
-    const end = cmdEl.value.length;
-    cmdEl.setSelectionRange(end, end);
+    // Only reclaim focus when it's elsewhere; if the user is already in the bar,
+    // leave their caret where it is so mid-text edits aren't yanked to the end.
+    if (document.activeElement !== cmdEl) {
+      cmdEl.focus();
+      const end = cmdEl.value.length;
+      cmdEl.setSelectionRange(end, end);
+    }
   }, 4000);
 
   async function boot() {
