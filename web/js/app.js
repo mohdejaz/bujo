@@ -494,7 +494,13 @@
       b.textContent = a.label;
       b.addEventListener("click", async () => {
         closeSheet();
-        if (a.edit) return prefill(`e ${id} `);
+        if (a.edit) {
+          // prefill the current text so it can be edited in place. meetings (@)
+          // and events (o) keep their hh:mm / mm.dd prefix, so only offer the
+          // text after it (the engine re-adds the prefix).
+          const cur = symbol === "@" || symbol === "o" ? title.replace(/^\S+\s*/, "") : title;
+          return prefill(`e ${id} ${cur}`);
+        }
         if (a.schedule) {
           // < needs a target collection name, so ask for it, then run < <name> <id>
           const name = window.prompt("Schedule to which collection? (a name, or mm.dd)");
