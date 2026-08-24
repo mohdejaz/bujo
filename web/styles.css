@@ -373,12 +373,11 @@ body {
   border-radius: 4px;
   transition: background 0.12s ease;
 }
-/* One line per entry, trimmed with an ellipsis at the screen edge (the full
-   title is still on the row and shown when you tap it). */
+/* Wrap long entries to the next line so the full text is readable and stays
+   within the screen width (no horizontal clipping). */
 #output .line.row {
-  white-space: pre;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 @media (hover: hover) {
   #output .row:hover {
