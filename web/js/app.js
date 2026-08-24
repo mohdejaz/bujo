@@ -384,15 +384,14 @@
     focusCmdEnd();
   }
 
-  // Roll a day folder's unfinished items into today: `ro` moves the current
-  // folder's leftovers into a target, so step into the source, roll into today
-  // (created if needed), then land in today to see the result.
+  // Roll the folder you're viewing into today, exactly like typing `ro <today>`
+  // there: ensure today exists, make sure we're in the source folder, roll, and
+  // stay put (don't navigate away) so the button matches the command bar.
   async function rollToToday(folderName) {
     const today = dailyFolderName();
-    app.runCommand(`+ ${today}`);
-    app.runCommand(`use ${folderName}`);
+    app.runCommand(`+ ${today}`); // create today if missing (harmless if it exists)
+    app.runCommand(`use ${folderName}`); // ensure the source folder is current
     const buf = app.runCommand(`ro ${today}`);
-    app.runCommand(`use ${today}`);
     routeOutput(`ro ${today}`, buf); // "rolled over N item(s)" / any error → toast
     renderList();
     await persist();
