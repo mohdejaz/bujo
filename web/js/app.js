@@ -108,12 +108,11 @@
     }
   }
 
-  // Re-render the current folder's `ls` into #output, replacing it. Rows carry a
-  // data-id (tappable); folder-grid rows keep their `pre` column alignment; the
-  // trailing "N entries"/"(empty)" line renders as muted meta.
-  function renderList() {
-    const entries = trimBlanks(app.runCommand("ls"));
-    outputEl.innerHTML = entries
+  // Render an ls buffer into #output, replacing it. Rows carry a data-id
+  // (tappable); folder-grid rows keep their `pre` column alignment; the trailing
+  // "N entries"/"(empty)" line renders as muted meta.
+  function renderBuffer(buf) {
+    outputEl.innerHTML = trimBlanks(buf)
       .map((entry) => {
         const content = entry.html != null ? entry.html : escapeHtml(entry.t);
         if (entry.id != null)
@@ -123,6 +122,10 @@
       .join("");
     outputEl.scrollTop = 0;
     updateCrumb();
+  }
+  // The default view: the current folder's plain `ls`.
+  function renderList() {
+    renderBuffer(app.runCommand("ls"));
   }
 
   // ---- transient output: toast (short) + panel (long) ----
@@ -165,37 +168,48 @@
     if (panelEl) panelEl.classList.remove("open");
   }
 
-  // Route a command's *non-list* text. The list is re-rendered separately, so a
-  // plain `ls` needs no output; info commands (help/find/stats) open the panel;
-  // everything else is a short status or error → toast (multi-line → panel).
+  // A plain or filtered listing (`ls`, `ls x`, `l @`, …) — as opposed to the
+  // stats form (`ls 3`) or another entry's listing (`ls ^3`), which read as info.
+  function isListingCmd(line) {
+    const tokens = line.trim().split(/\s+/);
+    let head = (tokens[0] || "").toLowerCase();
+    head = head === "l" ? "ls" : head;
+    if (head !== "ls") return false;
+    const args = tokens.slice(1);
+    const stats = args.length > 0 && args.every((a) => /^\d+$/.test(a));
+    const targeted = /^\^/.test(args[0] || "");
+    return !stats && !targeted;
+  }
+
+  // Route a command's non-list text: help/stats/multi-line → panel; a short
+  // status or error → toast; nothing to say → silent.
   function routeOutput(line, buf) {
     const text = buf
       .map((e) => e.t)
       .join("\n")
       .replace(/\s+$/, "");
-    const tokens = line.trim().split(/\s+/);
-    let head = (tokens[0] || "").toLowerCase();
-    head = { l: "ls", h: "help", s: "schd", u: "use" }[head] || head;
-    if (head === "ls") {
-      const args = tokens.slice(1);
-      const infoish =
-        (args.length > 0 && args.every((a) => /^\d+$/.test(a))) || /^\^/.test(args[0] || "");
-      if (infoish) showPanel(text); // stats form / another entry's listing
-      return;
-    }
-    if (head === "help" || head === "f") return showPanel(text);
+    const head = (line.trim().split(/\s+/)[0] || "").toLowerCase();
+    if (head === "help" || head === "h") return showPanel(text);
     if (head === "cls" || head === "c") return; // clearing has no meaning here
     if (!text) return;
     (text.indexOf("\n") >= 0 ? showPanel : showToast)(text);
   }
 
-  // The one command path: run it, route any message, then refresh the list.
+  // The one command path: run it, then display its output. If the command
+  // produced a listing (plain/filtered ls, find results, an entry's children),
+  // that listing becomes the view; otherwise it was a mutation/status/info — so
+  // refresh the current folder and route the message to a toast/panel.
   async function execute(line) {
     const buf = app.runCommand(line);
     const dirty = app.dirty;
     app._clearScreen = false; // no-op in the list view
-    routeOutput(line, buf);
-    renderList();
+    const hasRows = trimBlanks(buf).some((e) => e.id != null || e.grid);
+    if (isListingCmd(line) || hasRows) {
+      renderBuffer(buf);
+    } else {
+      routeOutput(line, buf);
+      renderList();
+    }
     if (dirty) await persist();
   }
 
