@@ -1714,21 +1714,21 @@
         const available = cellWidth - prefix.length - marker.length - tagsVisibleLen;
         const displayTitle = this._truncate(title, available);
         const plainLine = `${idStr}${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`;
-        // Rich markup: color the symbol glyph (and the ! priority marker), and
-        // keep the green highlight on the active entry's id. Text is identical.
-        const idHtml =
-          entryId === activeId && idStr
-            ? `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `
-            : escapeHtml(idStr);
+        // Rich markup: color the symbol glyph (and the ! priority marker). The
+        // internal id is deliberately left off the display — it stays in `.t`
+        // (parity harness) and on the row's data-id, so tapping a row still
+        // resolves it and shows its #id in the action sheet.
         const pmarkHtml =
           pmark === PRIORITY_CMD
             ? `<span class="g-pri">${escapeHtml(PRIORITY_CMD)}</span>`
             : escapeHtml(pmark);
         // Wrap the title separately so done/deleted rows can strike just the
-        // text (the `cls` below is applied to the whole row for the dim).
-        const titleHtml = `<span class="ttl">${escapeHtml(displayTitle)}</span>`;
+        // text (the `cls` below is applied to the whole row for the dim). The
+        // web shows the FULL title (CSS wraps it); only `.t` keeps the
+        // width-truncated `displayTitle` for parity with the Python CLI.
+        const titleHtml = `<span class="ttl">${escapeHtml(title)}</span>`;
         const rest = `${escapeHtml(` ${dateStr}`)}${titleHtml}${escapeHtml(`${marker}${tagSuffix}`)}`;
-        const html = `${idHtml}${pmarkHtml}${glyphSpan(symbol)}${rest}`;
+        const html = `${pmarkHtml}${glyphSpan(symbol)}${rest}`;
         const cls =
           symbol === TASK_DONE
             ? "done"
@@ -1782,7 +1782,7 @@
           }
         }
         const plain = parts.join("").replace(/\s+$/, "");
-        if (ids) this._buf.push({ t: plain, html: htmlParts.join("") });
+        if (ids) this._buf.push({ t: plain, html: htmlParts.join(""), grid: true });
         else this._p(plain);
       }
     }

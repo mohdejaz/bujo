@@ -1,9 +1,10 @@
-/* app.js - wire the command bar to the Bujo engine, render a chat-style log,
- * and persist to IndexedDB. */
+/* app.js - wire the command bar + tap layer to the Bujo engine, keep the
+ * current folder's entries always on screen (re-rendered in place after each
+ * command), route non-list output to a toast/panel, and persist to IndexedDB. */
 (function () {
   "use strict";
 
-  const { Bujo, escapeHtml, versionString } = window.BujoModule;
+  const { Bujo, escapeHtml } = window.BujoModule;
   const storage = window.BujoStorage;
 
   const outputEl = document.getElementById("output");
@@ -60,7 +61,10 @@
   // ---- terminal width (drives bujo's truncation / folder grid) ----
   function measureCharWidth() {
     const probe = document.createElement("span");
-    probe.style.cssText = "position:absolute;visibility:hidden;white-space:pre;";
+    // measure in monospace: `app.width` drives folder-grid column packing and
+    // truncation, which are still expressed in fixed-width character columns
+    probe.style.cssText =
+      "position:absolute;visibility:hidden;white-space:pre;font-family:var(--mono);";
     probe.textContent = "0".repeat(100);
     outputEl.appendChild(probe);
     const w = probe.getBoundingClientRect().width / 100;
@@ -69,26 +73,20 @@
   }
   function updateWidth() {
     charWidth = measureCharWidth();
-    const usable = outputEl.clientWidth - 44; // output + bubble padding
+    const usable = outputEl.clientWidth - 24; // #output horizontal padding
     const cols = Math.max(20, Math.floor(usable / charWidth));
     if (app) app.width = cols;
   }
 
-  // ---- chat rendering ----
-  function pushMsg(cls, innerHtml) {
-    const msg = document.createElement("div");
-    msg.className = "msg " + cls;
-    msg.innerHTML = `<div class="bubble">${innerHtml}</div>`;
-    outputEl.appendChild(msg);
-    outputEl.scrollTop = outputEl.scrollHeight;
-    return msg;
-  }
-  function appendUser(cmd) {
-    pushMsg("user", escapeHtml(cmd));
-  }
-  function appendSystem(text) {
-    pushMsg("system", escapeHtml(text));
-  }
+  // ---- the entries view ----
+  // This isn't a chat log: the current folder's entries are always on screen.
+  // Every command mutates state, then we re-render the current folder's list in
+  // place (renderList). Non-list output is routed to a transient toast (short)
+  // or a dismissible panel (long) so it never buries the list.
+  const crumbPathEl = document.getElementById("crumbPath");
+  const upBtn = document.getElementById("upBtn");
+  const rollBtn = document.getElementById("rollBtn");
+
   function trimBlanks(buf) {
     let s = 0;
     let e = buf.length;
@@ -96,26 +94,109 @@
     while (e > s && !buf[e - 1].html && buf[e - 1].t === "") e--;
     return buf.slice(s, e);
   }
-  function appendBot(buf, okOnEmpty) {
-    const entries = trimBlanks(buf);
-    if (!entries.length) {
-      if (okOnEmpty !== false) pushMsg("bot empty", "ok");
-      return;
+
+  function updateCrumb() {
+    if (crumbPathEl) crumbPathEl.textContent = app ? app.path() : "";
+    if (upBtn) upBtn.disabled = !app || app.current_id === app.root_id;
+    if (rollBtn) {
+      // show "roll → today" only while inside a PAST daily folder (mm.dd.dow)
+      const cur = app && app.current_id !== app.root_id && app._get(app.current_id);
+      const name = cur ? cur[3] : "";
+      const rollable = /^\d{2}\.\d{2}\./.test(name) && name !== dailyFolderName();
+      rollBtn.hidden = !rollable;
+      rollBtn.dataset.folder = name;
     }
-    const inner = entries
+  }
+
+  // Re-render the current folder's `ls` into #output, replacing it. Rows carry a
+  // data-id (tappable); folder-grid rows keep their `pre` column alignment; the
+  // trailing "N entries"/"(empty)" line renders as muted meta.
+  function renderList() {
+    const entries = trimBlanks(app.runCommand("ls"));
+    outputEl.innerHTML = entries
       .map((entry) => {
         const content = entry.html != null ? entry.html : escapeHtml(entry.t);
-        // One block per line, so CSS can space entries apart and wrap long
-        // text. List rows carry an id → make the whole line tappable (folder
-        // grids already embed their own per-cell `.row` spans, so those stay
-        // non-wrapping `pre` and skip the `row` class here). `cls` (done/del)
-        // drives the dim + strikethrough treatment.
-        return entry.id != null
-          ? `<div class="line row${entry.cls ? " " + entry.cls : ""}" data-id="${entry.id}">${content}</div>`
-          : `<div class="line">${content}</div>`;
+        if (entry.id != null)
+          return `<div class="line row${entry.cls ? " " + entry.cls : ""}" data-id="${entry.id}">${content}</div>`;
+        return `<div class="line ${entry.grid ? "grid" : "meta"}">${content}</div>`;
       })
       .join("");
-    pushMsg("bot", inner);
+    outputEl.scrollTop = 0;
+    updateCrumb();
+  }
+
+  // ---- transient output: toast (short) + panel (long) ----
+  let toastEl = null;
+  let toastTimer = null;
+  function showToast(text) {
+    text = String(text).trim();
+    if (!text) return;
+    if (!toastEl) {
+      toastEl = document.createElement("div");
+      toastEl.id = "toast";
+      document.body.appendChild(toastEl);
+    }
+    toastEl.textContent = text;
+    toastEl.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => toastEl.classList.remove("show"), 3400);
+  }
+
+  let panelEl = null;
+  function ensurePanel() {
+    if (panelEl) return;
+    panelEl = document.createElement("div");
+    panelEl.id = "panel";
+    panelEl.innerHTML =
+      '<div id="panelSheet"><pre id="panelBody"></pre><button id="panelClose">close</button></div>';
+    document.body.appendChild(panelEl);
+    panelEl.addEventListener("click", (e) => {
+      if (e.target === panelEl || e.target.id === "panelClose") closePanel();
+    });
+  }
+  function showPanel(text) {
+    text = String(text).replace(/\s+$/, "");
+    if (!text) return;
+    ensurePanel();
+    panelEl.querySelector("#panelBody").textContent = text;
+    panelEl.classList.add("open");
+  }
+  function closePanel() {
+    if (panelEl) panelEl.classList.remove("open");
+  }
+
+  // Route a command's *non-list* text. The list is re-rendered separately, so a
+  // plain `ls` needs no output; info commands (help/find/stats) open the panel;
+  // everything else is a short status or error → toast (multi-line → panel).
+  function routeOutput(line, buf) {
+    const text = buf
+      .map((e) => e.t)
+      .join("\n")
+      .replace(/\s+$/, "");
+    const tokens = line.trim().split(/\s+/);
+    let head = (tokens[0] || "").toLowerCase();
+    head = { l: "ls", h: "help", s: "schd", u: "use" }[head] || head;
+    if (head === "ls") {
+      const args = tokens.slice(1);
+      const infoish =
+        (args.length > 0 && args.every((a) => /^\d+$/.test(a))) || /^\^/.test(args[0] || "");
+      if (infoish) showPanel(text); // stats form / another entry's listing
+      return;
+    }
+    if (head === "help" || head === "f") return showPanel(text);
+    if (head === "cls" || head === "c") return; // clearing has no meaning here
+    if (!text) return;
+    (text.indexOf("\n") >= 0 ? showPanel : showToast)(text);
+  }
+
+  // The one command path: run it, route any message, then refresh the list.
+  async function execute(line) {
+    const buf = app.runCommand(line);
+    const dirty = app.dirty;
+    app._clearScreen = false; // no-op in the list view
+    routeOutput(line, buf);
+    renderList();
+    if (dirty) await persist();
   }
 
   // --- Overdue meeting monitor -------------------------------------------
@@ -145,7 +226,7 @@
       const key = m.uuid != null ? "u:" + m.uuid : "i:" + m.id;
       if (alertedMeetings.has(key)) continue;
       alertedMeetings.add(key);
-      appendSystem(`⏰ meeting past due: ${m.title}`);
+      showToast(`⏰ meeting past due: ${m.title}`);
       notify("Meeting past due", m.title);
     }
   }
@@ -167,21 +248,8 @@
       await withTimeout(storage.saveBytes(db.export()), 5000, "save");
     } catch (e) {
       storageOk = false;
-      appendSystem("warning: on-device storage unavailable — changes won't be saved this session");
+      showToast("on-device storage unavailable — changes won't be saved this session");
     }
-  }
-
-  async function runEngine(line, okOnEmpty) {
-    const buf = app.runCommand(line);
-    const dirty = app.dirty;
-    if (app._clearScreen) {
-      outputEl.innerHTML = "";
-      app._clearScreen = false;
-    } else {
-      appendBot(buf, okOnEmpty);
-    }
-    if (dirty) await persist();
-    return dirty;
   }
 
   // the command bar starts empty; the engine treats input with no
@@ -191,9 +259,18 @@
     cmdEl.value = "";
   }
 
+  // On touch devices, focusing the input pops the on-screen keyboard — a
+  // nuisance in this tap-first UI. So auto-focus is desktop-only; on touch the
+  // keyboard only opens when the user taps the field, or explicitly asks to log
+  // via a chip (focusCmdEnd(true)).
+  const isTouch =
+    (navigator.maxTouchPoints || 0) > 0 ||
+    !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+
   // focus() alone can leave the caret wherever it last was (or at 0 on
   // some browsers), so pin it after any text the user already typed.
-  function focusCmdEnd() {
+  function focusCmdEnd(force) {
+    if (isTouch && !force) return; // don't summon the keyboard unprompted
     cmdEl.focus();
     const end = cmdEl.value.length;
     cmdEl.setSelectionRange(end, end);
@@ -207,8 +284,8 @@
     if (!line) return;
     history.push(raw);
     historyIdx = history.length;
-    appendUser(line);
-    await runEngine(line);
+    await execute(line);
+    focusCmdEnd();
   });
 
   // up/down command history (hardware keyboards / iPad)
@@ -235,8 +312,7 @@
   fontUp.addEventListener("click", () => applyFontSize(fontSize + 1));
 
   helpBtn.addEventListener("click", async () => {
-    appendUser("help");
-    await runEngine("help");
+    await execute("help");
     focusCmdEnd();
   });
 
@@ -259,7 +335,7 @@
       `Import ${file.name}?\n\nThis will replace ALL current data. Your existing entries will be permanently discarded and cannot be recovered.\n\nExport a backup first if you want to keep them.`
     );
     if (!proceed) {
-      appendSystem("import cancelled");
+      showToast("import cancelled");
       return;
     }
     const bytes = new Uint8Array(await file.arrayBuffer());
@@ -273,13 +349,13 @@
       db = newDb;
       app = newApp;
       oldDb.close();
-      outputEl.innerHTML = "";
       updateWidth();
       await persist();
-      appendSystem(`imported ${file.name} — previous data replaced`);
+      renderList();
+      showToast(`imported ${file.name} — previous data replaced`);
     } catch (e) {
       if (newDb) newDb.close();
-      appendSystem("import failed: " + (e instanceof Error ? e.message : e));
+      showToast("import failed: " + (e instanceof Error ? e.message : e));
     }
   });
 
@@ -289,28 +365,7 @@
 
   function prefill(text) {
     cmdEl.value = text;
-    focusCmdEnd();
-  }
-
-  // apply a command for its side effects without rendering its output
-  async function runSilent(line) {
-    app.runCommand(line);
-    const dirty = app.dirty;
-    if (app._clearScreen) app._clearScreen = false;
-    if (dirty) await persist();
-  }
-
-  // echo the synthesized command (so tapping teaches the syntax), run it, and
-  // for mutations re-list the current folder so the change is visible.
-  async function runTap(cmd, refresh) {
-    appendUser(cmd);
-    if (refresh) {
-      await runSilent(cmd);
-      await runEngine("ls", false);
-    } else {
-      await runEngine(cmd, false);
-    }
-    focusCmdEnd();
+    focusCmdEnd(true); // tapping a log chip is an explicit "let me type" — open the keyboard
   }
 
   function dailyFolderName() {
@@ -322,11 +377,25 @@
 
   async function openToday() {
     const name = dailyFolderName();
-    await runSilent(`+ ${name}`); // creates it if missing; harmless if it exists
-    appendUser(`use ${name}`);
-    await runSilent(`use ${name}`);
-    await runEngine("ls", false);
+    app.runCommand(`+ ${name}`); // create if missing (harmless if it exists)
+    app.runCommand(`use ${name}`);
+    renderList();
+    await persist();
     focusCmdEnd();
+  }
+
+  // Roll a day folder's unfinished items into today: `ro` moves the current
+  // folder's leftovers into a target, so step into the source, roll into today
+  // (created if needed), then land in today to see the result.
+  async function rollToToday(folderName) {
+    const today = dailyFolderName();
+    app.runCommand(`+ ${today}`);
+    app.runCommand(`use ${folderName}`);
+    const buf = app.runCommand(`ro ${today}`);
+    app.runCommand(`use ${today}`);
+    routeOutput(`ro ${today}`, buf); // "rolled over N item(s)" / any error → toast
+    renderList();
+    await persist();
   }
 
   const quickbar = document.getElementById("quickbar");
@@ -343,18 +412,31 @@
       case "today":
         return openToday();
       case "list":
-        appendUser("ls");
-        await runEngine("ls");
+        renderList();
         return focusCmdEnd();
       case "help":
-        appendUser("help");
-        await runEngine("help");
+        await execute("help");
         return focusCmdEnd();
     }
   });
 
   // ---- action sheet ----
   let sheetEl = null;
+  // Touch devices have no :hover, so highlight the tapped row while its sheet is
+  // open — gives the same "this is the entry I'm acting on" feedback the mouse
+  // gets on desktop.
+  let selectedRow = null;
+  function clearSelectedRow() {
+    if (selectedRow) selectedRow.classList.remove("selected");
+    selectedRow = null;
+  }
+  function selectRow(row) {
+    clearSelectedRow();
+    if (row) {
+      row.classList.add("selected");
+      selectedRow = row;
+    }
+  }
   function ensureSheet() {
     if (sheetEl) return;
     sheetEl = document.createElement("div");
@@ -368,14 +450,16 @@
   }
   function closeSheet() {
     if (sheetEl) sheetEl.classList.remove("open");
+    clearSelectedRow();
   }
-  function openSheet(id) {
+  function openSheet(id, rowEl) {
     ensureSheet();
     const row = app._get(Number(id));
     if (!row) {
-      appendSystem(`entry ${id} is no longer here`);
+      showToast(`entry ${id} is no longer here`);
       return;
     }
+    selectRow(rowEl);
     const symbol = row[2];
     const title = row[3];
     const isFolder = symbol === "+";
@@ -401,6 +485,8 @@
 
     sheetEl.querySelector("#sheetTitle").textContent = `#${id}  ${symbol} ${title}`;
     const wrap = sheetEl.querySelector("#sheetActions");
+    // folder sheets have just open/edit/delete — render them more compactly
+    wrap.classList.toggle("compact", isFolder);
     wrap.innerHTML = "";
     for (const a of actions) {
       const b = document.createElement("button");
@@ -412,10 +498,10 @@
         if (a.schedule) {
           // < needs a target collection name, so ask for it, then run < <name> <id>
           const name = window.prompt("Schedule to which collection? (a name, or mm.dd)");
-          if (name && name.trim()) await runTap(`< ${name.trim()} ${id}`, true);
+          if (name && name.trim()) await execute(`< ${name.trim()} ${id}`);
           return;
         }
-        await runTap(a.cmd, a.refresh);
+        await execute(a.cmd);
       });
       wrap.appendChild(b);
     }
@@ -426,11 +512,25 @@
     const row = e.target.closest(".row");
     if (!row || isSelectingText()) return;
     const id = row.getAttribute("data-id");
-    if (id) openSheet(id);
+    if (id) openSheet(id, row);
   });
 
+  if (upBtn)
+    upBtn.addEventListener("click", async () => {
+      await execute("use ..");
+      focusCmdEnd();
+    });
+
+  if (rollBtn)
+    rollBtn.addEventListener("click", async () => {
+      if (rollBtn.dataset.folder) await rollToToday(rollBtn.dataset.folder);
+    });
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") closeSheet();
+    if (e.key === "Escape") {
+      closeSheet();
+      closePanel();
+    }
   });
 
   window.addEventListener("resize", updateWidth);
@@ -451,16 +551,19 @@
     return false;
   }
 
-  setInterval(() => {
-    if (isSelectingText()) return;
-    // Only reclaim focus when it's elsewhere; if the user is already in the bar,
-    // leave their caret where it is so mid-text edits aren't yanked to the end.
-    if (document.activeElement !== cmdEl) {
-      cmdEl.focus();
-      const end = cmdEl.value.length;
-      cmdEl.setSelectionRange(end, end);
-    }
-  }, 4000);
+  // Desktop-only: keep focus on the bar so you can type without clicking. Never
+  // on touch — it would force the keyboard open every few seconds.
+  if (!isTouch)
+    setInterval(() => {
+      if (isSelectingText()) return;
+      // Only reclaim focus when it's elsewhere; if the user is already in the bar,
+      // leave their caret where it is so mid-text edits aren't yanked to the end.
+      if (document.activeElement !== cmdEl) {
+        cmdEl.focus();
+        const end = cmdEl.value.length;
+        cmdEl.setSelectionRange(end, end);
+      }
+    }, 4000);
 
   async function boot() {
     applyFontSize(fontSize);
@@ -475,18 +578,17 @@
     app = new Bujo(db);
     app.compactIds = true;
     updateWidth();
-    appendSystem(`bujo ${versionString()} — type 'help' for commands`);
     if (!storageOk)
-      appendSystem("note: on-device storage is unavailable — this session won't be saved");
+      showToast("on-device storage is unavailable — this session won't be saved");
     if (!bytes) {
-      // first launch: create today's folder and start the user inside it, ready
+      // first launch: create today's folder and drop the user inside it, ready
       // to log. (current folder isn't persisted, so this only runs on a fresh db.)
       const name = dailyFolderName();
-      await runSilent(`+ ${name}`); // seeds + persists the empty db too
-      await runSilent(`use ${name}`);
-      appendSystem(`started today's folder: ${name}`);
-      await runEngine("ls", false);
+      app.runCommand(`+ ${name}`); // seeds + persists the empty db too
+      app.runCommand(`use ${name}`);
+      await persist();
     }
+    renderList(); // the entries view is the home screen
     resetCmd();
     focusCmdEnd();
 
@@ -509,6 +611,6 @@
   }
 
   boot().catch((e) => {
-    appendSystem("failed to start: " + (e && e.message ? e.message : e));
+    showToast("failed to start: " + (e && e.message ? e.message : e));
   });
 })();
