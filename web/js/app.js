@@ -54,7 +54,12 @@
   let fontIdx = parseInt(localStorage.getItem("bujo.font"), 10) || 0;
   function applyFont(idx) {
     fontIdx = ((idx % FONTS.length) + FONTS.length) % FONTS.length;
-    document.documentElement.style.setProperty("--mono", FONTS[fontIdx].stack);
+    const stack = FONTS[fontIdx].stack;
+    // drive both the CSS var (folder grid + width probe reference --mono) and
+    // the body font-family directly, so the whole UI — including the output
+    // cells — follows even if the stylesheet's var wiring is stale.
+    document.documentElement.style.setProperty("--mono", stack);
+    if (document.body) document.body.style.fontFamily = stack;
     localStorage.setItem("bujo.font", String(fontIdx));
     if (fontBtn) fontBtn.textContent = FONTS[fontIdx].name;
     updateWidth(); // glyph width changes → recompute the grid column count
