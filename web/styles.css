@@ -378,19 +378,18 @@ body {
   color: var(--g-pri);
 }
 
-/* done / deleted / migrated: subtle crossed-off treatment
-   (dim the whole row, strike just the title) */
+/* done / migrated / deleted are all dimmed so open items stand out, but only a
+   DELETED entry is struck through — per the Bullet Journal method, strikethrough
+   means cancelled/irrelevant. Completed tasks are marked by the `x` glyph, and
+   migrated/scheduled by `>`/`<`; neither is crossed out. */
 .row.done,
-.row.del,
 .row.moved {
   opacity: 0.62;
 }
 .row.del {
   opacity: 0.5;
 }
-.row.done .ttl,
-.row.del .ttl,
-.row.moved .ttl {
+.row.del .ttl {
   text-decoration: line-through;
   text-decoration-thickness: 1px;
 }
