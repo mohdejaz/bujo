@@ -87,6 +87,15 @@ body {
   -webkit-text-size-adjust: 100%;
 }
 
+/* form controls don't inherit the page font by default — force monospace
+   everywhere so the entire UI is fixed-width */
+button,
+input,
+textarea,
+select {
+  font-family: inherit;
+}
+
 body {
   display: flex;
   flex-direction: column;
@@ -392,6 +401,9 @@ body {
 #output .line {
   display: block;
   padding: 3px 0;
+  /* preserve the monospace column alignment in plain output like `help`
+     (grid rows override to non-wrapping `pre`) */
+  white-space: pre-wrap;
 }
 /* the all-folders view packs columns with space padding, which only lines up
    in a fixed-width font — keep it monospace even though the rest is proportional */
