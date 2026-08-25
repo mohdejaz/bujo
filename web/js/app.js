@@ -15,6 +15,7 @@
   const fileInput = document.getElementById("fileInput");
   const fontDown = document.getElementById("fontDown");
   const fontUp = document.getElementById("fontUp");
+  const fontBtn = document.getElementById("fontBtn");
   const themeBtn = document.getElementById("themeBtn");
   const helpBtn = document.getElementById("helpBtn");
 
@@ -39,6 +40,27 @@
     localStorage.setItem("bujo.fontSize", String(fontSize));
     updateWidth();
   }
+
+  // ---- monospace font family (persisted) ----
+  // All choices are fixed-width, so column alignment (folder grid, help, id
+  // column) holds whichever is picked. Cycling swaps --mono, which --font
+  // derives from, so the whole UI follows.
+  const FONTS = [
+    { name: "SF", stack: 'ui-monospace, "SF Mono", Menlo, Consolas, monospace' },
+    { name: "Menl", stack: 'Menlo, Monaco, "DejaVu Sans Mono", monospace' },
+    { name: "Cour", stack: '"Courier New", Courier, monospace' },
+    { name: "Cons", stack: 'Consolas, "Lucida Console", monospace' },
+  ];
+  let fontIdx = parseInt(localStorage.getItem("bujo.font"), 10) || 0;
+  function applyFont(idx) {
+    fontIdx = ((idx % FONTS.length) + FONTS.length) % FONTS.length;
+    document.documentElement.style.setProperty("--mono", FONTS[fontIdx].stack);
+    localStorage.setItem("bujo.font", String(fontIdx));
+    if (fontBtn) fontBtn.textContent = FONTS[fontIdx].name;
+    updateWidth(); // glyph width changes → recompute the grid column count
+  }
+  if (fontBtn) fontBtn.addEventListener("click", () => applyFont(fontIdx + 1));
+  applyFont(fontIdx);
 
   // ---- theme (persisted; defaults to system preference) ----
   function systemTheme() {
