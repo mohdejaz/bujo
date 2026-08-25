@@ -78,11 +78,11 @@
     if (app) app.width = cols;
   }
 
-  // ---- the entries view ----
-  // This isn't a chat log: the current folder's entries are always on screen.
-  // Every command mutates state, then we re-render the current folder's list in
-  // place (renderList). Non-list output is routed to a transient toast (short)
-  // or a dismissible panel (long) so it never buries the list.
+  // ---- notebook (append-only REPL) ----
+  // Each command appends an In/Out cell to the bottom of #output: `In [n]:`
+  // echoes the command, and the Out block renders the engine's output (entry
+  // rows stay tappable via their data-id). Newest cell sits at the bottom, next
+  // to the input. `cls` clears the notebook.
   const crumbPathEl = document.getElementById("crumbPath");
   const upBtn = document.getElementById("upBtn");
   const rollBtn = document.getElementById("rollBtn");
@@ -108,11 +108,11 @@
     }
   }
 
-  // Render an ls buffer into #output, replacing it. Rows carry a data-id
-  // (tappable); folder-grid rows keep their `pre` column alignment; the trailing
-  // "N entries"/"(empty)" line renders as muted meta.
-  function renderBuffer(buf) {
-    outputEl.innerHTML = trimBlanks(buf)
+  // Render an engine buffer as the cell's Out block. Entry rows (with an id) are
+  // tappable; folder-grid rows keep monospace column alignment; other lines are
+  // plain output.
+  function renderOut(buf) {
+    return trimBlanks(buf)
       .map((entry) => {
         const content = entry.html != null ? entry.html : escapeHtml(entry.t);
         if (entry.id != null)
@@ -120,15 +120,27 @@
         return `<div class="line ${entry.grid ? "grid" : "meta"}">${content}</div>`;
       })
       .join("");
-    outputEl.scrollTop = 0;
-    updateCrumb();
-  }
-  // The default view: the current folder's plain `ls`.
-  function renderList() {
-    renderBuffer(app.runCommand("ls"));
   }
 
-  // ---- transient output: toast (short) + panel (long) ----
+  // Append a cell — the echoed command (with a `»` prompt) and its output — and
+  // scroll it into view. Old cells are trimmed so the log stays bounded.
+  const MAX_CELLS = 60;
+  function appendCell(command, buf) {
+    const out = renderOut(buf);
+    const cell = document.createElement("div");
+    cell.className = "cell";
+    cell.innerHTML =
+      `<div class="in"><span class="prompt">»</span> <span class="cmd">${escapeHtml(command)}</span></div>` +
+      (out ? `<div class="out">${out}</div>` : "");
+    outputEl.appendChild(cell);
+    while (outputEl.children.length > MAX_CELLS) outputEl.removeChild(outputEl.firstChild);
+    outputEl.scrollTop = outputEl.scrollHeight; // newest cell in view
+  }
+
+  function clearNotebook() {
+    outputEl.innerHTML = "";
+  }
+
   let toastEl = null;
   let toastTimer = null;
   function showToast(text) {
@@ -145,72 +157,25 @@
     toastTimer = setTimeout(() => toastEl.classList.remove("show"), 3400);
   }
 
-  let panelEl = null;
-  function ensurePanel() {
-    if (panelEl) return;
-    panelEl = document.createElement("div");
-    panelEl.id = "panel";
-    panelEl.innerHTML =
-      '<div id="panelSheet"><pre id="panelBody"></pre><button id="panelClose">close</button></div>';
-    document.body.appendChild(panelEl);
-    panelEl.addEventListener("click", (e) => {
-      if (e.target === panelEl || e.target.id === "panelClose") closePanel();
-    });
-  }
-  function showPanel(text) {
-    text = String(text).replace(/\s+$/, "");
-    if (!text) return;
-    ensurePanel();
-    panelEl.querySelector("#panelBody").textContent = text;
-    panelEl.classList.add("open");
-  }
-  function closePanel() {
-    if (panelEl) panelEl.classList.remove("open");
-  }
-
-  // A plain or filtered listing (`ls`, `ls x`, `l @`, …) — as opposed to the
-  // stats form (`ls 3`) or another entry's listing (`ls ^3`), which read as info.
-  function isListingCmd(line) {
-    const tokens = line.trim().split(/\s+/);
-    let head = (tokens[0] || "").toLowerCase();
-    head = head === "l" ? "ls" : head;
-    if (head !== "ls") return false;
-    const args = tokens.slice(1);
-    const stats = args.length > 0 && args.every((a) => /^\d+$/.test(a));
-    const targeted = /^\^/.test(args[0] || "");
-    return !stats && !targeted;
-  }
-
-  // Route a command's non-list text: help/stats/multi-line → panel; a short
-  // status or error → toast; nothing to say → silent.
-  function routeOutput(line, buf) {
-    const text = buf
-      .map((e) => e.t)
-      .join("\n")
-      .replace(/\s+$/, "");
-    const head = (line.trim().split(/\s+/)[0] || "").toLowerCase();
-    if (head === "help" || head === "h") return showPanel(text);
-    if (head === "cls" || head === "c") return; // clearing has no meaning here
-    if (!text) return;
-    (text.indexOf("\n") >= 0 ? showPanel : showToast)(text);
-  }
-
-  // The one command path: run it, then display its output. If the command
-  // produced a listing (plain/filtered ls, find results, an entry's children),
-  // that listing becomes the view; otherwise it was a mutation/status/info — so
-  // refresh the current folder and route the message to a toast/panel.
+  // The one command path: run it, append its cell (or clear on `cls`), persist.
   async function execute(line) {
     const buf = app.runCommand(line);
     const dirty = app.dirty;
-    app._clearScreen = false; // no-op in the list view
-    const hasRows = trimBlanks(buf).some((e) => e.id != null || e.grid);
-    if (isListingCmd(line) || hasRows) {
-      renderBuffer(buf);
+    if (app._clearScreen) {
+      clearNotebook();
+      app._clearScreen = false;
     } else {
-      routeOutput(line, buf);
-      renderList();
+      appendCell(line, buf);
     }
+    updateCrumb();
     if (dirty) await persist();
+  }
+
+  // A tap runs its command, then auto-appends an `ls` so the folder view
+  // refreshes without the user typing it.
+  async function executeTap(line) {
+    await execute(line);
+    await execute("ls");
   }
 
   // --- Overdue meeting monitor -------------------------------------------
@@ -365,7 +330,8 @@
       oldDb.close();
       updateWidth();
       await persist();
-      renderList();
+      clearNotebook();
+      await execute("ls");
       showToast(`imported ${file.name} — previous data replaced`);
     } catch (e) {
       if (newDb) newDb.close();
@@ -393,22 +359,22 @@
     const name = dailyFolderName();
     app.runCommand(`+ ${name}`); // create if missing (harmless if it exists)
     app.runCommand(`use ${name}`);
-    renderList();
     await persist();
-    focusCmdEnd();
+    await execute("ls"); // show today's entries in a fresh cell
   }
 
-  // Roll the folder you're viewing into today, exactly like typing `ro <today>`
-  // there: ensure today exists, make sure we're in the source folder, roll, and
-  // stay put (don't navigate away) so the button matches the command bar.
+  // Roll the folder you're viewing into today, like typing `ro <today>` there:
+  // ensure today exists, make sure we're in the source folder, roll, and append
+  // the result as a cell.
   async function rollToToday(folderName) {
     const today = dailyFolderName();
     app.runCommand(`+ ${today}`); // create today if missing (harmless if it exists)
     app.runCommand(`use ${folderName}`); // ensure the source folder is current
     const buf = app.runCommand(`ro ${today}`);
-    routeOutput(`ro ${today}`, buf); // "rolled over N item(s)" / any error → toast
-    renderList();
+    appendCell(`ro ${today}`, buf); // "rolled over N item(s)" / any error
+    updateCrumb();
     await persist();
+    await execute("ls"); // show the refreshed source folder
   }
 
   const quickbar = document.getElementById("quickbar");
@@ -425,11 +391,7 @@
       case "today":
         return openToday();
       case "list":
-        renderList();
-        return focusCmdEnd();
-      case "help":
-        await execute("help");
-        return focusCmdEnd();
+        return execute("ls");
     }
   });
 
@@ -517,10 +479,10 @@
         if (a.schedule) {
           // < needs a target collection name, so ask for it, then run < <name> <id>
           const name = window.prompt("Schedule to which collection? (a name, or mm.dd)");
-          if (name && name.trim()) await execute(`< ${name.trim()} ${id}`);
+          if (name && name.trim()) await executeTap(`< ${name.trim()} ${id}`);
           return;
         }
-        await execute(a.cmd);
+        await executeTap(a.cmd);
       });
       wrap.appendChild(b);
     }
@@ -545,11 +507,11 @@
       if (rollBtn.dataset.folder) await rollToToday(rollBtn.dataset.folder);
     });
 
+  const clearBtn = document.getElementById("clearBtn");
+  if (clearBtn) clearBtn.addEventListener("click", () => clearNotebook());
+
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") {
-      closeSheet();
-      closePanel();
-    }
+    if (e.key === "Escape") closeSheet();
   });
 
   window.addEventListener("resize", updateWidth);
@@ -607,7 +569,7 @@
       app.runCommand(`use ${name}`);
       await persist();
     }
-    renderList(); // the entries view is the home screen
+    await execute("ls"); // open the notebook on the current folder's listing
     resetCmd();
     focusCmdEnd();
 

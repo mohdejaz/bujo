@@ -107,9 +107,14 @@ setTimeout(async () => {
     els.cmd.value = cmd;
     await submit({ preventDefault() {} });
   }
-  // the entries view: #output always holds the current folder's list, rendered
-  // in place (no chat log), so its innerHTML is that list.
-  const last = () => els.output.innerHTML;
+  // notebook: each command appends an In/Out cell to #output, so the last cell's
+  // innerHTML is the most recent command + its output.
+  const cells = () => els.output.children;
+  const last = () => {
+    const c = cells();
+    return c.length ? c[c.length - 1].innerHTML : "";
+  };
+  const allCells = () => cells().map((c) => c.innerHTML).join("");
 
   await type("+ 08.16.sun");
   await type("use 08.16.sun");
@@ -118,40 +123,33 @@ setTimeout(async () => {
   await type("ls");
 
   const listHtml = last();
-  console.log("--- ls output ---");
+  console.log("--- last cell (ls) ---");
   console.log(listHtml);
 
-  // ids are hidden from the display but stored on each row's data-id (so taps
-  // resolve them). Grab "buy milk"'s id from its row without crossing into the
-  // sibling row.
+  // the Out block renders entry rows; each carries a data-id (for taps + typed
+  // ids). Grab "buy milk"'s id from its row without crossing into the sibling.
   const buyMilkId = (listHtml.match(/data-id="(\d+)">(?:(?!<\/div>)[\s\S])*?buy milk/) || [])[1];
   const idsStored = /buy milk/.test(listHtml) && !!buyMilkId;
-  // ...and NOT printed inline: the visible row text is just "* buy milk"
-  const milkRow =
-    (listHtml.match(/<div class="line row" data-id="\d+">(?:(?!<\/div>)[\s\S])*?buy milk(?:(?!<\/div>)[\s\S])*?<\/div>/) ||
-      [])[0] || "";
-  const idsHidden = milkRow.replace(/<[^>]*>/g, "").trim() === "* buy milk";
+  const isNotebookCell = /class="in"/.test(listHtml) && /class="out"/.test(listHtml);
   console.log("buy milk id:", buyMilkId);
 
-  // a direct id command (the id a tap would surface) should apply and persist;
-  // done tasks drop from default ls
+  // a direct id command should apply and persist; done tasks drop from default ls
   await type("x " + buyMilkId);
   await type("ls");
   const afterHtml = last();
   console.log("ls after 'x " + buyMilkId + "':", afterHtml);
   const directCmdApplied = !!buyMilkId && !/buy milk/.test(afterHtml);
 
-  const noCheckboxes = !els.output.innerHTML.includes('class="ecb"');
+  const noCheckboxes = !allCells().includes('class="ecb"');
   const persisted = BujoStorage._get();
 
   console.log("\npersisted bytes:", persisted ? persisted.length : "NONE");
   console.log("ids stored on data-id:", idsStored);
-  console.log("ids hidden from display:", idsHidden);
+  console.log("notebook In/Out cell:", isNotebookCell);
   console.log("no checkboxes rendered:", noCheckboxes);
   console.log("direct id command applied:", directCmdApplied);
-  console.log("prompt now:", els.prompt.textContent);
 
-  if (!persisted || !idsStored || !idsHidden || !noCheckboxes || !directCmdApplied) {
+  if (!persisted || !idsStored || !isNotebookCell || !noCheckboxes || !directCmdApplied) {
     console.error("SMOKE FAIL");
     process.exit(1);
   }

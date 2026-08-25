@@ -29,20 +29,14 @@
       <input id="fileInput" type="file" accept=".db,.sqlite,application/octet-stream" hidden />
     </header>
 
-    <div id="composer">
-      <form id="promptForm" autocomplete="off">
-        <input
-          id="cmd"
-          type="text"
-          autocapitalize="sentences"
-          autocorrect="on"
-          spellcheck="true"
-          enterkeyhint="send"
-          placeholder="type a command — help"
-        />
-        <button id="sendBtn" type="submit" aria-label="Send">↑</button>
-      </form>
+    <div id="crumb">
+      <button id="upBtn" aria-label="Up a level" title="Up a level">‹</button>
+      <span id="crumbPath"></span>
+      <button id="rollBtn" title="Roll this day's leftovers into today" hidden>roll → today</button>
+      <button id="clearBtn" title="Clear the notebook">clear</button>
     </div>
+
+    <main id="output" aria-live="polite"></main>
 
     <nav id="quickbar" aria-label="Quick actions">
       <button class="chip" data-act="task"><span class="glyph">*</span> task</button>
@@ -50,16 +44,23 @@
       <button class="chip" data-act="meeting"><span class="glyph">@</span> meet</button>
       <button class="chip" data-act="today">tday</button>
       <button class="chip" data-act="list">list</button>
-      <button class="chip" data-act="help">help</button>
     </nav>
 
-    <div id="crumb">
-      <button id="upBtn" aria-label="Up a level" title="Up a level">‹</button>
-      <span id="crumbPath"></span>
-      <button id="rollBtn" title="Roll this day's leftovers into today" hidden>roll → today</button>
+    <div id="composer">
+      <form id="promptForm" autocomplete="off">
+        <span id="inPrompt" aria-hidden="true">»</span>
+        <input
+          id="cmd"
+          type="text"
+          autocapitalize="off"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="send"
+          placeholder="type a command — help"
+        />
+        <button id="sendBtn" type="submit" aria-label="Run">↵</button>
+      </form>
     </div>
-
-    <main id="output" aria-live="polite"></main>
 
     <script src="vendor/sql-wasm.js"></script>
     <script src="js/bujo.js"></script>

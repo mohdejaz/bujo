@@ -1714,10 +1714,13 @@
         const available = cellWidth - prefix.length - marker.length - tagsVisibleLen;
         const displayTitle = this._truncate(title, available);
         const plainLine = `${idStr}${pmark}${symbol} ${dateStr}${displayTitle}${marker}${tagSuffix}`;
-        // Rich markup: color the symbol glyph (and the ! priority marker). The
-        // internal id is deliberately left off the display — it stays in `.t`
-        // (parity harness) and on the row's data-id, so tapping a row still
-        // resolves it and shows its #id in the action sheet.
+        // Rich markup: show the id (so the REPL can reference it), color the
+        // symbol glyph and the ! priority marker, and keep the active entry's id
+        // highlighted. `.t` stays identical for the parity harness.
+        const idHtml =
+          entryId === activeId && idStr
+            ? `<span class="active">${escapeHtml(rjust(entryId, idWidth))}</span> `
+            : escapeHtml(idStr);
         const pmarkHtml =
           pmark === PRIORITY_CMD
             ? `<span class="g-pri">${escapeHtml(PRIORITY_CMD)}</span>`
@@ -1728,7 +1731,7 @@
         // width-truncated `displayTitle` for parity with the Python CLI.
         const titleHtml = `<span class="ttl">${escapeHtml(title)}</span>`;
         const rest = `${escapeHtml(` ${dateStr}`)}${titleHtml}${escapeHtml(`${marker}${tagSuffix}`)}`;
-        const html = `${pmarkHtml}${glyphSpan(symbol)}${rest}`;
+        const html = `${idHtml}${pmarkHtml}${glyphSpan(symbol)}${rest}`;
         const cls =
           symbol === TASK_DONE
             ? "done"
