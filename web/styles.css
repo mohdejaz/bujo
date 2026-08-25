@@ -177,10 +177,12 @@ body {
 }
 /* one In/Out cell per command; newest at the bottom, next to the input */
 .cell {
-  padding: 6px 0;
+  padding: 10px 0;
 }
+/* command boundary: a stronger, more-spaced section break so it's clearly
+   distinct from the faint hairline dividers between entries within a listing */
 .cell + .cell {
-  border-top: 1px solid var(--line);
+  border-top: 1px solid var(--dim);
 }
 .cell .prompt {
   flex: none;
