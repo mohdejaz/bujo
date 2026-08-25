@@ -417,11 +417,18 @@ body {
   border-radius: 4px;
   transition: background 0.12s ease;
 }
-/* Wrap long entries to the next line so the full text is readable and stays
-   within the screen width (no horizontal clipping). */
+/* Wrap long entries; render them like a list widget — each entry a padded row
+   separated by a divider line. */
 #output .line.row {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+  padding: 7px 6px;
+  border-radius: 0;
+  border-bottom: 1px solid var(--line);
+}
+/* no trailing divider under the last entry in a listing */
+#output .line.row:last-child {
+  border-bottom: none;
 }
 @media (hover: hover) {
   #output .row:hover {
