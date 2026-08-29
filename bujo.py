@@ -73,26 +73,10 @@ Commands (typed at the prompt):
                     still picks them up and auto-unsnoozes them on rollover
     ! <id> [id...]  toggle priority on entries; priority entries sort first
                     in ls output
-    top <id> [id...]
-                    move entries to the top of their siblings (highest in
-                    ls order); works from anywhere, siblings are all entries
-                    sharing the same parent
-    bot <id> [id...]
-                    move entries to the bottom of their siblings
-    above <id> <id> [id...]
-                    move the second id onward to sit directly above the
-                    first id, in the order given; all must share the same
-                    parent as the first id
-    below <id> <id> [id...]
-                    move the second id onward to sit directly below the
-                    first id, in the order given; all must share the same
-                    parent as the first id
     `<id>           mark <id> as what you're currently working on; shown
                     in the prompt and highlighted in ls; picking a new
                     one switches (remembering the one you switched from);
                     marking the active task done auto-reverts to it
-    `-              swap back to the previous working-on task
-    `               clear the currently-working indicator
     > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
                     it if needed; entries move as whole branches (children
                     come along) and keep their symbol; completed (x) entries
@@ -102,6 +86,13 @@ Commands (typed at the prompt):
                     move entries to a root-level named folder, creating it
                     if needed; for a daily folder use mm.dd as the name,
                     auto-expanded to mm.dd.dow
+    mv <id> [id...] move entries into the current task/folder from
+                    wherever they currently live; works on any id, so
+                    you can pull in something an `f` search turned up
+                    without cd-ing to it first. Unlike <, the
+                    destination can be a task, not just a root-level
+                    folder; entries move as whole branches. Not
+                    allowed at root
     ~ <id> [id...]  toggle delete on entries and all their children; marks
                     them with ~ instead of removing them (see with ls ~ or
                     ls f); running ~ again on an already-deleted id restores
@@ -141,6 +132,7 @@ Commands (typed at the prompt):
                     (alias: r)
     f "text"        find all entries whose text contains string (case-insensitive);
                     searches the whole journal (global) by default
+                    results show each hit's containing folder in [brackets]
     f #<tag>        find all entries tagged with <tag> (exact match); also global
                     by default
     f ^ "text"      restrict a text/tag find to the current task's subtree
@@ -241,7 +233,7 @@ COMMAND_ALIASES = {
 
 ROLLOVER_SYMBOLS = {TASK_OPEN, BLOCKED, EVENT, SNOOZE}
 
-ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b"}
+ROOT_BLOCKED_HEADS = {EVENT, MEETING, TASK_DONE, MIGRATED, SCHEDULED, "ro", "b", "mv"}
 ROOT_BLOCKED_PREFIXES = {TASK_OPEN, NOTE, PRIORITY_CMD, SNOOZE}
 
 DATE_RE = re.compile(r"^\d{1,2}\.\d{1,2}$")
@@ -617,6 +609,8 @@ class Bujo:
         return folder_id
 
     def move_ids(self, ids, dest_folder_id, new_symbol=None):
+        dest_row = self._get(dest_folder_id)
+        dest_symbol = dest_row[2] if dest_row else None
         moved = 0
         for raw_id in ids:
             if not raw_id.isdigit():
@@ -644,7 +638,17 @@ class Bujo:
                 continue
             if self._locked(entry_id, row[2]):
                 continue
+            if row[2] == MEETING and dest_symbol != FOLDER:
+                print(f"{entry_id} is a meeting; meetings live directly under a folder")
+                continue
+            # moving a branch into its own descendant would detach it from the tree
+            if dest_folder_id in self._subtree_ids(entry_id):
+                print(f"cannot move {entry_id} into its own subtree")
+                continue
             old_pid = row[1]
+            if old_pid == dest_folder_id:
+                print(f"{entry_id} is already here")
+                continue
             if new_symbol is None:
                 self.conn.execute(
                     "UPDATE tasks SET pid = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
@@ -663,6 +667,16 @@ class Bujo:
             moved += 1
         self.conn.commit()
         return moved
+
+    def move_here(self, ids):
+        """Pull entries into the current task/folder from wherever they live.
+        Unlike `<`, the destination is where you already are, so it can be a
+        task and not just a root-level folder — which is what makes this usable
+        on ids that turned up in an `f` search."""
+        moved = self.move_ids(ids, self.current_id)
+        dest = self._get(self.current_id)
+        where = dest[3] if dest else str(self.current_id)
+        print(f"moved {moved} item(s) into {where}")
 
     def _current_folder_date(self):
         """Walk up from the current node to the nearest mm.dd.dow folder and
@@ -762,49 +776,6 @@ class Bujo:
             self._log(entry_id, "tagged", detail=f"{tag} (inherited)")
         self.conn.commit()
         return entry_id
-
-    def duplicate_entry(self, ident, folder_names):
-        if not ident.isdigit():
-            print(f"invalid id: {ident}")
-            return
-        entry_id = int(ident)
-        row = self._get(entry_id)
-        if not row:
-            print(f"no such id: {entry_id}")
-            return
-        _id, pid, symbol, title = row
-        if entry_id == self.root_id:
-            print("cannot duplicate root")
-            return
-        if symbol == FOLDER:
-            print("cannot duplicate a folder; use + instead")
-            return
-        if symbol == EVENT:
-            print("cannot duplicate an event; use o directly for each date")
-            return
-        if self._locked(entry_id, symbol):
-            return
-        if self._has_children(entry_id):
-            print(f"{entry_id} has children; duplicating entries with children isn't supported")
-            return
-
-        dup_symbol = TASK_OPEN if symbol in (TASK_OPEN, TASK_DONE, BLOCKED, SNOOZE) else symbol
-        source_tags = self._tags_for(entry_id)
-        for name in folder_names:
-            expanded = self._expand_date_name(name)
-            if expanded is None:
-                print(f"invalid date: {name}")
-                continue
-            folder_id = self._get_or_create_folder(expanded)
-            new_id = self.add_entry(dup_symbol, title, parent_id=folder_id)
-            for tag in source_tags:
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", (new_id, tag)
-                )
-                self._log(new_id, "tagged", detail=f"{tag} (duplicated)")
-            self._log(entry_id, "duplicated", related_id=new_id, detail=f"-> {expanded}")
-            print(f"{entry_id}: duplicated as {new_id} in {expanded}")
-        self.conn.commit()
 
     def _can_schedule(self, entry_id):
         row = self._get(entry_id)
@@ -1221,110 +1192,6 @@ class Bujo:
             print(f"{entry_id}: {'snoozed' if new_symbol == SNOOZE else 'unsnoozed'}")
         self.conn.commit()
 
-    def _resolve_movable(self, raw_id):
-        if not raw_id.isdigit():
-            print(f"invalid id: {raw_id}")
-            return None
-        entry_id = int(raw_id)
-        row = self._get(entry_id)
-        if not row:
-            print(f"no such id: {entry_id}")
-            return None
-        pid = row[1]
-        if pid is None:
-            print("cannot reorder root")
-            return None
-        if self._locked(entry_id, row[2]):
-            return None
-        return entry_id, pid
-
-    def _rank_group_bounds(self, pid):
-        row = self.conn.execute(
-            "SELECT MIN(rank), MAX(rank) FROM tasks WHERE pid = ?", (pid,)
-        ).fetchone()
-        return row[0], row[1]
-
-    def move_top(self, ids):
-        for raw_id in ids:
-            resolved = self._resolve_movable(raw_id)
-            if resolved is None:
-                continue
-            entry_id, pid = resolved
-            _, max_rank = self._rank_group_bounds(pid)
-            new_rank = (max_rank if max_rank is not None else 0) + 1
-            self.conn.execute(
-                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                "WHERE id = ?",
-                (new_rank, entry_id),
-            )
-            self._log(entry_id, "reordered", detail="moved to top")
-            print(f"{entry_id}: moved to top")
-        self.conn.commit()
-
-    def move_bottom(self, ids):
-        for raw_id in ids:
-            resolved = self._resolve_movable(raw_id)
-            if resolved is None:
-                continue
-            entry_id, pid = resolved
-            min_rank, _ = self._rank_group_bounds(pid)
-            new_rank = (min_rank if min_rank is not None else 0) - 1
-            self.conn.execute(
-                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                "WHERE id = ?",
-                (new_rank, entry_id),
-            )
-            self._log(entry_id, "reordered", detail="moved to bottom")
-            print(f"{entry_id}: moved to bottom")
-        self.conn.commit()
-
-    def move_relative(self, ref_raw, ids, before):
-        word = "above" if before else "below"
-        resolved_ref = self._resolve_movable(ref_raw)
-        if resolved_ref is None:
-            return
-        ref_id, pid = resolved_ref
-        move_ids = []
-        seen = set()
-        for raw_id in ids:
-            resolved = self._resolve_movable(raw_id)
-            if resolved is None:
-                continue
-            entry_id, entry_pid = resolved
-            if entry_id == ref_id:
-                print(f"{entry_id}: cannot move {word} itself")
-                continue
-            if entry_pid != pid:
-                print(f"{entry_id}: not a sibling of {ref_id}")
-                continue
-            if entry_id in seen:
-                continue
-            seen.add(entry_id)
-            move_ids.append(entry_id)
-        if not move_ids:
-            return
-        siblings = [
-            row[0]
-            for row in self.conn.execute(
-                "SELECT id FROM tasks WHERE pid = ? ORDER BY rank DESC", (pid,)
-            ).fetchall()
-        ]
-        remaining = [sid for sid in siblings if sid not in seen]
-        insert_at = remaining.index(ref_id) + (0 if before else 1)
-        new_order = remaining[:insert_at] + move_ids + remaining[insert_at:]
-        total = len(new_order)
-        for position, entry_id in enumerate(new_order):
-            self.conn.execute(
-                "UPDATE tasks SET rank = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                "WHERE id = ?",
-                (total - position, entry_id),
-            )
-        for entry_id in move_ids:
-            self._log(entry_id, "reordered", related_id=ref_id, detail=f"moved {word}")
-        ids_str = ", ".join(str(i) for i in move_ids)
-        print(f"{ids_str}: moved {word} {ref_id}")
-        self.conn.commit()
-
     def _active(self):
         row = self.conn.execute("SELECT task_id FROM active_task WHERE id = 1").fetchone()
         task_id = row[0] if row else None
@@ -1354,37 +1221,6 @@ class Bujo:
             )
         self.conn.commit()
         print(f"{entry_id}: working on it ({row[3]})")
-
-    def stop(self):
-        current = self.conn.execute("SELECT task_id FROM active_task WHERE id = 1").fetchone()[0]
-        if current is None:
-            self.conn.execute("UPDATE active_task SET task_id = NULL WHERE id = 1")
-        else:
-            self.conn.execute(
-                "UPDATE active_task SET task_id = NULL, prev_task_id = ? WHERE id = 1", (current,)
-            )
-        self.conn.commit()
-        print("stopped")
-
-    def swap(self):
-        row = self.conn.execute(
-            "SELECT task_id, prev_task_id FROM active_task WHERE id = 1"
-        ).fetchone()
-        task_id, prev_id = row if row else (None, None)
-        if prev_id is None:
-            print("no previous task")
-            return
-        entry = self._get(prev_id)
-        if entry is None or entry[2] == TASK_DONE:
-            self.conn.execute("UPDATE active_task SET prev_task_id = NULL WHERE id = 1")
-            self.conn.commit()
-            print(f"no such id: {prev_id}")
-            return
-        self.conn.execute(
-            "UPDATE active_task SET task_id = ?, prev_task_id = ? WHERE id = 1", (prev_id, task_id)
-        )
-        self.conn.commit()
-        print(f"{prev_id}: working on it ({entry[3]})")
 
     def _maybe_revert_active(self, entry_id):
         row = self.conn.execute(
@@ -1474,12 +1310,7 @@ class Bujo:
         if not rows:
             print("(no matches)")
             return
-        width = self._term_width()
-        for entry_id, _pid, symbol, title in rows:
-            marker = "/" if self._has_children(entry_id) else ""
-            prefix = f"{entry_id:>4} {symbol} "
-            display_title = self._truncate(title, width - len(prefix) - len(marker))
-            print(f"{prefix}{display_title}{marker}")
+        self._print_matches(rows)
 
     def list_tags(self):
         """Every distinct tag in the journal with how many entries carry it.
@@ -1825,6 +1656,19 @@ class Bujo:
         today = datetime.date.today()
         return date == (today.month, today.day)
 
+    def _print_matches(self, rows):
+        """Shared renderer for f's text and #tag results. Search is global by
+        default, so the containing folder is what tells you where a hit lives."""
+        width = self._term_width()
+        for entry_id, pid, symbol, title in rows:
+            marker = "/" if self._has_children(entry_id) else ""
+            folder_row = self._containing_folder(pid)
+            folder = f" [{folder_row[1]}]" if folder_row else ""
+            prefix = f"{entry_id:>4} {symbol} "
+            available = width - len(prefix) - len(marker) - len(folder)
+            display_title = self._truncate(title, available)
+            print(f"{prefix}{display_title}{marker}{folder}")
+
     def find(self, query, target_id=None):
         if target_id is not None:
             subtree = self._subtree_ids(target_id)
@@ -1844,12 +1688,7 @@ class Bujo:
         if not rows:
             print("(no matches)")
             return
-        width = self._term_width()
-        for entry_id, _pid, symbol, title in rows:
-            marker = "/" if self._has_children(entry_id) else ""
-            prefix = f"{entry_id:>4} {symbol} "
-            display_title = self._truncate(title, width - len(prefix) - len(marker))
-            print(f"{prefix}{display_title}{marker}")
+        self._print_matches(rows)
 
     @staticmethod
     def _like_escape(text):
@@ -2245,30 +2084,6 @@ def main():
             else:
                 app._snapshot(line)
                 app.toggle_blocked(tokens[1:])
-        elif head == "top":
-            if len(tokens) < 2:
-                print("usage: top <id> [id...]")
-            else:
-                app._snapshot(line)
-                app.move_top(tokens[1:])
-        elif head == "bot":
-            if len(tokens) < 2:
-                print("usage: bot <id> [id...]")
-            else:
-                app._snapshot(line)
-                app.move_bottom(tokens[1:])
-        elif head == "above":
-            if len(tokens) < 3:
-                print("usage: above <id> <id> [id...]")
-            else:
-                app._snapshot(line)
-                app.move_relative(tokens[1], tokens[2:], before=True)
-        elif head == "below":
-            if len(tokens) < 3:
-                print("usage: below <id> <id> [id...]")
-            else:
-                app._snapshot(line)
-                app.move_relative(tokens[1], tokens[2:], before=False)
         elif head == "e":
             if len(tokens) < 3:
                 print("usage: e <id> <new text> | e <name> <new name>")
@@ -2386,6 +2201,12 @@ def main():
             else:
                 app._snapshot(line)
                 app.purge(tokens[1:])
+        elif head == "mv":
+            if len(tokens) < 2:
+                print("usage: mv <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.move_here(tokens[1:])
         elif head == "tags":
             if len(tokens) > 1:
                 print("usage: tags")
@@ -2409,14 +2230,10 @@ def main():
                 app.wipe_all()
         elif line[0] == WORKING_CMD:
             arg = line[1:].strip()
-            if not arg:
-                app.stop()
-            elif arg == "-":
-                app.swap()
-            elif arg.isdigit():
+            if arg.isdigit():
                 app.start(arg)
             else:
-                print("usage: `<id> | ` | `-")
+                print("usage: `<id>")
         else:
             print(f"unknown command: {head}")
 
