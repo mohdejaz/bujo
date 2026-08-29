@@ -6,7 +6,7 @@ short, single-line entries ("rapid logging"), grouped into pages/collections
 (here: folders), with unfinished tasks periodically migrated forward instead
 of left to rot. bujo brings that to the terminal: folders are your
 collections (daily folders like mm.dd.dow, or named ones like "cal"), each
-entry is a task/note/meeting/event, and `>`/`<` do the migrating.
+entry is a task/note/meeting/event, and `>`/`<` move entries forward.
 
 Root is a task. Tasks can contain child tasks and notes.
 
@@ -82,7 +82,10 @@ Commands (typed at the prompt):
     `-              swap back to the previous working-on task
     `               clear the currently-working indicator
     > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
-                    it if needed
+                    it if needed; entries move as whole branches (children
+                    come along) and keep their symbol; completed (x) entries
+                    stay put, like with ro; see `log <id>` for where an
+                    entry has been
     < <name> <id> [id...]
                     move entries to a root-level named folder, creating it
                     if needed; for a daily folder use mm.dd as the name,
@@ -119,10 +122,9 @@ Commands (typed at the prompt):
                     the given root-level folder, recursively; matched items
                     move as whole branches (children come along); notes (-)
                     directly under a folder are left behind, but notes
-                    nested under a task still move with it; < and >
-                    items are skipped since they're already relocated by
-                    their own move commands; @ meetings never roll over; must
-                    be run from inside a folder (alias: r)
+                    nested under a task still move with it; @ meetings
+                    never roll over; must be run from inside a folder
+                    (alias: r)
     f "text"        find all entries whose text contains string (case-insensitive);
                     searches the whole journal (global) by default
     f #<tag>        find all entries tagged with <tag> (exact match); also global
@@ -604,6 +606,17 @@ class Bujo:
             if entry_id == dest_folder_id:
                 print(f"cannot move {entry_id} into itself")
                 continue
+            if row[2] == FOLDER:
+                print(f"{entry_id} is a folder; can't move it")
+                continue
+            if row[2] == EVENT:
+                print(f"{entry_id} is an event; can't move it")
+                continue
+            if row[2] == TASK_DONE:
+                print(f"{entry_id} is done; completed entries stay on their page")
+                continue
+            if self._locked(entry_id, row[2]):
+                continue
             old_pid = row[1]
             if new_symbol is None:
                 self.conn.execute(
@@ -642,62 +655,13 @@ class Bujo:
             node_id = pid
         return None
 
-    # True bullet-journal migration: the original entry stays on the current
-    # page marked > (migrated) or < (scheduled) as a permanent record, while a
-    # fresh open-task copy — carrying its tags and children — is placed in the
-    # destination folder. The original is then locked (see _locked).
-    def _migrate(self, ids, dest_folder_id, marker_symbol):
-        moved = 0
-        for raw_id in ids:
-            if not raw_id.isdigit():
-                print(f"invalid id: {raw_id}")
-                continue
-            entry_id = int(raw_id)
-            row = self._get(entry_id)
-            if not row:
-                print(f"no such id: {entry_id}")
-                continue
-            _id, _pid, symbol, title = row
-            if entry_id == self.root_id:
-                print("cannot migrate root")
-                continue
-            if symbol == FOLDER:
-                print(f"{entry_id} is a folder; can't migrate")
-                continue
-            if symbol == EVENT:
-                print(f"{entry_id} is an event; can't migrate")
-                continue
-            if self._locked(entry_id, symbol):
-                continue
-            copy_id = self.add_entry(TASK_OPEN, title, parent_id=dest_folder_id)
-            for tag in self._tags_for(entry_id):
-                self.conn.execute(
-                    "INSERT OR IGNORE INTO tags (task_id, tag) VALUES (?, ?)", (copy_id, tag)
-                )
-            # carry children forward under the copy, leaving a childless marker
-            self.conn.execute("UPDATE tasks SET pid = ? WHERE pid = ?", (copy_id, entry_id))
-            self.conn.execute(
-                "UPDATE tasks SET symbol = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
-                "WHERE id = ?",
-                (marker_symbol, entry_id),
-            )
-            self._log(
-                entry_id,
-                "migrated",
-                related_id=copy_id,
-                detail=f"{symbol}->{marker_symbol}; copy {copy_id} in {dest_folder_id}",
-            )
-            moved += 1
-        self.conn.commit()
-        return moved
-
     def migrate_tomorrow(self, ids):
         base = self._current_folder_date() or datetime.date.today()
         tomorrow = base + datetime.timedelta(days=1)
         date_str = f"{tomorrow.month:02d}.{tomorrow.day:02d}.{tomorrow.strftime('%a').lower()}"
         folder_id = self._get_or_create_folder(date_str)
-        moved = self._migrate(ids, folder_id, MIGRATED)
-        print(f"migrated {moved} item(s) to {date_str}")
+        moved = self.move_ids(ids, folder_id)
+        print(f"moved {moved} item(s) to {date_str}")
 
     def move_to_date(self, dest, ids):
         expanded = self._expand_date_name(dest)
@@ -705,8 +669,8 @@ class Bujo:
             print(f"invalid date: {dest}")
             return
         folder_id = self._get_or_create_folder(expanded)
-        moved = self._migrate(ids, folder_id, SCHEDULED)
-        print(f"scheduled {moved} item(s) to {expanded}")
+        moved = self.move_ids(ids, folder_id)
+        print(f"moved {moved} item(s) to {expanded}")
 
     def rollover(self, dst_date):
         expanded = self._expand_date_name(dst_date)
@@ -935,9 +899,10 @@ class Bujo:
         _id, pid, symbol, title = row
         return pid == self.root_id and symbol == FOLDER and title.lower() == CAL_FOLDER.lower()
 
-    # Bullet-journal rule: once an entry is migrated (>), scheduled (<) or
-    # deleted (~) it becomes a permanent record on the page and can't be
-    # changed. `~~` (purge) is the only escape hatch.
+    # Deleted (~) entries are permanent records on the page and can't be
+    # changed; `~~` (purge) is the only escape hatch. > and < are legacy
+    # markers — older journals may still hold them, so they stay locked too,
+    # but > and < now move the entry itself rather than leaving a marker.
     def _locked_reason(self, symbol):
         if symbol == MIGRATED:
             return "migrated"
@@ -2146,6 +2111,15 @@ def main():
             else:
                 app._snapshot(line)
                 app.purge(tokens[1:])
+        elif head == "undo":
+            app.undo()
+        elif head == "log":
+            args = tokens[1:]
+            bad = [a for a in args if not a.isdigit()]
+            if bad:
+                print("usage: log | log <id> [id...]")
+            else:
+                app.show_log(args or None)
         elif head == "wipe":
             if len(tokens) != 2 or tokens[1] != "confirm":
                 print("this permanently erases the ENTIRE database (all folders, entries, tags, schedules, log)")

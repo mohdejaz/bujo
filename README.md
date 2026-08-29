@@ -113,7 +113,10 @@ below <id> <id> [id...]
 `-              swap back to the previous working-on task
 `               clear the currently-working indicator
 > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
-                it if needed
+                it if needed; entries move as whole branches (children
+                come along) and keep their symbol; completed (x) entries
+                stay put, like with ro; the move is recorded in the
+                action log (see `log <id>`)
 < <name> <id> [id...]
                 move entries to a root-level named folder, creating it
                 if needed; for a daily folder use mm.dd as the name,
@@ -148,10 +151,8 @@ ro mm.dd        roll all open items (* o) from the current folder into
                 the given root-level folder, recursively; matched items
                 move as whole branches (children come along); notes (-)
                 directly under a folder are left behind, but notes
-                nested under a task still move with it; < and >
-                items are skipped since they're already relocated by
-                their own move commands; @ meetings never roll over; must
-                be run from inside a folder
+                nested under a task still move with it; @ meetings
+                never roll over; must be run from inside a folder
 f "text"        find all entries whose text contains string (case-insensitive);
                 searches the whole journal (global) by default
 f #<tag>        find all entries tagged with <tag> (exact match); also global
