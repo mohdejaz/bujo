@@ -52,6 +52,18 @@ Commands (typed at the prompt):
                     children, folders, events, or deleted entries can't be
                     scheduled
     unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
+    due <spec> <id> [id...]
+                    give entries a due date; <spec> is mm.dd, today/tod,
+                    tom, a weekday (mon..sun, next occurrence), or +N
+                    days out; works from anywhere. The date rides with
+                    the entry when it moves, and is independent of which
+                    daily folder the entry sits in
+    due <id>        show <id>'s due date and how far off it is
+    undue <id> [id...]
+                    clear the due date on entries
+    due             (no args) agenda of every open entry with a due date,
+                    across the whole journal, grouped overdue / today /
+                    upcoming
     s, us           aliases for schd, unschd
     x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
     b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
@@ -107,6 +119,8 @@ Commands (typed at the prompt):
                     new children inherit their parent's tags by default
                     at creation time (untag afterward if unwanted)
     g, ug           aliases for tag, untag
+    tags            list every tag in the journal with how many entries
+                    carry it (all / still open); works from anywhere
     use <id>        change into a child task, note, event, or meeting
     use <name>      change into a root-level folder, to create sub tasks,
                     notes, events, meetings etc. under it; <name> may be
@@ -148,6 +162,9 @@ Commands (typed at the prompt):
                     just before its text
     ls !            add "!" to any ls form above (e.g. ls !, ls f !,
                     ls * !) to show only priority entries
+    ls due          add "due" to any ls form above (e.g. ls due, ls f due,
+                    ls ^5 due) to show only entries with a due date,
+                    sorted soonest first
     ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
     ls ^<id> [filters]
                     list <id>'s children (its notes, subtasks, etc.) without
@@ -237,6 +254,7 @@ PARENT_OVERRIDE_RE = re.compile(r"^\^(\d+)\s*")
 WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 DOW_TOKEN_RE = re.compile(r"^(?:" + "|".join(WEEKDAYS) + r")$", re.IGNORECASE)
 DOM_TOKEN_RE = re.compile(r"^(?:[1-9]|[12][0-9]|3[01])$")
+DUE_OFFSET_RE = re.compile(r"^\+(\d{1,3})$")
 
 
 def extract_parent_override(text):
@@ -262,7 +280,8 @@ class Bujo:
 
     def _snapshot(self, label):
         self._undo_snapshot = self.conn.execute(
-            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank FROM tasks ORDER BY id"
+            "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank, due "
+            "FROM tasks ORDER BY id"
         ).fetchall()
         self._undo_tags = self.conn.execute(
             "SELECT task_id, tag, cre_ts FROM tags ORDER BY task_id, tag"
@@ -282,8 +301,8 @@ class Bujo:
         self.conn.execute("PRAGMA foreign_keys = OFF")
         self.conn.execute("DELETE FROM tasks")
         self.conn.executemany(
-            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "INSERT INTO tasks (id, pid, symbol, title, cre_ts, upd_ts, priority, prev_symbol, rank, due) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             rows,
         )
         self.conn.execute("DELETE FROM tags")
@@ -337,6 +356,8 @@ class Bujo:
         if "rank" not in existing:
             self.conn.execute("ALTER TABLE tasks ADD COLUMN rank INTEGER")
             self.conn.execute("UPDATE tasks SET rank = id WHERE rank IS NULL")
+        if "due" not in existing:
+            self.conn.execute("ALTER TABLE tasks ADD COLUMN due TEXT")
         # no FK on entry_id/related_id: deleted entries must stay in their own lineage
         self.conn.execute(
             """
@@ -474,13 +495,13 @@ class Bujo:
                 continue
             entry_id = int(raw_id)
             row = self.conn.execute(
-                "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority FROM tasks WHERE id = ?",
+                "SELECT id, pid, symbol, title, cre_ts, upd_ts, priority, due FROM tasks WHERE id = ?",
                 (entry_id,),
             ).fetchone()
             if not row:
                 print(f"no such id: {entry_id}")
                 continue
-            _id, pid, symbol, title, cre_ts, upd_ts, priority = row
+            _id, pid, symbol, title, cre_ts, upd_ts, priority, due = row
             if pid is None:
                 parent = "(none)"
             else:
@@ -492,6 +513,12 @@ class Bujo:
             print(f"symbol:   {symbol}")
             print(f"text:     {title}")
             print(f"priority: {'yes' if priority else 'none'}")
+            if due and symbol in (TASK_DONE, DELETE_CMD):
+                due_label = f"{due[5:7]}.{due[8:10]}"
+            else:
+                due_parts = self._due_parts(due)
+                due_label = due_parts[0] if due_parts else "(none)"
+            print(f"due:      {due_label}")
             tags = self._tags_for(entry_id)
             tags_str = ", ".join(tags) if tags else "(none)"
             print(f"tags:     {tags_str}")
@@ -796,6 +823,128 @@ class Bujo:
         if self._has_children(entry_id):
             return None, f"{entry_id} has children; scheduling entries with children isn't supported"
         return row, None
+
+    def _can_due(self, entry_id):
+        """Due dates belong on open work. Unlike _can_schedule this allows
+        entries with children — a parent task can have a deadline."""
+        row = self._get(entry_id)
+        if not row:
+            return None, f"no such id: {entry_id}"
+        _id, pid, symbol, title = row
+        if entry_id == self.root_id:
+            return None, "cannot set a due date on root"
+        if symbol == FOLDER:
+            return None, "cannot set a due date on a folder"
+        if symbol == EVENT:
+            return None, f"{entry_id} is an event and already carries its own date"
+        if symbol == MEETING:
+            return None, f"{entry_id} is a meeting and already carries its own time"
+        if symbol == NOTE:
+            return None, f"{entry_id} is a note; due dates apply to tasks"
+        if symbol == TASK_DONE:
+            return None, f"{entry_id} is already done"
+        locked_reason = self._locked_reason(symbol)
+        if locked_reason:
+            return None, f"{entry_id} is {locked_reason} and can't be changed"
+        return row, None
+
+    def set_due(self, spec, ids):
+        due_iso = self._parse_due(spec)
+        if due_iso is None:
+            print(f"invalid due date: {spec}")
+            print("usage: due <mm.dd | today | tom | mon..sun | +N> <id> [id...]")
+            return
+        shown = f"{due_iso[5:7]}.{due_iso[8:10]}"
+        for raw_id in ids:
+            if not raw_id.isdigit():
+                print(f"invalid id: {raw_id}")
+                continue
+            entry_id = int(raw_id)
+            _row, err = self._can_due(entry_id)
+            if err:
+                print(err)
+                continue
+            self.conn.execute(
+                "UPDATE tasks SET due = ?, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (due_iso, entry_id),
+            )
+            self._log(entry_id, "due_set", detail=due_iso)
+            print(f"{entry_id}: due {shown}")
+        self.conn.commit()
+
+    def clear_due(self, ids):
+        for raw_id in ids:
+            if not raw_id.isdigit():
+                print(f"invalid id: {raw_id}")
+                continue
+            entry_id = int(raw_id)
+            row = self.conn.execute(
+                "SELECT due FROM tasks WHERE id = ?", (entry_id,)
+            ).fetchone()
+            if not row:
+                print(f"no such id: {entry_id}")
+                continue
+            if row[0] is None:
+                print(f"{entry_id} has no due date")
+                continue
+            self.conn.execute(
+                "UPDATE tasks SET due = NULL, upd_ts = STRFTIME('%Y-%m-%d %H:%M:%f','now') "
+                "WHERE id = ?",
+                (entry_id,),
+            )
+            self._log(entry_id, "due_cleared", detail=row[0])
+            print(f"{entry_id}: due date cleared")
+        self.conn.commit()
+
+    def show_due(self, ident):
+        entry_id = int(ident)
+        row = self.conn.execute(
+            "SELECT title, due FROM tasks WHERE id = ?", (entry_id,)
+        ).fetchone()
+        if not row:
+            print(f"no such id: {entry_id}")
+            return
+        title, due = row
+        parts = self._due_parts(due)
+        if not parts:
+            print(f"{entry_id}: no due date ({title})")
+        else:
+            label, delta = parts
+            when = (
+                f"{-delta} day(s) ago" if delta < 0
+                else "today" if delta == 0
+                else f"in {delta} day(s)"
+            )
+            print(f"{entry_id}: {label} — {when} ({title})")
+
+    def agenda(self):
+        """Every open entry with a due date, journal-wide, soonest first."""
+        rows = self.conn.execute(
+            "SELECT id, pid, symbol, title, due FROM tasks "
+            "WHERE due IS NOT NULL AND symbol IN (?, ?, ?) ORDER BY due, id",
+            (TASK_OPEN, BLOCKED, SNOOZE),
+        ).fetchall()
+        if not rows:
+            print("(nothing due)")
+            return
+        width = self._term_width()
+        heading_shown = set()
+        for entry_id, pid, symbol, title, due in rows:
+            label, delta = self._due_parts(due)
+            bucket = "overdue" if delta < 0 else "today" if delta == 0 else "upcoming"
+            if bucket not in heading_shown:
+                if heading_shown:
+                    print()
+                print(f"{bucket}:")
+                heading_shown.add(bucket)
+            folder_row = self._containing_folder(pid)
+            folder = f" [{folder_row[1]}]" if folder_row else ""
+            shown = f"{due[5:7]}.{due[8:10]}"
+            prefix = f"{entry_id:>4} {symbol} {shown}  "
+            display_title = self._truncate(title, width - len(prefix) - len(folder))
+            print(f"{prefix}{display_title}{folder}")
+        print(f"{len(rows)} entries")
 
     def add_schedule(self, kind, values, ident):
         if not ident.isdigit():
@@ -1332,6 +1481,26 @@ class Bujo:
             display_title = self._truncate(title, width - len(prefix) - len(marker))
             print(f"{prefix}{display_title}{marker}")
 
+    def list_tags(self):
+        """Every distinct tag in the journal with how many entries carry it.
+        Tags are only otherwise discoverable by browsing entries, which makes
+        near-miss variants (#urgent vs #urgnt) easy to accumulate unnoticed."""
+        rows = self.conn.execute(
+            "SELECT g.tag, COUNT(*), "
+            "SUM(CASE WHEN t.symbol IN (?, ?, ?) THEN 1 ELSE 0 END) "
+            "FROM tags g JOIN tasks t ON t.id = g.task_id "
+            "GROUP BY g.tag ORDER BY g.tag",
+            (TASK_OPEN, BLOCKED, SNOOZE),
+        ).fetchall()
+        if not rows:
+            print("(no tags)")
+            return
+        name_width = max(len(row[0]) for row in rows) + 1
+        print(f"{'tag':<{name_width}} {'all':>5} {'open':>5}")
+        for tag, total, open_count in rows:
+            print(f"{'#' + tag:<{name_width}} {total:>5} {open_count:>5}")
+        print(f"{len(rows)} tags")
+
     def _subtree_ids(self, entry_id):
         rows = self.conn.execute(
             """
@@ -1548,6 +1717,73 @@ class Bujo:
         return None
 
     @staticmethod
+    def _parse_due(spec):
+        """Turn a due spec into an ISO 'YYYY-MM-DD' string, or None if it isn't
+        one. Accepts mm.dd, tod/today, tom/tomorrow, a weekday name (its next
+        occurrence), or +N (N days out).
+
+        For a bare mm.dd the year is whichever of last/this/next year lands
+        nearest today, so `due 01.05` typed in December means next January
+        while `due 12.28` typed in January reads as overdue rather than a year
+        out. Storing the resolved year is the whole reason due dates are ISO
+        and not the bare (mm, dd) pairs used for folders and events."""
+        spec = spec.lower()
+        today = datetime.date.today()
+        if spec in ("tod", "today"):
+            return today.isoformat()
+        if spec in ("tom", "tomorrow"):
+            return (today + datetime.timedelta(days=1)).isoformat()
+        offset = DUE_OFFSET_RE.match(spec)
+        if offset:
+            return (today + datetime.timedelta(days=int(offset.group(1)))).isoformat()
+        if DOW_TOKEN_RE.match(spec):
+            target = WEEKDAYS.index(spec)
+            ahead = (target - today.weekday()) % 7 or 7
+            return (today + datetime.timedelta(days=ahead)).isoformat()
+        if DATE_RE.match(spec):
+            mm, dd = (int(part) for part in spec.split("."))
+            best = None
+            for year in (today.year - 1, today.year, today.year + 1):
+                try:
+                    cand = datetime.date(year, mm, dd)
+                except ValueError:
+                    continue  # e.g. 02.29 in a non-leap year
+                if best is None or abs((cand - today).days) < abs((best - today).days):
+                    best = cand
+            return best.isoformat() if best else None
+        return None
+
+    @staticmethod
+    def _due_parts(due_iso):
+        """(label, days_from_today) for a stored due date, or None if unset."""
+        if not due_iso:
+            return None
+        try:
+            d = datetime.date.fromisoformat(due_iso)
+        except ValueError:
+            return None
+        delta = (d - datetime.date.today()).days
+        if delta < 0:
+            label = f"overdue {d.month:02d}.{d.day:02d}"
+        elif delta == 0:
+            label = "due today"
+        else:
+            label = f"due {d.month:02d}.{d.day:02d}"
+        return (label, delta)
+
+    @classmethod
+    def _due_suffix(cls, due_iso, neutral=False):
+        """Relative wording ("overdue 08.27", "due today") only makes sense for
+        live work. A task completed on time would otherwise start reading as
+        overdue once its date passed, so done/deleted entries get a plain date."""
+        if neutral:
+            if not due_iso:
+                return ""
+            return f" (due {due_iso[5:7]}.{due_iso[8:10]})"
+        parts = cls._due_parts(due_iso)
+        return f" ({parts[0]})" if parts else ""
+
+    @staticmethod
     def _event_date(title):
         date_str = title.split(maxsplit=1)[0]
         try:
@@ -1633,7 +1869,7 @@ class Bujo:
             return "…"
         return text[: width - 1].rstrip() + "…"
 
-    def list_children(self, filters=None, show_all=False, show_date=False, priority_only=False, target_id=None):
+    def list_children(self, filters=None, show_all=False, show_date=False, priority_only=False, due_only=False, target_id=None):
         target_id = self.current_id if target_id is None else target_id
         is_default = not filters
         if show_all:
@@ -1694,15 +1930,29 @@ class Bujo:
                 [row[0] for row in rows],
             )
         )
-        active = self._active()
-        active_id = active[0] if active else None
-        rows.sort(
-            key=lambda row: (
-                row[0] != active_id,
-                -priority_map.get(row[0], 0),
-                -rank_map.get(row[0], row[0]),
+        due_map = dict(
+            self.conn.execute(
+                f"SELECT id, due FROM tasks WHERE id IN ({placeholders})",
+                [row[0] for row in rows],
             )
         )
+        if due_only:
+            rows = [row for row in rows if due_map.get(row[0])]
+            if not rows:
+                print("(nothing due)")
+                return
+        active = self._active()
+        active_id = active[0] if active else None
+        if due_only:
+            rows.sort(key=lambda row: (due_map.get(row[0]) or "", row[0]))
+        else:
+            rows.sort(
+                key=lambda row: (
+                    row[0] != active_id,
+                    -priority_map.get(row[0], 0),
+                    -rank_map.get(row[0], row[0]),
+                )
+            )
         folder_indices = [i for i, row in enumerate(rows) if row[2] == FOLDER]
         if folder_indices:
             folders_sorted = sorted(
@@ -1742,13 +1992,18 @@ class Bujo:
             pmark = PRIORITY_CMD if has_priority else ""
             date_str = f"{self._date_prefix(date_map[entry_id])} " if show_date else ""
             id_str = "" if hide_folder_ids else f"{entry_id:>4} "
+            due_suffix = self._due_suffix(
+                due_map.get(entry_id), neutral=symbol in (TASK_DONE, DELETE_CMD)
+            )
             prefix = f"{id_str}{pmark:<1}{symbol} {date_str}"
-            available = cell_width - len(prefix) - len(marker) - tags_visible_len
+            available = (
+                cell_width - len(prefix) - len(marker) - len(due_suffix) - tags_visible_len
+            )
             display_title = self._truncate(title, available)
-            plain_line = f"{id_str}{pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
+            plain_line = f"{id_str}{pmark:<1}{symbol} {date_str}{display_title}{marker}{due_suffix}{tag_suffix}"
             if entry_id == active_id and id_str:
                 colored_id = f"{WORKING_COLOR}{entry_id:>4}{COLOR_RESET} "
-                line = f"{colored_id}{pmark:<1}{symbol} {date_str}{display_title}{marker}{tag_suffix}"
+                line = f"{colored_id}{pmark:<1}{symbol} {date_str}{display_title}{marker}{due_suffix}{tag_suffix}"
             else:
                 line = plain_line
             lines.append(line)
@@ -1862,8 +2117,11 @@ def main():
                 priority_only = PRIORITY_CMD in args
                 if priority_only:
                     args = [a for a in args if a != PRIORITY_CMD]
+                due_only = "due" in args
+                if due_only:
+                    args = [a for a in args if a != "due"]
                 if args == ["f"]:
-                    app.list_children(show_all=True, show_date=show_date, priority_only=priority_only, target_id=target_id)
+                    app.list_children(show_all=True, show_date=show_date, priority_only=priority_only, due_only=due_only, target_id=target_id)
                 elif args and all(a.isdigit() for a in args):
                     if target_id is not None:
                         print("usage: ls ^<id> [filters] — stats form doesn't take ^<id>")
@@ -1884,11 +2142,11 @@ def main():
                     if bad:
                         print(
                             f"usage: ls [{TASK_OPEN} {BLOCKED} {TASK_DONE} {NOTE} {MEETING} "
-                            f"{FOLDER} {SNOOZE} {DELETE_CMD}] [date] [!] | ls f [date] [!] | "
+                            f"{FOLDER} {SNOOZE} {DELETE_CMD}] [date] [!] [due] | ls f [date] [!] [due] | "
                             f"ls <id> [id...] | ls ^<id> [filters]"
                         )
                     else:
-                        app.list_children(args, show_date=show_date, priority_only=priority_only, target_id=target_id)
+                        app.list_children(args, show_date=show_date, priority_only=priority_only, due_only=due_only, target_id=target_id)
         elif head in ("use", "cd"):
             if len(tokens) >= 2:
                 app.change_task(tokens[1])
@@ -2047,6 +2305,23 @@ def main():
                         app.add_schedule(kind, values, ident)
             else:
                 print(usage)
+        elif head == "due":
+            args = tokens[1:]
+            if not args:
+                app.agenda()
+            elif len(args) == 1 and args[0].isdigit():
+                app.show_due(args[0])
+            elif len(args) >= 2:
+                app._snapshot(line)
+                app.set_due(args[0], args[1:])
+            else:
+                print("usage: due <mm.dd | today | tom | mon..sun | +N> <id> [id...] | due <id> | due")
+        elif head == "undue":
+            if len(tokens) < 2:
+                print("usage: undue <id> [id...]")
+            else:
+                app._snapshot(line)
+                app.clear_due(tokens[1:])
         elif head == "unschd":
             if len(tokens) != 2 or not tokens[1].isdigit():
                 print("usage: unschd <id>")
@@ -2111,6 +2386,11 @@ def main():
             else:
                 app._snapshot(line)
                 app.purge(tokens[1:])
+        elif head == "tags":
+            if len(tokens) > 1:
+                print("usage: tags")
+            else:
+                app.list_tags()
         elif head == "undo":
             app.undo()
         elif head == "log":

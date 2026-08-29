@@ -45,6 +45,9 @@ BUJO_DB=/path/to/bujo.db python3 bujo.py
   marked `~`, removing it (and its children) from the database for good.
 - Entries can be given a recurrence rule with `schd` so they're
   auto-copied into matching daily folders as those folders get created.
+- A task can carry a **due date** (`due`), which is a property of the task
+  itself, not of the folder it sits in: it survives `>`, `<`, and `ro`. Bare
+  `due` shows a journal-wide agenda of what's overdue, due today, or coming up.
 - Every entry gets a numeric **id**, which you use to reference it in
   commands like `x`, `b`, `!`, `>`, `~`, `tag`, etc.
 
@@ -84,6 +87,18 @@ schd <id>       show <id>'s current recurrence rule(s); works from
                 children, folders, events, or deleted entries can't be
                 scheduled
 unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
+due <spec> <id> [id...]
+                give entries a due date; <spec> is mm.dd, today/tod,
+                tom, a weekday (mon..sun, next occurrence), or +N
+                days out; works from anywhere. The date rides with
+                the entry when it moves, and is independent of which
+                daily folder the entry sits in
+due <id>        show <id>'s due date and how far off it is
+undue <id> [id...]
+                clear the due date on entries
+due             (no args) agenda of every open entry with a due date,
+                across the whole journal, grouped overdue / today /
+                upcoming
 x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
 b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 show in ls and still roll over with ro
@@ -137,6 +152,8 @@ untag <name> <id> [id...]
                 remove <name> from entries; works from anywhere
                 new children inherit their parent's tags by default
                 at creation time (untag afterward if unwanted)
+tags            list every tag in the journal with how many entries
+                carry it (all / still open); works from anywhere
 use <id>        change into a child task, note, event, or meeting
 use <name>      change into a root-level folder, to create sub tasks,
                 notes, events, meetings etc. under it; <name> may be
@@ -175,6 +192,9 @@ ls date         add "date" to any ls form above (e.g. ls date, ls f date,
                 just before its text
 ls !            add "!" to any ls form above (e.g. ls !, ls f !,
                 ls * !) to show only priority entries
+ls due          add "due" to any ls form above (e.g. ls due, ls f due,
+                ls ^5 due) to show only entries with a due date,
+                sorted soonest first
 ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
 ls ^<id> [filters]
                 list <id>'s children (its notes, subtasks, etc.) without
