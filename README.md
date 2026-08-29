@@ -68,11 +68,6 @@ e <id> <text>   edit an entry's text; for meetings/events the hh:mm/mm.dd
                 prefix is kept and only the text after it is replaced
 e <name> <new name>
                 rename a root-level folder, from anywhere
-cp <id> <folder> [folder...]
-                duplicate a task/note/meeting into one or more root-level
-                folders (created if needed) as fresh open copies; entries
-                with children can't be duplicated; a bare mm.dd folder
-                name is auto-expanded to mm.dd.dow
 schd <dow [dow...]> <id>
                 recur <id> on the given weekday(s) (mon tue wed thu fri
                 sat sun); works from anywhere
@@ -107,26 +102,10 @@ b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
                 still picks them up and auto-unsnoozes them on rollover
 ! <id> [id...]  toggle priority on entries; priority entries sort first
                 in ls output
-top <id> [id...]
-                move entries to the top of their siblings (highest in
-                ls order); works from anywhere, siblings are all entries
-                sharing the same parent
-bot <id> [id...]
-                move entries to the bottom of their siblings
-above <id> <id> [id...]
-                move the second id onward to sit directly above the
-                first id, in the order given; all must share the same
-                parent as the first id
-below <id> <id> [id...]
-                move the second id onward to sit directly below the
-                first id, in the order given; all must share the same
-                parent as the first id
 `<id>           mark <id> as what you're currently working on; shown
                 in the prompt and highlighted in ls; picking a new
                 one switches (remembering the one you switched from);
                 marking the active task done auto-reverts to it
-`-              swap back to the previous working-on task
-`               clear the currently-working indicator
 > <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
                 it if needed; entries move as whole branches (children
                 come along) and keep their symbol; completed (x) entries
@@ -136,6 +115,13 @@ below <id> <id> [id...]
                 move entries to a root-level named folder, creating it
                 if needed; for a daily folder use mm.dd as the name,
                 auto-expanded to mm.dd.dow
+mv <id> [id...] move entries into the current task/folder from
+                wherever they currently live; works on any id, so
+                you can pull in something an `f` search turned up
+                without cd-ing to it first. Unlike <, the
+                destination can be a task, not just a root-level
+                folder; entries move as whole branches. Not
+                allowed at root
 ~ <id> [id...]  toggle delete on entries and all their children; marks
                 them with ~ instead of removing them (see with ls ~ or
                 ls f); running ~ again on an already-deleted id restores
@@ -172,6 +158,7 @@ ro mm.dd        roll all open items (* o) from the current folder into
                 never roll over; must be run from inside a folder
 f "text"        find all entries whose text contains string (case-insensitive);
                 searches the whole journal (global) by default
+                results show each hit's containing folder in [brackets]
 f #<tag>        find all entries tagged with <tag> (exact match); also global
                 by default
 f ^ "text"      restrict a text/tag find to the current task's subtree
@@ -203,7 +190,6 @@ ls ^<id> [filters]
 log             show the last 20 action log entries, most recent first
 log <id> [id...]
                 show all action log entries for id(s), most recent first
-pwd             show the path to the current task
 undo            undo the last mutating command
 cls             clear the screen
 help            show this help
