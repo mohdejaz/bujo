@@ -820,3 +820,53 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── portrait only ──────────────────────────────────────────────────── */
+
+/* The manifest asks for portrait at install time and app.js asks again at
+   runtime, but neither lands in a plain Safari tab. When the page is short and
+   wide anyway, the notebook steps aside for a full-viewport nudge rather than
+   squeezing a header, a list and a composer into ~380px of height. */
+
+.rotate { display: none; }
+
+@media (orientation: landscape) and (max-height: 560px) {
+  body { overflow: hidden; }
+  body > *:not(.rotate) { display: none !important; }
+
+  .rotate {
+    display: flex;
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: max(20px, var(--safe-t)) max(20px, env(safe-area-inset-right, 0px))
+      max(20px, var(--safe-b)) max(20px, env(safe-area-inset-left, 0px));
+    background: var(--paper);
+    color: var(--ink-2);
+    text-align: center;
+  }
+  .rotate svg {
+    width: 34px;
+    height: 34px;
+    color: var(--accent);
+    transform: rotate(90deg);
+    animation: uprighting 2.6s ease-in-out infinite;
+  }
+  .rotate p {
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.5;
+    text-wrap: balance;
+  }
+}
+
+/* tips back upright, then falls over again — the gesture we're asking for */
+@keyframes uprighting {
+  0%, 22% { transform: rotate(90deg); }
+  45%, 78% { transform: rotate(0deg); }
+  100% { transform: rotate(90deg); }
+}

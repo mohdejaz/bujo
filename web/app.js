@@ -1219,3 +1219,11 @@ render();
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+
+/* Portrait is the only shape this layout is drawn for. The manifest asks for it
+   at install time; this asks again at runtime, which is what actually holds on
+   Android when the app is launched standalone. Safari has no lock() to call —
+   there the .rotate cover in index.html is the whole answer. */
+try {
+  screen.orientation?.lock?.("portrait")?.catch(() => {});
+} catch {}
