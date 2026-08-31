@@ -8,6 +8,13 @@ folders like `07.18.sat`), folders contain tasks/notes/meetings/events, and
 tasks can contain their own child tasks and notes. You navigate the tree with
 `use`/`cd` and act on entries by their numeric id.
 
+## On the phone
+
+There's a web version in [`web/`](web/) — a touch-first PWA, live at
+**https://mohdejaz.github.io/bujo/**. It is *not* a port of the commands below:
+it's a much smaller bullet journal built for a thumb, with its own storage, and
+it does not read `bujo.db`. See [`web/README.md`](web/README.md).
+
 ## Requirements
 
 - Python 3
