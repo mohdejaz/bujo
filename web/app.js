@@ -4,9 +4,13 @@
  * entries in localStorage; a "day" is just a filter on entry.date. Everything
  * else here is presentation and gestures.
  *
- *   entry = { id, type: task|note|event, text, time, date, state, star, created }
+ *   entry = { id, type: task|note|event, text, time, date, state, star, notes, created }
  *   date  = "YYYY-MM-DD", or null for the Someday collection
  *   state = open | done | dropped | moved   (moved = migrated away, leaves a ›)
+ *   notes = long-form scratch hung off any entry, absent when empty. Not the
+ *           same thing as type "note": that is a bullet kind, this is the
+ *           questions and detail behind a line. Never rendered in the day
+ *           list — a line stays one line — only marked with a glyph.
  */
 
 const KEY = "bujo.v1";
@@ -24,6 +28,7 @@ const el = (t, c, h) => {
   return n;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
+const safeHtml = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 const buzz = (ms) => navigator.vibrate?.(ms);
 
 /* ── dates ─────────────────────────────────────────────────────────── */
@@ -161,6 +166,7 @@ $("#toastUndo").onclick = () => {
 /* ── actions ───────────────────────────────────────────────────────── */
 
 const byId = (id) => db.entries.find((e) => e.id === id);
+const hasNotes = (e) => !!e.notes?.trim();
 
 function toggleDone(id) {
   const e = byId(id);
@@ -321,6 +327,7 @@ const ICON = {
   sun: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M2 12h2M20 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4"/></svg>',
   strike: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
+  notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -474,9 +481,8 @@ function row(e) {
   };
 
   const txt = el("button", "row-text");
-  const safe = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
   txt.innerHTML =
-    (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") + safe(e.text);
+    (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") + safeHtml(e.text);
   if (e.state === "moved" && e.movedTo) {
     const lbl =
       e.movedTo === null
@@ -487,6 +493,11 @@ function row(e) {
   txt.onclick = () => openEntry(e.id);
 
   face.append(bul, txt);
+  if (hasNotes(e)) {
+    const m = el("span", "notemark", ICON.notes);
+    m.setAttribute("aria-label", "Has notes");
+    face.append(m);
+  }
   if (e.star) face.append(el("span", "star", ICON.star));
 
   li.append(face);
@@ -690,6 +701,7 @@ function openEntry(id) {
   const e = byId(id);
   if (!e) return;
   let text = e.text;
+  let notes = e.notes || "";
   openSheet(
     (b, first) => {
       const area = el("textarea", "s-input");
@@ -699,6 +711,25 @@ function openEntry(id) {
         text = area.value;
       };
       b.append(area);
+
+      /* The long half of an entry. It never reaches the day list, so this
+         sheet is the only place it exists — kept open rather than behind a
+         disclosure, because a note you have to go find is a note you don't
+         take. Grows with its content instead of scrolling in a small box. */
+      const note = el("textarea", "s-input s-note");
+      note.rows = 2;
+      note.placeholder = "Notes — questions, links, what you'll want back later";
+      note.value = notes;
+      const grow = () => {
+        note.style.height = "auto";
+        note.style.height = Math.min(note.scrollHeight, 240) + "px";
+      };
+      note.oninput = () => {
+        notes = note.value;
+        grow();
+      };
+      b.append(note);
+      requestAnimationFrame(grow);
 
       const acts = el("div", "s-acts");
 
@@ -794,9 +825,18 @@ function openEntry(id) {
       if (first) setTimeout(() => area.focus({ preventScroll: true }), 60);
     },
     () => {
-      const t = text.trim();
       const cur = byId(id);
-      if (cur && t && t !== cur.text) mutate(null, () => (cur.text = t));
+      if (!cur) return;
+      const t = text.trim();
+      const n = notes.trim();
+      const textMoved = t && t !== cur.text;
+      const notesMoved = n !== (cur.notes || "");
+      if (!textMoved && !notesMoved) return;
+      mutate(null, () => {
+        if (textMoved) cur.text = t;
+        // absent, not empty-string — export stays clean and hasNotes stays honest
+        if (notesMoved) n ? (cur.notes = n) : delete cur.notes;
+      });
     }
   );
 }
@@ -1001,7 +1041,11 @@ function openSearch() {
       out.textContent = "";
       if (q.length < 2) return;
       const hits = db.entries
-        .filter((e) => e.text.toLowerCase().includes(q) && e.state !== "moved")
+        .filter(
+          (e) =>
+            e.state !== "moved" &&
+            (e.text.toLowerCase().includes(q) || (e.notes || "").toLowerCase().includes(q))
+        )
         .sort((a, b2) => (b2.date || "9999").localeCompare(a.date || "9999") || b2.created - a.created)
         .slice(0, 40);
       if (!hits.length) {
@@ -1014,12 +1058,33 @@ function openSearch() {
         const r = el("button", "hit");
         r.append(bwrap(bulletClass(e)));
         const t = el("div", "h-t");
-        const safe = e.text.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+        const safe = safeHtml(e.text);
         const i = safe.toLowerCase().indexOf(q);
         t.innerHTML =
           i >= 0
             ? safe.slice(0, i) + "<mark>" + safe.slice(i, i + q.length) + "</mark>" + safe.slice(i + q.length)
             : safe;
+        // matched inside the note rather than the line — show the words that did,
+        // so the row doesn't read as a false positive
+        const nq = i < 0 && e.notes ? e.notes.replace(/\s+/g, " ") : "";
+        const at = nq ? nq.toLowerCase().indexOf(q) : -1;
+        if (at >= 0) {
+          const from = Math.max(0, at - 24);
+          const to = Math.min(nq.length, at + q.length + 40);
+          const sn = el("div", "h-n");
+          sn.innerHTML =
+            ICON.notes +
+            "<span>" +
+            (from ? "…" : "") +
+            safeHtml(nq.slice(from, at)) +
+            "<mark>" +
+            safeHtml(nq.slice(at, at + q.length)) +
+            "</mark>" +
+            safeHtml(nq.slice(at + q.length, to)) +
+            (to < nq.length ? "…" : "") +
+            "</span>";
+          t.append(sn);
+        }
         const when = e.date ? relative(e.date) || e.date : "Someday";
         t.append(el("div", "h-d", when));
         r.append(t);
@@ -1061,6 +1126,11 @@ function openHelp() {
       <code>9:30 standup</code> becomes an event at 9:30.<br>
       <code>!</code> at either end stars the line.<br>
       <code>- </code> makes a note, <code>o </code> makes an event.<br><br>
+      <b style="color:var(--ink-2)">Notes behind a line</b><br>
+      Tap any line to open it. Under the text is room for the questions,
+      links and detail that don't belong on the page itself — a line with
+      notes carries a small mark, and its notes travel with it when you
+      migrate it.<br><br>
       <b style="color:var(--ink-2)">The daily habit</b><br>
       Open the app in the morning. Anything left behind gets a decision:
       pull it forward, park it in Someday, or strike it out. Migration is the
@@ -1081,6 +1151,35 @@ function exportJson() {
   closeSheet();
 }
 
+/* An export written before a field existed is still a journal. Rather than
+   version-gate on `v`, every incoming entry is passed through here and given
+   the same defaults a fresh one gets, so a file saved by any earlier build
+   loads: pre-notes exports simply arrive without notes. Unknown keys are kept
+   — a file from a *newer* build is still someone's data, and dropping fields
+   we don't recognise would quietly destroy it on the next export. */
+const TYPES = new Set(["task", "note", "event"]);
+const STATES = new Set(["open", "done", "dropped", "moved"]);
+
+function adopt(raw, i) {
+  if (!raw || typeof raw !== "object") return null;
+  const text = typeof raw.text === "string" ? raw.text.trim() : "";
+  if (!text) return null; // a line with no words was never an entry
+  const e = {
+    ...raw,
+    id: typeof raw.id === "string" && raw.id ? raw.id : uid(),
+    type: TYPES.has(raw.type) ? raw.type : "task",
+    text,
+    time: /^([01]?\d|2[0-3]):[0-5]\d$/.test(raw.time || "") ? raw.time : null,
+    date: /^\d{4}-\d{2}-\d{2}$/.test(raw.date || "") ? raw.date : null, // else Someday
+    state: STATES.has(raw.state) ? raw.state : "open",
+    star: !!raw.star,
+    created: Number.isFinite(raw.created) ? raw.created : Date.now() + i,
+  };
+  if (typeof raw.notes === "string" && raw.notes.trim()) e.notes = raw.notes.trim();
+  else delete e.notes;
+  return e;
+}
+
 function importJson() {
   const f = el("input");
   f.type = "file";
@@ -1093,8 +1192,26 @@ function importJson() {
       try {
         const next = JSON.parse(r.result);
         if (!next || !Array.isArray(next.entries)) throw 0;
-        mutate("Journal replaced", () => {
-          db = { v: 1, theme: db.theme, entries: next.entries };
+
+        const seen = new Set();
+        const entries = next.entries
+          .map(adopt)
+          .filter(Boolean)
+          .map((e) => {
+            // two rows sharing an id would make byId() edit the wrong line
+            if (seen.has(e.id)) e.id = uid();
+            seen.add(e.id);
+            return e;
+          });
+        const dropped = next.entries.length - entries.length;
+
+        // labelled, so replacing a whole journal stays one Undo away
+        const label =
+          `Imported ${entries.length} ${entries.length === 1 ? "entry" : "entries"}` +
+          (dropped ? ` — skipped ${dropped}` : "");
+        // theme and text size belong to this device, not to the file
+        mutate(label, () => {
+          db = { v: 1, theme: db.theme, text: db.text, entries };
         });
         closeSheet();
       } catch {

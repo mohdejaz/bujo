@@ -440,6 +440,19 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .star svg { width: 0.94rem; height: 0.94rem; }
 svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
+/* "there is more behind this line" — quiet on purpose, the note itself never
+   shows up here. Sits left of the star so the star stays the far-right mark. */
+.notemark {
+  flex: none;
+  width: 22px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  color: var(--dim);
+}
+.notemark svg { width: 0.88rem; height: 0.88rem; stroke-width: 2.2; }
+.row.is-done .notemark, .row.is-dropped .notemark, .row.is-moved .notemark { opacity: 0.45; }
+
 .row-meta {
   font-size: 0.75rem;
   font-weight: 600;
@@ -635,6 +648,18 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-input:focus { outline: none; border-color: var(--accent); }
 
+/* The note is the quieter half of the sheet: same box, lighter ink, and it
+   grows from two rows as you type (height is set in app.js). */
+.s-note {
+  color: var(--ink-2);
+  background: var(--hair-2);
+  border-color: transparent;
+  font-size: max(16px, 0.9375rem);
+  overflow-y: auto;
+}
+.s-note::placeholder { color: var(--dim); }
+.s-note:focus { background: var(--paper); border-color: var(--accent); }
+
 .s-acts { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
 .s-act {
   display: flex;
@@ -760,6 +785,19 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-t { flex: 1; min-width: 0; font-size: 0.96875rem; }
 .hit .h-d { font-size: 0.75rem; font-weight: 600; color: var(--dim); margin-top: 2px; }
 .hit mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
+/* a hit that matched inside the note, not the line: show the words that matched
+   so the row doesn't read as a false positive */
+.hit .h-n {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin-top: 3px;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--ink-2);
+}
+.hit .h-n svg { flex: none; width: 0.8125rem; height: 0.8125rem; margin-top: 3px; color: var(--dim); }
+.hit .h-n span { min-width: 0; }
 
 .legend { display: flex; flex-direction: column; gap: 11px; margin: 2px 0 4px; }
 .legend div { display: flex; align-items: center; gap: 13px; font-size: 0.9375rem; color: var(--ink-2); }
