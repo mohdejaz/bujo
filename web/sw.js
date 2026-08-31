@@ -1,58 +1,57 @@
-/* sw.js - app-shell cache for offline use.
- *
- * Only registered over HTTPS/localhost (see app.js). On the Mac-LAN (plain
- * HTTP) setup it never runs; it's here so the GitHub Pages (HTTPS) deploy
- * gives real offline + install.
+/* Offline shell. Registered only over HTTPS/localhost (see app.js) — on a
+ * plain-HTTP LAN address iOS refuses to install a service worker anyway.
  *
  * CACHE is stamped with the commit SHA at deploy time (see
- * .github/workflows/pages.yml). A new deploy => new cache name => the SW
- * updates and re-fetches the shell, so users pick up changes on next launch.
- * Locally the literal "__BUILD_ID__" placeholder is used, which is fine.
+ * .github/workflows/pages.yml), so every deploy gets a fresh cache and users
+ * pick up changes on next launch. Locally the literal placeholder is used.
+ *
+ * The journal itself lives in localStorage, not here; this cache only holds
+ * the files that make up the app, so a bad cache can never lose data.
  */
 const CACHE = "bujo-shell-__BUILD_ID__";
 const SHELL = [
   ".",
   "index.html",
-  "styles.css",
+  "styles.css?v=__BUILD_ID__",
+  "app.js?v=__BUILD_ID__",
   "manifest.webmanifest",
-  "js/app.js",
-  "js/bujo.js",
-  "js/storage.js",
-  "vendor/sql-wasm.js",
-  "vendor/sql-wasm.wasm",
   "icons/icon-192.png",
   "icons/icon-512.png",
   "icons/apple-touch-icon.png",
 ];
 
 self.addEventListener("install", (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil(
+    caches
+      .open(CACHE)
+      .then((c) => c.addAll(SHELL))
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener("activate", (e) => {
   e.waitUntil(
     caches
       .keys()
-      .then((keys) => Promise.all(keys.filter((k) => k !== CACHE).map((k) => caches.delete(k))))
+      .then((k) => Promise.all(k.filter((n) => n !== CACHE).map((n) => caches.delete(n))))
       .then(() => self.clients.claim())
   );
 });
 
-// Stale-while-revalidate: serve from cache instantly (fast + offline), but
-// refresh the cached copy from the network in the background so the next load
-// is current even between version bumps.
+/* Cache-first for instant cold starts, with a background refresh so the next
+   launch picks up a redeploy. */
 self.addEventListener("fetch", (e) => {
-  if (e.request.method !== "GET") return;
+  if (e.request.method !== "GET" || new URL(e.request.url).origin !== location.origin) return;
   e.respondWith(
     caches.open(CACHE).then((cache) =>
       cache.match(e.request).then((hit) => {
-        const network = fetch(e.request)
+        const net = fetch(e.request)
           .then((res) => {
             if (res && res.ok) cache.put(e.request, res.clone());
             return res;
           })
           .catch(() => hit);
-        return hit || network;
+        return hit || net;
       })
     )
   );

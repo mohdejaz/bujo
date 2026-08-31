@@ -29,10 +29,10 @@ jobs:
         with:
           fetch-depth: 0 # full history + tags, needed for `git describe`
       - uses: actions/configure-pages@v5
-      - name: Stamp service-worker cache with commit SHA
-        run: sed -i "s/__BUILD_ID__/${GITHUB_SHA}/" web/sw.js
+      - name: Stamp asset URLs and service-worker cache with commit SHA
+        run: sed -i "s/__BUILD_ID__/${GITHUB_SHA}/g" web/index.html web/sw.js
       - name: Stamp app version from git describe
-        run: sed -i "s/__BUJO_VERSION__/$(git describe --tags --long --always)/" web/js/bujo.js
+        run: sed -i "s/__BUJO_VERSION__/$(git describe --tags --long --always)/" web/app.js
       - name: Upload web/ as the Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
