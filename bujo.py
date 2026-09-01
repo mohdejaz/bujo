@@ -166,7 +166,7 @@ Commands (typed at the prompt):
     wipe confirm    permanently erase the ENTIRE database (all folders,
                     entries, tags, schedules, log); irreversible except for
                     one immediate `undo` right after
-    help / h        show this help
+    help / h / ?    show this help
     quit / exit     leave bujo
 """
 
@@ -1937,7 +1937,7 @@ def main():
 
         if head in ("quit", "exit", "q"):
             break
-        elif head in ("help", "h"):
+        elif head in ("help", "h", "?"):
             print_help()
         elif head in ("cls", "c"):
             os.system("cls" if os.name == "nt" else "clear")
