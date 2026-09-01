@@ -7,6 +7,9 @@
  *   entry = { id, type: task|note|event, text, time, date, state, star, notes, created }
  *   date  = "YYYY-MM-DD", or null for the Someday collection
  *   state = open | done | dropped | moved   (moved = migrated away, leaves a ›)
+ *   tag   = one 3-5 char grouping label, lowercase, absent when none. One per
+ *           entry on purpose: a line belongs to exactly one group, and one
+ *           chip can never wrap a phone line.
  *   notes = long-form scratch hung off any entry, absent when empty. Not the
  *           same thing as type "note": that is a bullet kind, this is the
  *           questions and detail behind a line. Never rendered in the day
@@ -28,7 +31,14 @@ const el = (t, c, h) => {
   return n;
 };
 const uid = () => Math.random().toString(36).slice(2, 10);
-const safeHtml = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+/* 3-5 of [a-z0-9], lowercased, "#" optional. Returns null for anything else,
+   so every path that accepts a tag rejects junk the same way. */
+const TAG_RE = /^(?=.*[a-z])[a-z0-9]{3,5}$/; // a letter required, so "#123" stays a ticket number
+const cleanTag = (s) => {
+  const t = String(s || "").trim().toLowerCase().replace(/^#/, "");
+  return TAG_RE.test(t) ? t : null;
+};
+const safeHtml = (s) = s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 const buzz = (ms) => navigator.vibrate?.(ms);
 
 /* ── dates ─────────────────────────────────────────────────────────── */
@@ -168,6 +178,14 @@ $("#toastUndo").onclick = () => {
 const byId = (id) => db.entries.find((e) => e.id === id);
 const hasNotes = (e) => !!e.notes?.trim();
 
+/* Tags actually in use, commonest first. Offering these back is the whole
+   defence against ending up with wrk, work and wrkk as three groups. */
+function knownTags() {
+  const n = new Map();
+  db.entries.forEach((e) => e.tag && n.set(e.tag, (n.get(e.tag) || 0) + 1));
+  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+}
+
 function toggleDone(id) {
   const e = byId(id);
   if (!e) return;
@@ -245,6 +263,18 @@ function parseInput(raw, type, pinned) {
   let text = raw.trim();
   let star = false;
   let time = null;
+  let tag = null;
+
+  /* #tag anywhere in the line, first one wins. Pulled out before everything
+     else so it composes with the other shortcuts — "#wrk 9:30 standup" is a
+     tagged event. A "#" that isn't 3-5 of [a-z0-9] is left alone as text. */
+  const tm = [...text.matchAll(/(^|\s)#([A-Za-z0-9]{3,5})(?=\s|$)/g)].find((m) => cleanTag(m[2]));
+  if (tm) {
+    tag = cleanTag(tm[2]);
+    text = (text.slice(0, tm.index) + " " + text.slice(tm.index + tm[0].length))
+      .replace(/\s+/g, " ")
+      .trim();
+  }
 
   while (/^[!*]\s*/.test(text) && text.length > 1) {
     if (text[0] === "!") star = true;
@@ -279,7 +309,7 @@ function parseInput(raw, type, pinned) {
       if (!pinned) type = "event";
     }
   }
-  return { text, type, time, star };
+  return { text, type, time, star, tag };
 }
 
 const pretty = (t) => {
@@ -303,6 +333,7 @@ function add(raw) {
     star: p.star,
     created: Date.now(),
   };
+  if (p.tag) e.tag = p.tag;
   S.anim.add(e.id);
   mutate(null, () => db.entries.push(e));
   buzz(8);
@@ -328,6 +359,7 @@ const ICON = {
   strike: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
   notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
+  tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -481,8 +513,14 @@ function row(e) {
   };
 
   const txt = el("button", "row-text");
+  /* The chip rides inside the text button, inline with the first word, so an
+     untagged line reserves nothing and a wrapped line still uses the full
+     width. A span, not a button — nested buttons are invalid; the tap is
+     picked off the one click handler below. */
   txt.innerHTML =
-    (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") + safeHtml(e.text);
+    (e.tag ? `<span class="tag">${safeHtml(e.tag)}</span>` : "") +
+    (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") +
+    safeHtml(e.text);
   if (e.state === "moved" && e.movedTo) {
     const lbl =
       e.movedTo === null
@@ -490,7 +528,10 @@ function row(e) {
         : (relative(e.movedTo) || e.movedTo.slice(5).replace("-", "/")).toLowerCase();
     txt.append(el("div", "row-meta", "moved to " + lbl));
   }
-  txt.onclick = () => openEntry(e.id);
+  txt.onclick = (ev) => {
+    if (e.tag && ev.target.closest(".tag")) return openSearch("#" + e.tag);
+    openEntry(e.id);
+  };
 
   face.append(bul, txt);
   if (hasNotes(e)) {
@@ -758,6 +799,48 @@ function openEntry(id) {
           refreshSheet();
         }, { on: e.star })
       );
+
+      /* One tag, typed or picked. Committed on input rather than on close so
+         the chips below can show the current pick, and so a half-typed "wr"
+         never lands as a tag. */
+      const tagRow = el("div", "s-act s-tag");
+      tagRow.innerHTML = ICON.tag + "<span>Tag</span>";
+      const tagIn = el("input", "s-seg s-tagin");
+      tagIn.type = "text";
+      tagIn.value = e.tag || "";
+      tagIn.placeholder = "none";
+      tagIn.maxLength = 5;
+      tagIn.autocapitalize = "none";
+      tagIn.autocomplete = "off";
+      tagIn.spellcheck = false;
+      const commitTag = (t) =>
+        mutate(null, () => {
+          const cur = byId(id);
+          if (!cur) return;
+          t ? (cur.tag = t) : delete cur.tag;
+        });
+      tagIn.oninput = () => {
+        const t = cleanTag(tagIn.value);
+        // commit only a legal tag; emptying the box clears it. No refreshSheet
+        // here — rebuilding the body mid-keystroke would drop focus.
+        if (t || !tagIn.value.trim()) commitTag(t);
+      };
+      tagRow.append(tagIn);
+      acts.append(tagRow);
+
+      const others = knownTags().filter((t) => t !== e.tag);
+      if (others.length) {
+        const picks = el("div", "s-tags");
+        others.slice(0, 12).forEach((t) => {
+          const c = el("button", "tag pick", safeHtml(t));
+          c.onclick = () => {
+            commitTag(t);
+            refreshSheet(); // safe here: the tap already took focus off the input
+          };
+          picks.append(c);
+        });
+        acts.append(picks);
+      }
 
       const timeRow = el("div", "s-act");
       timeRow.innerHTML = ICON.clock + "<span>Time</span>";
@@ -1027,29 +1110,35 @@ function openMonth() {
   (sheet.hidden ? openSheet : swapSheet)(build);
 }
 
-function openSearch() {
+function openSearch(prefill) {
   (sheet.hidden ? openSheet : swapSheet)((b) => {
     b.append(el("div", "s-title", "Search"));
     const inp = el("input", "s-search");
     inp.type = "search";
-    inp.placeholder = "find anything you've written";
+    inp.placeholder = "find anything, or #tag to group";
+    if (prefill) inp.value = prefill;
     const out = el("div");
     b.append(inp, out);
 
     const run = () => {
-      const q = inp.value.trim().toLowerCase();
+      const raw = inp.value.trim();
+      const q = raw.toLowerCase();
+      // "#wrk" is a group, not a substring — exact tag match, no highlighting
+      const tag = raw.startsWith("#") ? cleanTag(raw) : null;
       out.textContent = "";
-      if (q.length < 2) return;
+      if (!tag && q.length < 2) return;
       const hits = db.entries
-        .filter(
-          (e) =>
-            e.state !== "moved" &&
-            (e.text.toLowerCase().includes(q) || (e.notes || "").toLowerCase().includes(q))
+        .filter((e) =>
+          e.state === "moved"
+            ? false
+            : tag
+              ? e.tag === tag
+              : e.text.toLowerCase().includes(q) || (e.notes || "").toLowerCase().includes(q)
         )
         .sort((a, b2) => (b2.date || "9999").localeCompare(a.date || "9999") || b2.created - a.created)
         .slice(0, 40);
       if (!hits.length) {
-        const n = el("div", "s-sub", "Nothing matches.");
+        const n = el("div", "s-sub", tag ? `Nothing tagged #${tag}.` : "Nothing matches.");
         n.style.textAlign = "center";
         out.append(n);
         return;
@@ -1058,15 +1147,18 @@ function openSearch() {
         const r = el("button", "hit");
         r.append(bwrap(bulletClass(e)));
         const t = el("div", "h-t");
+        // in tag mode every hit shares the tag, so the chip would be noise
+        const chip = e.tag && !tag ? `<span class="tag">${safeHtml(e.tag)}</span>` : "";
         const safe = safeHtml(e.text);
-        const i = safe.toLowerCase().indexOf(q);
+        const i = tag ? -1 : safe.toLowerCase().indexOf(q);
         t.innerHTML =
-          i >= 0
+          chip +
+          (i >= 0
             ? safe.slice(0, i) + "<mark>" + safe.slice(i, i + q.length) + "</mark>" + safe.slice(i + q.length)
-            : safe;
+            : safe);
         // matched inside the note rather than the line — show the words that did,
         // so the row doesn't read as a false positive
-        const nq = i < 0 && e.notes ? e.notes.replace(/\s+/g, " ") : "";
+        const nq = !tag && i < 0 && e.notes ? e.notes.replace(/\s+/g, " ") : "";
         const at = nq ? nq.toLowerCase().indexOf(q) : -1;
         if (at >= 0) {
           const from = Math.max(0, at - 24);
@@ -1096,6 +1188,7 @@ function openSearch() {
       });
     };
     inp.oninput = run;
+    if (prefill) run();
     setTimeout(() => inp.focus({ preventScroll: true }), 80);
   });
 }
@@ -1125,7 +1218,9 @@ function openHelp() {
       <b style="color:var(--ink-2)">Shortcuts while typing</b><br>
       <code>9:30 standup</code> becomes an event at 9:30.<br>
       <code>!</code> at either end stars the line.<br>
-      <code>- </code> makes a note, <code>o </code> makes an event.<br><br>
+      <code>- </code> makes a note, <code>o </code> makes an event.<br>
+      <code>#wrk</code> tags the line — 3–5 letters, one per entry. Tap a tag
+      to see everything in that group.<br><br>
       <b style="color:var(--ink-2)">Notes behind a line</b><br>
       Tap any line to open it. Under the text is room for the questions,
       links and detail that don't belong on the page itself — a line with
@@ -1177,6 +1272,9 @@ function adopt(raw, i) {
   };
   if (typeof raw.notes === "string" && raw.notes.trim()) e.notes = raw.notes.trim();
   else delete e.notes;
+  const tag = cleanTag(raw.tag);
+  if (tag) e.tag = tag;
+  else delete e.tag;
   return e;
 }
 

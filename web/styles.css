@@ -442,6 +442,56 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
 /* "there is more behind this line" — quiet on purpose, the note itself never
    shows up here. Sits left of the star so the star stays the far-right mark. */
+/* ── tags ───────────────────────────────────────────────────────────── */
+
+/* Inverted: ink block, paper letters — the one thing on the page that reads as
+   a label rather than handwriting. Inline, so an untagged line reserves no
+   space at all and a wrapped line still runs the full width. */
+.tag {
+  display: inline-block;
+  vertical-align: 1.5px;
+  margin-right: 7px;
+  padding: 1px 6px 2px;
+  border-radius: 5px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  line-height: 1.35;
+  text-transform: lowercase;
+  white-space: nowrap;
+}
+/* a struck or finished line shouldn't shout its group */
+.row.is-done .tag, .row.is-dropped .tag, .row.is-moved .tag { opacity: 0.4; }
+.row-text:active .tag { opacity: 0.6; }
+
+/* the picker in the entry sheet */
+.s-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 8px 10px;
+}
+.tag.pick {
+  cursor: pointer;
+  background: var(--hair);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  padding: 4px 9px 5px;
+}
+.tag.pick:active { background: var(--ink); color: var(--paper); }
+.s-tagin {
+  margin-left: auto;
+  width: 6.5em;
+  padding: 7px 10px;
+  font-size: max(16px, 0.875rem);
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.s-tagin::placeholder { font-weight: 500; letter-spacing: 0; color: var(--dim); }
+
 .notemark {
   flex: none;
   width: 22px;
