@@ -38,7 +38,7 @@ const cleanTag = (s) => {
   const t = String(s || "").trim().toLowerCase().replace(/^#/, "");
   return TAG_RE.test(t) ? t : null;
 };
-const safeHtml = (s) = s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
+const safeHtml = (s) => s.replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" })[c]);
 const buzz = (ms) => navigator.vibrate?.(ms);
 
 /* ── dates ─────────────────────────────────────────────────────────── */
@@ -1035,7 +1035,7 @@ function openMenu() {
 
     acts.append(
       actRow(ICON.cal, "The month", openMonth),
-      actRow(ICON.search, "Search", openSearch),
+      actRow(ICON.search, "Search", () => openSearch()),
       actRow(ICON.book, "How to keep it", openHelp),
       actRow(ICON.down, "Export journal", exportJson),
       actRow(ICON.up, "Import journal", importJson)
@@ -1116,7 +1116,9 @@ function openSearch(prefill) {
     const inp = el("input", "s-search");
     inp.type = "search";
     inp.placeholder = "find anything, or #tag to group";
-    if (prefill) inp.value = prefill;
+    // actRow-style callers pass their button as the first argument
+    const seed = typeof prefill === "string" ? prefill : "";
+    if (seed) inp.value = seed;
     const out = el("div");
     b.append(inp, out);
 
@@ -1188,7 +1190,7 @@ function openSearch(prefill) {
       });
     };
     inp.oninput = run;
-    if (prefill) run();
+    if (seed) run();
     setTimeout(() => inp.focus({ preventScroll: true }), 80);
   });
 }
