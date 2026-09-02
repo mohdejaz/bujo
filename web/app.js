@@ -372,7 +372,15 @@ const bwrap = (cls) => {
 /* A struck-out entry keeps its own bullet (dimmed) — what it *was* is still
    part of the record. Only done and migrated get their own mark. */
 const bulletClass = (e) =>
-  e.state === "done" ? "b b-done" : e.state === "moved" ? "b b-moved" : `b b-${e.type}`;
+  e.state === "done"
+    ? "b b-done"
+    : e.state === "moved"
+      ? // parked in Someday is scheduled (<), pushed to a date is migrated (>).
+        // Strictly null: a legacy entry with no movedTo keeps the > it had.
+        e.movedTo === null
+        ? "b b-sched"
+        : "b b-moved"
+      : `b b-${e.type}`;
 
 function render() {
   renderHead();
@@ -521,7 +529,8 @@ function row(e) {
     (e.tag ? `<span class="tag">${safeHtml(e.tag)}</span>` : "") +
     (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") +
     safeHtml(e.text);
-  if (e.state === "moved" && e.movedTo) {
+  // `movedTo: null` means Someday — falsy, but a destination all the same
+  if (e.state === "moved" && e.movedTo !== undefined) {
     const lbl =
       e.movedTo === null
         ? "Someday"
@@ -1210,6 +1219,7 @@ function openHelp() {
       line("b b-event", "<b>Event</b> — something that happens, at a time"),
       line("b b-done", "<b>Done</b> — tap the bullet, or swipe the line right"),
       line("b b-moved", "<b>Migrated</b> — swipe left; it moves on and leaves a mark"),
+      line("b b-sched", "<b>Scheduled</b> — parked in Someday, off the calendar"),
       line("b b-task dim", "<b>Struck out</b> — <s>it stopped mattering</s>")
     );
     b.append(L);

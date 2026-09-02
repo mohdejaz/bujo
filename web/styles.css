@@ -390,6 +390,19 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   transform: rotate(45deg) scale(0.72);
   border-radius: 1px;
 }
+/* The same chevron as .b-moved, turned to point back: > pushes an entry
+   forward to a date, < sets it aside with no date at all. */
+.b-sched { width: 0.75rem; height: 0.75rem; color: var(--dim); }
+.b-sched::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-right: 2px solid currentColor;
+  border-top: 2px solid currentColor;
+  transform: rotate(-135deg) scale(0.72);
+  border-radius: 1px;
+}
+
 .row.is-dropped .b, .b.dim { color: var(--dim); }
 
 .row-text {
