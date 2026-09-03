@@ -114,12 +114,19 @@ const S = {
 const isSomeday = () => S.sel === "someday";
 const dateOf = () => (isSomeday() ? null : S.sel);
 
+/* Untagged sorts last: \uffff is above every letter, so named groups come
+   first and the ungrouped remainder settles at the bottom. */
+const tagKey = (e) => e.tag || "\uffff";
+
 const forDay = (d) =>
   db.entries
     .filter((e) => (d === null ? e.date === null : e.date === d))
     .sort(
       (a, b) =>
         (a.state === "open" ? 0 : 1) - (b.state === "open" ? 0 : 1) ||
+        /* A dated page holds one day and stays short, so writing order is the
+           right order. Someday grows without bound — that one reads by group. */
+        (d === null ? tagKey(a).localeCompare(tagKey(b)) : 0) ||
         (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
         (a.time || "99:99").localeCompare(b.time || "99:99") ||
         a.created - b.created
@@ -474,11 +481,23 @@ function renderList() {
   const items = forDay(dateOf());
   let sepDone = false;
 
+  /* Headings only where the sort actually grouped anything — a Someday page
+     with no tags at all would otherwise get one pointless "untagged" bar. */
+  const grouped = isSomeday() && items.some((e) => e.tag);
+  let shown; // last heading written; undefined so the first group always prints
+
   for (const e of items) {
     if (e.state !== "open" && !sepDone) {
       sepDone = true;
-      const sep = el("li", "sep", "logged");
-      list.append(sep);
+      list.append(el("li", "sep", "logged"));
+      shown = undefined; // groups start over below the fold
+    }
+    if (grouped) {
+      const t = e.tag || null;
+      if (t !== shown) {
+        shown = t;
+        list.append(el("li", "sep sep-tag", t ? safeHtml(t) : "untagged"));
+      }
     }
     list.append(row(e));
   }
