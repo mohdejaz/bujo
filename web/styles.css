@@ -544,12 +544,9 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   color: var(--dim);
 }
 
-/* A group heading on Someday. Slightly stronger than the "logged" rule so the
-   two read as different kinds of divider. */
+/* A tag group heading in the day list. Slightly stronger than the plain
+   .sep used for date dividers elsewhere (e.g. the "left behind" sheet). */
 .sep-tag { color: var(--ink-2); }
-/* "logged" is immediately followed by the first group of the closed section —
-   without this the two headings stack their padding into a gap. */
-.sep + .sep-tag { padding-top: 2px; }
 
 .empty {
   margin: 20vh 32px 0;
