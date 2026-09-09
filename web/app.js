@@ -85,6 +85,7 @@ function load() {
     v: 1,
     theme: "auto",
     text: 1,
+    hideLogged: false,
     entries: WELCOME.map((w, i) => ({
       id: uid(),
       type: w.type,
@@ -114,23 +115,43 @@ const S = {
 const isSomeday = () => S.sel === "someday";
 const dateOf = () => (isSomeday() ? null : S.sel);
 
-/* Untagged sorts last: \uffff is above every letter, so named groups come
-   first and the ungrouped remainder settles at the bottom. */
-const tagKey = (e) => e.tag || "\uffff";
-
-const forDay = (d) =>
+/* Tags in the order they were first written, across the whole journal \u2014 not
+   alphabetical. That keeps a tag's group in the same relative position on
+   every page instead of it jumping around as new tags get typed. */
+function tagOrder() {
+  const order = [];
+  const seen = new Set();
   db.entries
+    .slice()
+    .sort((a, b) => a.created - b.created)
+    .forEach((e) => {
+      if (e.tag && !seen.has(e.tag)) {
+        seen.add(e.tag);
+        order.push(e.tag);
+      }
+    });
+  return order;
+}
+
+const forDay = (d) => {
+  const order = new Map(tagOrder().map((t, i) => [t, i]));
+  /* Untagged sorts last: an unknown tag falls through to the same rank. */
+  const rank = (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
+  return db.entries
     .filter((e) => (d === null ? e.date === null : e.date === d))
+    .filter((e) => !db.hideLogged || e.state === "open")
     .sort(
       (a, b) =>
+        rank(a) - rank(b) ||
+        /* Within a tag's group, open entries lead and closed ones trail —
+           one heading per tag instead of the page splitting into an open
+           half and a closed half with every heading repeated. */
         (a.state === "open" ? 0 : 1) - (b.state === "open" ? 0 : 1) ||
-        /* A dated page holds one day and stays short, so writing order is the
-           right order. Someday grows without bound — that one reads by group. */
-        (d === null ? tagKey(a).localeCompare(tagKey(b)) : 0) ||
         (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
         (a.time || "99:99").localeCompare(b.time || "99:99") ||
         a.created - b.created
     );
+};
 
 /* Open tasks stranded on days before today — the thing a bullet journal
    makes you look in the eye each morning. */
@@ -367,6 +388,7 @@ const ICON = {
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
   notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
+  eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -479,19 +501,15 @@ function renderList() {
   const list = $("#list");
   list.textContent = "";
   const items = forDay(dateOf());
-  let sepDone = false;
 
-  /* Headings only where the sort actually grouped anything — a Someday page
-     with no tags at all would otherwise get one pointless "untagged" bar. */
-  const grouped = isSomeday() && items.some((e) => e.tag);
+  /* Headings only where the sort actually grouped anything — a page with no
+     tags at all would otherwise get one pointless "untagged" bar. Open and
+     closed entries share a tag's heading; only the state styling (struck,
+     dimmed) tells them apart. */
+  const grouped = items.some((e) => e.tag);
   let shown; // last heading written; undefined so the first group always prints
 
   for (const e of items) {
-    if (e.state !== "open" && !sepDone) {
-      sepDone = true;
-      list.append(el("li", "sep", "logged"));
-      shown = undefined; // groups start over below the fold
-    }
     if (grouped) {
       const t = e.tag || null;
       if (t !== shown) {
@@ -1060,6 +1078,25 @@ function openMenu() {
     });
     textRow.append(th, tseg);
     acts.append(textRow);
+
+    const loggedRow = el("div", "s-act");
+    loggedRow.innerHTML = ICON.eye + "<span>Logged tasks</span>";
+    const lseg = el("div", "s-seg");
+    [
+      [false, "Show"],
+      [true, "Hide"],
+    ].forEach(([v, l]) => {
+      const btn = el("button", !!db.hideLogged === v ? "on" : "", l);
+      btn.onclick = () => {
+        db.hideLogged = v;
+        save();
+        render();
+        [...lseg.children].forEach((c) => c.classList.toggle("on", c === btn));
+      };
+      lseg.append(btn);
+    });
+    loggedRow.append(lseg);
+    acts.append(loggedRow);
 
     acts.append(
       actRow(ICON.cal, "The month", openMonth),
