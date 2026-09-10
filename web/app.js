@@ -142,12 +142,14 @@ const forDay = (d) => {
     .filter((e) => !db.hideLogged || e.state === "open")
     .sort(
       (a, b) =>
-        rank(a) - rank(b) ||
-        /* Within a tag's group, open entries lead and closed ones trail —
-           one heading per tag instead of the page splitting into an open
-           half and a closed half with every heading repeated. */
-        (a.state === "open" ? 0 : 1) - (b.state === "open" ? 0 : 1) ||
+        /* Starred lines lift out of their tag group into one priority block
+           at the very top of the page, ahead of every tag. */
         (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
+        rank(a) - rank(b) ||
+        /* Within a group, open entries lead and closed ones trail — one
+           heading instead of the page splitting into an open half and a
+           closed half with every heading repeated. */
+        (a.state === "open" ? 0 : 1) - (b.state === "open" ? 0 : 1) ||
         (a.time || "99:99").localeCompare(b.time || "99:99") ||
         a.created - b.created
     );
@@ -504,17 +506,25 @@ function renderList() {
 
   /* Headings only where the sort actually grouped anything — a page with no
      tags at all would otherwise get one pointless "untagged" bar. Open and
-     closed entries share a tag's heading; only the state styling (struck,
-     dimmed) tells them apart. */
+     closed entries share a heading; only the state styling (struck, dimmed)
+     tells them apart. Starred lines are pulled together under one "priority"
+     heading, ahead of the tag groups, regardless of their own tag. */
   const grouped = items.some((e) => e.tag);
+  const PRIORITY = "\0priority"; // sentinel; a real tag can't hold a NUL
   let shown; // last heading written; undefined so the first group always prints
 
   for (const e of items) {
     if (grouped) {
-      const t = e.tag || null;
-      if (t !== shown) {
-        shown = t;
-        list.append(el("li", "sep sep-tag", t ? safeHtml(t) : "untagged"));
+      const key = e.star ? PRIORITY : e.tag || null;
+      if (key !== shown) {
+        shown = key;
+        list.append(
+          el(
+            "li",
+            "sep sep-tag",
+            e.star ? "priority" : e.tag ? safeHtml(e.tag) : "untagged"
+          )
+        );
       }
     }
     list.append(row(e));
