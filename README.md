@@ -23,14 +23,13 @@ No build step, no dependencies, no account. See [`web/README.md`](web/README.md)
 ## The CLI — `bujo.py` *(dormant)*
 
 A command-line bullet journal backed by SQLite, and where this project started.
-**No longer developed.** Its database stops at 2026-08-15; everything since is
-in the PWA.
+**No longer developed.** Everything written since is in the PWA.
 
-It is kept for one reason: it is the only thing that can read `bujo.db`. That
-file holds 835 archived entries, and their meaning — a tree of parent links
-with symbol semantics, plus a separate log table — is defined by this code, not
-by the schema. Open it to read back the archive. Don't start a new journal in
-it.
+It is kept for one reason: it is the only thing that can read a `bujo.db`. That
+file is local and never committed, and the meaning of what's in it — a tree of
+parent links with symbol semantics, plus a separate log table — is defined by
+this code, not by the schema. Open it to read an existing journal back. Don't
+start a new one in it.
 
 It shares nothing with the app above: separate storage, a different model, and
 it neither reads nor writes the PWA's data. There is no migration between them.
