@@ -1,19 +1,46 @@
 # bujo
 
-A command-line bullet journal. Track daily tasks, notes, meetings, and
-calendar events in a single terminal session, backed by SQLite.
+A bullet journal, in two programs. **Use the PWA.** The command-line version is
+kept for its archive, not for daily use.
 
-Everything lives in a tree: the root task contains folders (usually daily
+## The app — [`web/`](web/)
+
+A touch-first bullet journal built for a thumb, live at
+**https://mohdejaz.github.io/bujo/**. Add it to your home screen and it works
+offline.
+
+Tasks, notes and events on a dated page. Tap a bullet to complete, swipe right
+to complete, swipe left to migrate to tomorrow. Entries can carry a `#tag` and
+long-form notes, and anything left behind on an earlier page surfaces each
+morning for a decision. The journal lives in `localStorage` on the device and
+is exported and imported as JSON from the ☰ menu — that export is the only
+backup, so take one now and then.
+
+No build step, no dependencies, no account. See [`web/README.md`](web/README.md).
+
+**This is the version to use.**
+
+## The CLI — `bujo.py` *(dormant)*
+
+A command-line bullet journal backed by SQLite, and where this project started.
+**No longer developed.** Its database stops at 2026-08-15; everything since is
+in the PWA.
+
+It is kept for one reason: it is the only thing that can read `bujo.db`. That
+file holds 835 archived entries, and their meaning — a tree of parent links
+with symbol semantics, plus a separate log table — is defined by this code, not
+by the schema. Open it to read back the archive. Don't start a new journal in
+it.
+
+It shares nothing with the app above: separate storage, a different model, and
+it neither reads nor writes the PWA's data. There is no migration between them.
+
+Everything in it lives in a tree: the root task contains folders (usually daily
 folders like `07.18.sat`), folders contain tasks/notes/meetings/events, and
 tasks can contain their own child tasks and notes. You navigate the tree with
 `use`/`cd` and act on entries by their numeric id.
 
-## On the phone
-
-There's a web version in [`web/`](web/) — a touch-first PWA, live at
-**https://mohdejaz.github.io/bujo/**. It is *not* a port of the commands below:
-it's a much smaller bullet journal built for a thumb, with its own storage, and
-it does not read `bujo.db`. See [`web/README.md`](web/README.md).
+The rest of this file documents that CLI.
 
 ## Requirements
 
