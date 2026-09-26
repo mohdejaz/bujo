@@ -1,12 +1,15 @@
 /* bujo — a pocket bullet journal.
  *
  * One file, no build, no dependencies. The whole journal is a flat array of
- * entries in localStorage; a page is just a filter on entry.date — one day of
- * it, or a week or fortnight of it, depending on db.period. Everything else
- * here is presentation and gestures.
+ * entries in localStorage, and everything you look at is a filter over it: the
+ * notebook narrows it, then the page narrows that to one day, week or fortnight
+ * of entry.date. Neither filter ever rewrites an entry. The rest here is
+ * presentation and gestures.
  *
  *   entry = { id, type: task|note|event, text, time, date, state, star, notes, created }
  *   date  = "YYYY-MM-DD", or null for the Someday collection
+ *   book  = which notebook the entry is in, absent for "the first one" — which
+ *           is how a journal written before notebooks needed no migration
  *   state = open | doing | done | dropped | moved   (moved = migrated away,
  *           leaves a ›; doing = in flight, only reachable on a board page)
  *   tag   = one 3-5 char grouping label, lowercase, absent when none. One per
@@ -68,6 +71,79 @@ function relative(s) {
   return null;
 }
 
+/* ── notebooks ──────────────────────────────────────────────────────── */
+
+/* Several journals in one app — work, private, whatever else — with one open at
+ * a time. Like the period, this is a *filter* rather than a restructure: entries
+ * gain an optional `book`, and one accessor decides what its absence means. So a
+ * journal written before notebooks upgrades by gaining a notebook record, and
+ * not one entry is rewritten.
+ *
+ *   book = { id, name, period, sprintStart }
+ *
+ * Page size belongs to the notebook, not the app, so work can be a fortnight
+ * sprint board while private stays a daily log. Theme, text size and
+ * Hide-logged stay device-wide — they describe this screen, not this journal.
+ */
+
+const BOOK_MAX = 6;
+const BOOK_NAME_MAX = 14;
+
+const newBook = (name, period = "day", sprintStart = null) => ({
+  id: uid(),
+  name,
+  period,
+  sprintStart,
+});
+
+/* Trimmed, collapsed, never empty, and short enough that the header chip has a
+   fighting chance. Same shape as cleanTag: normalise, or return null. */
+const cleanBookName = (s) => {
+  const t = String(s || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, BOOK_NAME_MAX);
+  return t || null;
+};
+
+/* Every invariant the rest of the app leans on, in one place so that load() and
+   importJson() cannot drift apart: at least one notebook, each one well formed,
+   and db.book naming one that exists. A journal written before notebooks has
+   none of it, and its root-level period/sprintStart become the single
+   notebook's — which is what lets an older export import with no version gate. */
+function withBooks(raw) {
+  const legacy = [newBook("journal", raw.period || "day", raw.sprintStart || null)];
+  raw.books = (Array.isArray(raw.books) ? raw.books : [])
+    .filter((b) => b && typeof b === "object")
+    .slice(0, BOOK_MAX)
+    .map((b) => ({
+      id: typeof b.id === "string" && b.id ? b.id : uid(),
+      name: cleanBookName(b.name) || "journal",
+      period: PERIOD_DAYS[b.period] ? b.period : "day",
+      sprintStart: /^\d{4}-\d{2}-\d{2}$/.test(b.sprintStart || "") ? b.sprintStart : null,
+    }));
+  if (!raw.books.length) raw.books = legacy;
+  // whatever the page size used to be, it is a property of a notebook now
+  delete raw.period;
+  delete raw.sprintStart;
+  if (!raw.books.some((b) => b.id === raw.book)) raw.book = raw.books[0].id;
+  return raw;
+}
+
+const byBook = (id) => db.books.find((b) => b.id === id);
+const curBook = () => byBook(db.book) || db.books[0];
+const bookName = (id) => byBook(id)?.name || "";
+/* The notebook a line belongs to: its own when that notebook still exists, else
+   the first. One rule covers both a journal written before notebooks (no field
+   at all) and a line imported naming something unknown — it surfaces in the
+   first notebook rather than vanishing. */
+const bookOf = (e) => (e.book && byBook(e.book) ? e.book : db.books[0].id);
+/* Entries in the notebook being viewed — the scope of nearly everything. */
+const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
+/* Counted through bookOf, so the entries of a pre-notebooks journal count toward
+   the first notebook — which is exactly what stops it being deleted. */
+const bookCount = (id) => db.entries.filter((e) => bookOf(e) === id).length;
+
 /* ── periods ───────────────────────────────────────────────────────── */
 
 /* A page can span a day, a week, or a fortnight. That is a *window* over the
@@ -75,7 +151,7 @@ function relative(s) {
    multi-day page is a range filter over the same field. Switching the setting
    back to Day is therefore lossless — nothing was ever rewritten. */
 const PERIOD_DAYS = { day: 1, week: 7, fortnight: 14 };
-const periodLen = () => PERIOD_DAYS[db.period] || 1;
+const periodLen = () => PERIOD_DAYS[curBook().period] || 1;
 /* More than one day on the page is "board mode": the list gains Doing/Todo/Done
    columns, and a few gestures change meaning. One question, asked everywhere. */
 const isBoard = () => periodLen() > 1;
@@ -87,8 +163,10 @@ const mondayOf = (s) => shift(s, -((parse(s).getDay() + 6) % 7));
 
 /* Fortnights are counted from a Monday you choose, so bujo's boundaries can be
    made to line up with a real sprint. Falls back to this week's Monday. */
-const sprintAnchor = () =>
-  /^\d{4}-\d{2}-\d{2}$/.test(db.sprintStart || "") ? db.sprintStart : mondayOf(TODAY());
+const sprintAnchor = () => {
+  const s = curBook().sprintStart;
+  return /^\d{4}-\d{2}-\d{2}$/.test(s || "") ? s : mondayOf(TODAY());
+};
 
 /* The first day of the page containing s. Weeks always start Monday; only the
    fortnight needs the anchor. Math.floor is deliberate — it floors toward
@@ -319,18 +397,22 @@ const WELCOME = [
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(KEY));
-    if (raw && Array.isArray(raw.entries)) return raw;
+    // withBooks is what upgrades a journal written before notebooks, in place
+    if (raw && Array.isArray(raw.entries)) return withBooks(raw);
   } catch {}
   const now = Date.now();
+  /* A fresh journal is one daily notebook. Board mode and further notebooks are
+     both opt-in, so an install that never opens the menu behaves as it always
+     has. The welcome lines carry no `book` field of their own — bookOf puts them
+     in the first notebook, the same way it places every pre-notebooks entry. */
+  const first = newBook("journal");
   return {
     v: 1,
     theme: "auto",
     text: 1,
     hideLogged: false,
-    /* A fresh journal is a daily one. Board mode is opt-in, per device — an
-       install that never opens the menu behaves exactly as it always has. */
-    period: "day",
-    sprintStart: null,
+    books: [first],
+    book: first.id,
     entries: WELCOME.map((w, i) => ({
       id: uid(),
       type: w.type,
@@ -374,7 +456,7 @@ const selSpan = () => [periodStart(S.sel), periodEnd(S.sel)];
 function tagOrder() {
   const order = [];
   const seen = new Set();
-  db.entries
+  mine()
     .slice()
     .sort((a, b) => a.created - b.created)
     .forEach((e) => {
@@ -404,7 +486,7 @@ const entriesIn = (from, to) => {
   const order = new Map(tagOrder().map((t, i) => [t, i]));
   /* Untagged sorts last: an unknown tag falls through to the same rank. */
   const rank = (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
-  return db.entries
+  return mine()
     .filter((e) => (from === null ? e.date === null : e.date && e.date >= from && e.date <= to))
     .filter((e) => !db.hideLogged || isLive(e))
     .sort(
@@ -432,7 +514,7 @@ const forSel = () => (isSomeday() ? entriesIn(null, null) : entriesIn(...selSpan
    makes you look in the eye each morning. Measured against the current page's
    first day, so a fortnight doesn't nag about work still inside the sprint. */
 const stranded = () =>
-  db.entries.filter(
+  mine().filter(
     (e) => e.type === "task" && isLive(e) && e.date && e.date < periodStart(TODAY())
   );
 
@@ -441,8 +523,13 @@ const stranded = () =>
 let undoStack = null;
 let toastTimer = null;
 
+/* Everything Undo has to be able to put back. The notebook list is in here as
+   well as the entries: deleting a notebook is a labelled mutation, and an Undo
+   button that only restored the entries would be lying about what it does. */
+const snapshot = () => JSON.stringify({ entries: db.entries, books: db.books, book: db.book });
+
 function mutate(label, fn) {
-  const before = JSON.stringify(db.entries);
+  const before = snapshot();
   fn();
   save();
   if (label) {
@@ -471,8 +558,14 @@ function hideToast() {
 }
 $("#toastUndo").onclick = () => {
   if (!undoStack) return;
-  db.entries = JSON.parse(undoStack);
+  const was = JSON.parse(undoStack);
+  db.entries = was.entries;
+  db.books = was.books;
+  db.book = was.book;
   undoStack = null;
+  // the restored notebook may have a different page shape than the one we were
+  // just looking at, so put the selection back on a boundary before rendering
+  if (!isSomeday()) S.sel = periodStart(S.sel);
   save();
   hideToast();
   render();
@@ -488,7 +581,7 @@ const hasNotes = (e) => !!e.notes?.trim();
    defence against ending up with wrk, work and wrkk as three groups. */
 function knownTags() {
   const n = new Map();
-  db.entries.forEach((e) => e.tag && n.set(e.tag, (n.get(e.tag) || 0) + 1));
+  mine().forEach((e) => e.tag && n.set(e.tag, (n.get(e.tag) || 0) + 1));
   return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
 }
 
@@ -664,6 +757,7 @@ function add(raw) {
   if (!p.text) return;
   const e = {
     id: uid(),
+    book: db.book,
     // a date written into the line wins over the page you happen to be on
     date: p.date || writeDate(),
     type: p.type,
@@ -707,6 +801,10 @@ const ICON = {
      reaches the svg element, so the path's own attribute wins. */
   half: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none"/></svg>',
   board: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M9 4.5v15M15 4.5v15"/></svg>',
+  books: '<svg viewBox="0 0 24 24"><rect x="3" y="3.5" width="12" height="17" rx="2.5"/><path d="M18 6.5v12a2 2 0 01-2 2H7"/></svg>',
+  pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L20.5 7.5l-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>',
+  plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
+  move: '<svg viewBox="0 0 24 24"><path d="M3 8.5h13l-3.5-3.5M21 15.5H8l3.5 3.5"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
@@ -744,6 +842,8 @@ function render() {
 function renderHead() {
   const head = $("#head");
   const today = TODAY();
+  $("#bookName").textContent = bookName(db.book);
+  $("#bookBtn").setAttribute("aria-label", `Notebook: ${bookName(db.book)}`);
   if (isSomeday()) {
     $("#dow").textContent = "Someday";
     $("#dmy").textContent = "no date, not forgotten";
@@ -1300,6 +1400,34 @@ function openEntry(id) {
         acts.append(picks);
       }
 
+      /* Move the line to another notebook. Chips that wrap rather than a
+         segmented control: six notebooks would never fit one row, and this is
+         the pattern the tag picker above already uses. Only the notebooks it
+         isn't in are offered — tapping the one it's already in would be a
+         no-op wearing the same clothes as a real action. */
+      const elsewhere = db.books.filter((bk) => bk.id !== bookOf(e));
+      if (elsewhere.length) {
+        const moveRow = el("div", "s-act s-tag");
+        moveRow.innerHTML = ICON.move + "<span>Notebook</span>";
+        moveRow.append(el("span", "k", bookName(bookOf(e))));
+        acts.append(moveRow);
+        const picks = el("div", "s-tags");
+        elsewhere.forEach((bk) => {
+          const c = el("button", "tag pick", safeHtml(bk.name));
+          c.onclick = () => {
+            /* Labelled, so it toasts and Undo can bring it back — the line is
+               about to leave this page entirely. */
+            mutate("Moved to " + bk.name, () => {
+              const cur = byId(id);
+              if (cur) cur.book = bk.id;
+            });
+            closeSheet();
+          };
+          picks.append(c);
+        });
+        acts.append(picks);
+      }
+
       const timeRow = el("div", "s-act");
       timeRow.innerHTML = ICON.clock + "<span>Time</span>";
       const tin = el("input", "s-seg");
@@ -1528,57 +1656,14 @@ function openMenu() {
     loggedRow.append(lseg);
     acts.append(loggedRow);
 
-    /* What one page holds. Changing it re-anchors the selection onto the new
-       page boundary and rebuilds the sheet, so the sprint-start row below can
-       appear or vanish with the choice. */
-    const periodRow = el("div", "s-act");
-    periodRow.innerHTML = ICON.board + "<span>Page is</span>";
-    const pseg = el("div", "s-seg");
-    [
-      ["day", "Day"],
-      ["week", "Week"],
-      ["fortnight", "2 wks"],
-    ].forEach(([v, l]) => {
-      const btn = el("button", (db.period || "day") === v ? "on" : "", l);
-      btn.onclick = () => {
-        /* Asked before the switch: if you were on the page holding today, you
-           stay there afterwards rather than landing on its first day. */
-        const hadToday = periodHas(S.sel, TODAY());
-        db.period = v;
-        // the first fortnight needs an anchor; this week's Monday is the guess
-        if (v === "fortnight" && !db.sprintStart) db.sprintStart = mondayOf(TODAY());
-        save();
-        S.sel = isSomeday() ? S.sel : periodStart(hadToday ? TODAY() : S.sel);
-        buzz(6);
-        render();
-        refreshSheet();
-      };
-      pseg.append(btn);
-    });
-    periodRow.append(pseg);
-    acts.append(periodRow);
+    /* The page size of the notebook you are in. The same rows appear in the
+       notebook editor for any other notebook — this is the one-tap path to the
+       setting you actually reach for. */
+    acts.append(...periodRows(curBook()));
 
-    /* Only a fortnight needs telling where to start — weeks always begin on a
-       Monday. Snapped to a Monday on the way in, so a sprint can't start
-       mid-week and leave every boundary looking arbitrary. */
-    if (db.period === "fortnight") {
-      const sprintRow = el("div", "s-act");
-      sprintRow.innerHTML = ICON.cal + "<span>Sprint starts</span>";
-      const sin = el("input", "s-seg");
-      sin.type = "date";
-      sin.value = sprintAnchor();
-      sin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
-      sin.onchange = () => {
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(sin.value)) return;
-        db.sprintStart = mondayOf(sin.value);
-        save();
-        S.sel = isSomeday() ? S.sel : periodStart(TODAY());
-        render();
-        refreshSheet();
-      };
-      sprintRow.append(sin);
-      acts.append(sprintRow);
-    }
+    acts.append(
+      actRow(ICON.books, "Notebooks", openBooks, { k: bookName(db.book) })
+    );
 
     acts.append(
       actRow(ICON.cal, "The month", openMonth),
@@ -1589,16 +1674,203 @@ function openMenu() {
     );
     b.append(acts);
 
-    const n = db.entries.length;
-    const done = db.entries.filter((e) => e.state === "done").length;
+    const here = mine();
+    const done = here.filter((e) => e.state === "done").length;
     const foot = el(
       "div",
       "s-sub",
-      `${n} entries · ${done} completed · on this device only · ${VERSION_LABEL}`
+      `${here.length} in ${bookName(db.book)} · ${done} completed · ` +
+        `on this device only · ${VERSION_LABEL}`
     );
     foot.style.cssText = "margin:18px 0 0;text-align:center";
     b.append(foot);
   });
+}
+
+/* Page size belongs to a notebook, so these rows are built for whichever
+   notebook is being edited — the current one from the menu, any one from the
+   notebook editor. Only the selection of the notebook you are *looking at*
+   needs re-anchoring when its shape changes. */
+function periodRows(bk) {
+  const rows = [];
+
+  const periodRow = el("div", "s-act");
+  periodRow.innerHTML = ICON.board + "<span>Page is</span>";
+  const pseg = el("div", "s-seg");
+  [
+    ["day", "Day"],
+    ["week", "Week"],
+    ["fortnight", "2 wks"],
+  ].forEach(([v, l]) => {
+    const btn = el("button", bk.period === v ? "on" : "", l);
+    btn.onclick = () => {
+      /* Asked before the switch: if you were on the page holding today, you stay
+         there afterwards rather than landing on its first day. */
+      const hadToday = periodHas(S.sel, TODAY());
+      bk.period = v;
+      // the first fortnight needs an anchor; this week's Monday is the guess
+      if (v === "fortnight" && !bk.sprintStart) bk.sprintStart = mondayOf(TODAY());
+      save();
+      if (bk.id === db.book && !isSomeday()) S.sel = periodStart(hadToday ? TODAY() : S.sel);
+      buzz(6);
+      render();
+      refreshSheet();
+    };
+    pseg.append(btn);
+  });
+  periodRow.append(pseg);
+  rows.push(periodRow);
+
+  /* Only a fortnight needs telling where to start — weeks always begin on a
+     Monday. Snapped to a Monday on the way in, so a sprint can't start mid-week
+     and leave every boundary looking arbitrary. */
+  if (bk.period === "fortnight") {
+    const sprintRow = el("div", "s-act");
+    sprintRow.innerHTML = ICON.cal + "<span>Sprint starts</span>";
+    const sin = el("input", "s-seg");
+    sin.type = "date";
+    sin.value = bk.sprintStart || mondayOf(TODAY());
+    sin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
+    sin.onchange = () => {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(sin.value)) return;
+      bk.sprintStart = mondayOf(sin.value);
+      save();
+      if (bk.id === db.book && !isSomeday()) S.sel = periodStart(TODAY());
+      render();
+      refreshSheet();
+    };
+    sprintRow.append(sin);
+    rows.push(sprintRow);
+  }
+  return rows;
+}
+
+/* Switching notebooks is a bigger context change than switching pages: the new
+   notebook may keep a different page shape entirely. The selection is put back
+   on a boundary of the *new* period, keeping you on today's page if that is
+   where you were — the same rule the page-size switcher uses. */
+function goBook(id) {
+  if (id === db.book || !byBook(id)) return;
+  const hadToday = periodHas(S.sel, TODAY());
+  const wasSomeday = isSomeday();
+  db.book = id;
+  save();
+  S.sel = wasSomeday ? S.sel : periodStart(hadToday ? TODAY() : S.sel);
+  buzz(8);
+  render();
+}
+
+/* A name no other notebook is already using, so "New notebook" twice doesn't
+   give you two rows you can't tell apart. */
+function freeBookName(base) {
+  const taken = new Set(db.books.map((b) => b.name));
+  if (!taken.has(base)) return base;
+  for (let i = 2; i < 99; i++) if (!taken.has(`${base} ${i}`)) return `${base} ${i}`;
+  return base;
+}
+
+function openBooks() {
+  const build = (b) => {
+    b.append(el("div", "s-title", "Notebooks"));
+    b.append(
+      el("div", "s-sub", "One at a time. Entries move between them from the entry itself.")
+    );
+
+    const list = el("div", "s-acts");
+    db.books.forEach((bk) => {
+      const row = el("div", "s-book" + (bk.id === db.book ? " on" : ""));
+      /* Two buttons, so the row can't be one: the whole width switches, and the
+         pencil at the end edits. Nested buttons would be invalid markup. */
+      const pick = el("button", "s-book-pick");
+      pick.append(
+        el("span", "s-book-dot"),
+        el("span", "s-book-name", safeHtml(bk.name)),
+        el("span", "k", `${bookCount(bk.id)}`)
+      );
+      pick.onclick = () => {
+        goBook(bk.id);
+        closeSheet();
+      };
+      const edit = el("button", "s-book-edit", ICON.pencil);
+      edit.setAttribute("aria-label", `Rename ${bk.name}`);
+      edit.onclick = () => openBookEdit(bk.id);
+      row.append(pick, edit);
+      list.append(row);
+    });
+    b.append(list);
+
+    if (db.books.length < BOOK_MAX)
+      b.append(
+        actRow(ICON.plus, "New notebook", () => {
+          const bk = newBook(freeBookName("notebook"));
+          mutate(null, () => db.books.push(bk));
+          goBook(bk.id);
+          openBookEdit(bk.id); // land straight in the name field
+        })
+      );
+  };
+  (sheet.hidden ? openSheet : swapSheet)(build);
+}
+
+/* Rename, and delete when there is nothing to lose. */
+function openBookEdit(id) {
+  const build = (bd, first) => {
+    const bk = byBook(id);
+    if (!bk) return openBooks();
+    bd.append(el("div", "s-title", "Notebook"));
+
+    const nameIn = el("input", "s-input s-bookname");
+    nameIn.type = "text";
+    nameIn.value = bk.name;
+    nameIn.maxLength = BOOK_NAME_MAX;
+    nameIn.placeholder = "name";
+    nameIn.autocomplete = "off";
+    /* Committed as you type, like the tag field — so the header chip renames
+       live. An empty box is not a name, so it leaves the old one standing until
+       there are characters again. No refreshSheet: it would drop focus. */
+    nameIn.oninput = () => {
+      const n = cleanBookName(nameIn.value);
+      if (!n) return;
+      bk.name = n;
+      save();
+      render();
+    };
+    bd.append(nameIn);
+
+    const acts = el("div", "s-acts");
+    acts.append(...periodRows(bk));
+    acts.append(actRow(ICON.books, "All notebooks", openBooks));
+
+    /* Offered only when the notebook is empty, so no entry can be orphaned —
+       and absent rather than greyed out, because a dead control invites a
+       second tap. The last notebook always stays. */
+    const n = bookCount(id);
+    if (db.books.length > 1 && n === 0)
+      acts.append(
+        actRow(ICON.trash, "Delete notebook", () => {
+          mutate("Deleted " + bk.name, () => {
+            db.books = db.books.filter((x) => x.id !== id);
+            if (db.book === id) db.book = db.books[0].id;
+          });
+          if (!isSomeday()) S.sel = periodStart(S.sel);
+          render();
+          openBooks();
+        }, { danger: true })
+      );
+
+    if (n)
+      bd.append(
+        el(
+          "div",
+          "s-sub",
+          `${n} ${n === 1 ? "entry" : "entries"} in here. Move them elsewhere to delete it.`
+        )
+      );
+
+    bd.append(acts);
+    if (first) setTimeout(() => nameIn.focus({ preventScroll: true }), 60);
+  };
+  (sheet.hidden ? openSheet : swapSheet)(build);
 }
 
 function openMonth() {
@@ -1643,13 +1915,13 @@ function openMonth() {
     wrap.append(g);
     b.append(el("div", "s-title", "The month"), wrap);
 
-    const mine = db.entries.filter((e) => e.date && e.date.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`));
-    const done = mine.filter((e) => e.state === "done").length;
+    const inMonth = mine().filter((e) => e.date?.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`));
+    const done = inMonth.filter((e) => e.state === "done").length;
     const s = el(
       "div",
       "s-sub",
-      mine.length
-        ? `${done} of ${mine.length} logged this month`
+      inMonth.length
+        ? `${done} of ${inMonth.length} logged this month`
         : "Nothing written this month yet"
     );
     s.style.cssText = "margin:16px 0 0;text-align:center";
@@ -1677,7 +1949,7 @@ function openSearch(prefill) {
       const tag = raw.startsWith("#") ? cleanTag(raw) : null;
       out.textContent = "";
       if (!tag && q.length < 2) return;
-      const hits = db.entries
+      const hits = mine()
         .filter((e) =>
           e.state === "moved"
             ? false
@@ -1794,9 +2066,14 @@ function openHelp() {
       Open the app in the morning. Anything left behind gets a decision:
       pull it forward, park it in Someday, or strike it out. Migration is the
       point — if a task isn't worth rewriting, it wasn't worth doing.<br><br>
+      <b style="color:var(--ink-2)">Notebooks</b><br>
+      The chip in the header is the notebook you're writing in — work, private,
+      whatever you name them. One is open at a time, and each keeps its own page
+      size, so work can be a fortnight board while private stays a daily page.
+      Tap the chip to switch, rename, or add one. To move a line, open it and
+      pick a notebook under <b>Notebook</b>.<br><br>
       <b style="color:var(--ink-2)">Board pages</b><br>
-      <b>Page is</b> in the menu makes a page a week or a fortnight instead of a
-      day — a sprint on one page. A board page adds a third bullet state: the
+      <b>Page is</b> makes a page a week or a fortnight instead of a day — a sprint on one page. A board page adds a third bullet state: the
       bullet cycles todo → in flight → done, in-flight lines rise to the top of
       their group, and swiping left pushes to the next page rather than to
       tomorrow. Nothing is rewritten when you change it, so switching back to
@@ -1826,7 +2103,7 @@ function exportJson() {
 const TYPES = new Set(["task", "note", "event"]);
 const STATES = new Set(["open", "doing", "done", "dropped", "moved"]);
 
-function adopt(raw, i) {
+function adopt(raw, i, books) {
   if (!raw || typeof raw !== "object") return null;
   const text = typeof raw.text === "string" ? raw.text.trim() : "";
   if (!text) return null; // a line with no words was never an entry
@@ -1846,6 +2123,10 @@ function adopt(raw, i) {
   const tag = cleanTag(raw.tag);
   if (tag) e.tag = tag;
   else delete e.tag;
+  /* `...raw` above keeps `book` for us, but only a notebook the incoming file
+     actually defines is meaningful. Dropping the field rather than inventing a
+     notebook lets bookOf place the line in the first one. */
+  if (!(books && books.has(e.book))) delete e.book;
   return e;
 }
 
@@ -1862,9 +2143,15 @@ function importJson() {
         const next = JSON.parse(r.result);
         if (!next || !Array.isArray(next.entries)) throw 0;
 
+        /* The same normaliser load() uses, so a journal exported before
+           notebooks existed arrives as a single notebook with the page size it
+           was saved with — no version gate, one code path. */
+        withBooks(next);
+        const books = new Set(next.books.map((bk) => bk.id));
+
         const seen = new Set();
         const entries = next.entries
-          .map(adopt)
+          .map((raw, i) => adopt(raw, i, books))
           .filter(Boolean)
           .map((e) => {
             // two rows sharing an id would make byId() edit the wrong line
@@ -1878,19 +2165,23 @@ function importJson() {
         const label =
           `Imported ${entries.length} ${entries.length === 1 ? "entry" : "entries"}` +
           (dropped ? ` — skipped ${dropped}` : "");
-        // theme and text size belong to this device, not to the file
         mutate(label, () => {
-          // theme, text size and page shape belong to this device, not the file
+          /* Theme, text size and Hide-logged describe this screen, so they stay.
+             The notebooks come from the file — page size lives on them now, and
+             that makes it journal data rather than a device setting. */
           db = {
             v: 1,
             theme: db.theme,
             text: db.text,
             hideLogged: db.hideLogged,
-            period: db.period,
-            sprintStart: db.sprintStart,
+            books: next.books,
+            book: next.book,
             entries,
           };
         });
+        // the imported notebook may keep a different page shape than the old one
+        if (!isSomeday()) S.sel = periodStart(S.sel);
+        render();
         closeSheet();
       } catch {
         toast("That file isn't a bujo journal");
@@ -1989,6 +2280,7 @@ $("#nextDay").onclick = () => step(1);
 $("#dateBtn").onclick = () =>
   S.sel === periodStart(TODAY()) ? openMonth() : go(TODAY());
 $("#menuBtn").onclick = openMenu;
+$("#bookBtn").onclick = openBooks;
 $("#ringBtn").onclick = () => {
   const late = stranded();
   late.length ? openCarry(late) : openMonth();

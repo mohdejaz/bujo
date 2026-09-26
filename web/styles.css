@@ -155,6 +155,32 @@ button { cursor: pointer; }
 }
 .spacer { flex: 1; }
 
+/* the notebook chip */
+.bookbtn {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  max-width: 9ch;
+  padding: 4px 4px 4px 8px;
+  border-radius: 999px;
+  background: var(--hair-2);
+  color: var(--ink-2);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: background 0.15s, transform 0.1s;
+}
+.bookbtn:active { transform: scale(0.94); }
+/* A long name is clipped rather than allowed to widen the row. */
+.bookbtn span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.bookbtn svg { width: 13px; height: 13px; flex: none; color: var(--dim); stroke-width: 2.6; }
+
 .icon-btn {
   width: var(--tap);
   height: var(--tap);
@@ -176,7 +202,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 4px 6px;
   border-radius: 12px;
   min-width: 0;
+  /* With the notebook chip sharing this row, the date is what gives way on a
+     narrow screen. Without overflow hidden its nowrap children would push the
+     ring and the menu button off the edge instead of being clipped. */
+  overflow: hidden;
+  flex-shrink: 1;
 }
+.dow, .dmy { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .datebtn:active { background: var(--hair-2); }
 .dow {
   font-size: 1.3125rem;
@@ -842,6 +874,59 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-act.danger { color: var(--drop); }
 .s-act.danger svg { color: var(--drop); }
 .s-act.on svg, .s-act.on .k { color: var(--accent); }
+
+/* notebook rows: the width switches, the pencil at the end edits */
+.s-book {
+  display: flex;
+  align-items: center;
+  width: 100%;
+  border-radius: 12px;
+}
+.s-book-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  padding: 13px 4px 13px 8px;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.14s;
+}
+.s-book-pick:active { background: var(--hair-2); }
+.s-book-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.s-book-pick .k { flex: none; font-size: 0.8125rem; font-weight: 600; color: var(--dim); }
+/* The dot is the radio: hollow for the others, filled for the one you're in. */
+.s-book-dot {
+  flex: none;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 2px solid var(--hair);
+}
+.s-book.on .s-book-dot { border-color: var(--accent); background: var(--accent); }
+.s-book.on .s-book-name { font-weight: 700; }
+.s-book-edit {
+  flex: none;
+  width: var(--tap);
+  height: var(--tap);
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--dim);
+  transition: background 0.14s, color 0.14s;
+}
+.s-book-edit svg { width: 1.125rem; height: 1.125rem; }
+.s-book-edit:active { background: var(--hair-2); color: var(--ink-2); }
+.s-bookname { font-weight: 700; }
 
 .s-block { padding: 10px 8px 14px; }
 .s-block-h {

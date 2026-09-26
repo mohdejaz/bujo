@@ -49,6 +49,23 @@ earlier page surfaces as *N unfinished tasks → Review*. Each one gets a
 decision: pull it forward, park it, or strike it out. That review is the whole
 point of the method — if a task isn't worth moving again, it wasn't worth doing.
 
+**Notebooks.** The chip in the header names the notebook you're writing in. Tap
+it to switch, rename, or add one — work, private, reading, whatever you keep.
+One is open at a time: the page, the carry-over review, search, the month grid
+and the tag chips all belong to it, so work tags never turn up in private.
+
+Each notebook keeps **its own page size**, which is the point — work can be a
+fortnight sprint board while private stays a daily journal, and switching the
+chip switches the shape of the page with it.
+
+To move a line, open it and pick a notebook under **Notebook**. It leaves the
+page, a toast says where it went, and **Undo** brings it back.
+
+Notebooks are journal data, so they travel in an export. A notebook can only be
+deleted once it's empty — there is no way to lose entries to a deleted notebook.
+An older journal opens as a single notebook called *journal* holding everything;
+rename it and add a second. Nothing is rewritten to make that happen.
+
 **Board pages.** `⋯ → Page is` sets what one page holds: a **day**, a **week**,
 or a **fortnight**. On a fortnight you also pick the sprint start date, so the
 boundaries line up with a real sprint instead of the calendar.
@@ -61,8 +78,8 @@ span. Swiping left pushes to the next page, not to tomorrow.
 
 None of this rewrites anything. A page is a window over the same entries —
 every line keeps the exact date it was written on — so switching back to **Day**
-puts the journal back exactly as it was. The setting lives on the device, not in
-the journal, and a fresh install starts on Day.
+puts the journal back exactly as it was. The setting belongs to the notebook, and
+a fresh install starts with one daily notebook.
 
 **Typing shortcuts.** The composer parses as you write:
 
