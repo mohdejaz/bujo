@@ -73,7 +73,43 @@ the journal, and a fresh install starts on Day.
 call mum !          → starred task
 - worth remembering → note
 o 12.15 lunch       → event
+#wrk review the PR  → tagged task
 ```
+
+**Dates in the line.** Write when something happens and it files itself there,
+with the date dropping out of the text:
+
+```
+India Trip on Nov 21, 2026  → "India Trip" on 21 Nov 2026
+taxes 3 oct                 → "taxes" on the next 3 October
+standup 2026-11-21          → "standup" on that day
+call dentist friday         → "call dentist" on the coming Friday
+standup next monday         → the Monday of next week
+ring the bank tomorrow      → tomorrow
+chase invoice in 3 days     → three days out
+plan the offsite next week  → next Monday
+```
+
+A year is optional; without one you get the next time that date comes round, so
+`1 jan` typed in December means next January, never a date in the past. An
+impossible date (`31 feb`) is left alone as text.
+
+Date words that are also ordinary English are only read **at the end of the
+line, or after `on` / `next` / `this` / `by` / `due`** — the places English
+wouldn't put them. That's what keeps these as plain text:
+
+```
+sat with mum          buy sun cream
+march on the office   may need to ring back
+```
+
+A bare month name is never a date on its own; a day number has to sit next to
+it. And a line that is *only* a date stays a line about those words — `tomorrow`
+on its own gives you a task called "tomorrow".
+
+While you type, a hint above the composer shows where the line will land and how
+it will read once the date is stripped. On a date that leaves the page you're on,
+a toast names the destination with **Undo**.
 
 **Text size.** `⋯ → Text size` has five steps, from 0.9× to 1.5×. Every size in
 the app is `rem` off one root multiplier, so the whole thing moves together —

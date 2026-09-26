@@ -68,6 +68,9 @@
     </main>
 
     <form id="composer" class="composer" autocomplete="off">
+      <!-- Where the line being typed will land, when it names a date. Its own
+           row above the input, so it never squeezes the composer. -->
+      <div class="hint" id="hint" aria-live="polite" hidden></div>
       <div class="types" role="radiogroup" aria-label="Entry type">
         <button type="button" class="type is-on" data-type="task" role="radio" aria-checked="true" aria-label="Task">
           <i class="b b-task"></i>
