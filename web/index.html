@@ -24,7 +24,7 @@
 
     <header id="head">
       <div class="head-row">
-        <button class="icon-btn" id="prevDay" aria-label="Previous day">
+        <button class="icon-btn" id="prevDay" aria-label="Previous page">
           <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
         </button>
 
@@ -33,13 +33,13 @@
           <span class="dmy" id="dmy">30 August</span>
         </button>
 
-        <button class="icon-btn" id="nextDay" aria-label="Next day">
+        <button class="icon-btn" id="nextDay" aria-label="Next page">
           <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
         </button>
 
         <div class="spacer"></div>
 
-        <button class="ring-btn" id="ringBtn" aria-label="Day progress">
+        <button class="ring-btn" id="ringBtn" aria-label="Page progress">
           <svg class="ring" viewBox="0 0 36 36">
             <circle class="ring-bg" cx="18" cy="18" r="15" />
             <circle class="ring-fg" cx="18" cy="18" r="15" id="ringFg" />
@@ -54,7 +54,10 @@
         </button>
       </div>
 
-      <nav class="strip" id="strip" aria-label="Week"></nav>
+      <nav class="strip" id="strip" aria-label="Pages"></nav>
+      <!-- The days inside a multi-day page, as pulses. Hidden on a day page,
+           where the strip above already shows exactly this. -->
+      <div class="pdays" id="pdays" aria-hidden="true" hidden></div>
     </header>
 
     <main id="page">
