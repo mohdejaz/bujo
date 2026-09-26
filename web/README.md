@@ -1,6 +1,7 @@
 # bujo
 
-A pocket bullet journal. One page a day, a dot grid, and a thumb.
+A pocket bullet journal. One page a day — or a week, or a sprint — a dot grid,
+and a thumb.
 
 This is the web front-end of this repo, and a deliberately small rewrite of the
 one that used to live here. [`../bujo.py`](../bujo.py) is the terminal app —
@@ -34,12 +35,12 @@ whether it's still worth writing.
 **On the phone**
 
 - **Tap a bullet** to complete an entry. **Swipe the line right** does the same.
-- **Swipe the line left** to push it to tomorrow. It moves on and leaves a `›`
-  behind, so the old page stays honest about what happened.
+- **Swipe the line left** to push it to the next page. It moves on and leaves a
+  `›` behind, so the old page stays honest about what happened.
 - **Tap the text** (or long-press) for the rest: change kind, star, set a time,
   park it in Someday, strike it out, delete.
-- **Swipe the header** — or tap the arrows, or a day in the strip — to move
-  between days. The ring shows what's still open.
+- **Swipe the header** — or tap the arrows, or a cell in the strip — to move
+  between pages. The ring shows what's still open.
 - **✦ Someday** is the collection for things with no date. Migrate anything
   there when it stops belonging to a particular day.
 
@@ -47,6 +48,21 @@ whether it's still worth writing.
 earlier page surfaces as *N unfinished tasks → Review*. Each one gets a
 decision: pull it forward, park it, or strike it out. That review is the whole
 point of the method — if a task isn't worth moving again, it wasn't worth doing.
+
+**Board pages.** `⋯ → Page is` sets what one page holds: a **day**, a **week**,
+or a **fortnight**. On a fortnight you also pick the sprint start date, so the
+boundaries line up with a real sprint instead of the calendar.
+
+A multi-day page is a board. The bullet cycles **todo → in flight → done**
+rather than just toggling, in-flight lines (`◑`) rise to the top of their tag
+group so what you started is under your thumb, each line carries the day it was
+written, and a thin bar under the strip shows where the work sits across the
+span. Swiping left pushes to the next page, not to tomorrow.
+
+None of this rewrites anything. A page is a window over the same entries —
+every line keeps the exact date it was written on — so switching back to **Day**
+puts the journal back exactly as it was. The setting lives on the device, not in
+the journal, and a fresh install starts on Day.
 
 **Typing shortcuts.** The composer parses as you write:
 
@@ -64,7 +80,7 @@ the app is `rem` off one root multiplier, so the whole thing moves together —
 list, header, sheets, bullets and all — rather than just the entry text growing
 out of its layout. The setting is stored with your journal.
 
-**On a keyboard.** `←` `→` change day, `t` jumps to today, `/` focuses the
+**On a keyboard.** `←` `→` change page, `t` jumps to today, `/` focuses the
 composer, `Esc` closes a sheet.
 
 ## Running it

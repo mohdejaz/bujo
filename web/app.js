@@ -1,12 +1,14 @@
 /* bujo — a pocket bullet journal.
  *
  * One file, no build, no dependencies. The whole journal is a flat array of
- * entries in localStorage; a "day" is just a filter on entry.date. Everything
- * else here is presentation and gestures.
+ * entries in localStorage; a page is just a filter on entry.date — one day of
+ * it, or a week or fortnight of it, depending on db.period. Everything else
+ * here is presentation and gestures.
  *
  *   entry = { id, type: task|note|event, text, time, date, state, star, notes, created }
  *   date  = "YYYY-MM-DD", or null for the Someday collection
- *   state = open | done | dropped | moved   (moved = migrated away, leaves a ›)
+ *   state = open | doing | done | dropped | moved   (moved = migrated away,
+ *           leaves a ›; doing = in flight, only reachable on a board page)
  *   tag   = one 3-5 char grouping label, lowercase, absent when none. One per
  *           entry on purpose: a line belongs to exactly one group, and one
  *           chip can never wrap a phone line.
@@ -66,6 +68,77 @@ function relative(s) {
   return null;
 }
 
+/* ── periods ───────────────────────────────────────────────────────── */
+
+/* A page can span a day, a week, or a fortnight. That is a *window* over the
+   journal, not a change to it: every entry still stores one exact date, and a
+   multi-day page is a range filter over the same field. Switching the setting
+   back to Day is therefore lossless — nothing was ever rewritten. */
+const PERIOD_DAYS = { day: 1, week: 7, fortnight: 14 };
+const periodLen = () => PERIOD_DAYS[db.period] || 1;
+/* More than one day on the page is "board mode": the list gains Doing/Todo/Done
+   columns, and a few gestures change meaning. One question, asked everywhere. */
+const isBoard = () => periodLen() > 1;
+
+/* Whole days between two dates. Rounded, not truncated: parse() builds local
+   midnights, so a span containing a DST change is 23 or 25 hours long. */
+const days = (a, b) => Math.round((parse(b) - parse(a)) / 864e5);
+const mondayOf = (s) => shift(s, -((parse(s).getDay() + 6) % 7));
+
+/* Fortnights are counted from a Monday you choose, so bujo's boundaries can be
+   made to line up with a real sprint. Falls back to this week's Monday. */
+const sprintAnchor = () =>
+  /^\d{4}-\d{2}-\d{2}$/.test(db.sprintStart || "") ? db.sprintStart : mondayOf(TODAY());
+
+/* The first day of the page containing s. Weeks always start Monday; only the
+   fortnight needs the anchor. Math.floor is deliberate — it floors toward
+   negative infinity, so sprints tile backwards from the anchor too. */
+function periodStart(s) {
+  const n = periodLen();
+  if (n === 1) return s;
+  if (n === 7) return mondayOf(s);
+  const a = sprintAnchor();
+  return shift(a, Math.floor(days(a, s) / n) * n);
+}
+const periodEnd = (s) => shift(periodStart(s), periodLen() - 1);
+const nextPeriod = (s) => shift(periodEnd(s), 1);
+/* Someday is a page too, and it holds no dates at all — so it contains nothing,
+   rather than throwing at callers who only have S.sel to hand. */
+const periodHas = (s, d) => s !== "someday" && d >= periodStart(s) && d <= periodEnd(s);
+
+/* Two names for the page after this one. pushLabel is what a button promises
+   from the page you're standing on — "tomorrow". nextPageLabel is the neutral
+   one the toast falls back to when the destination has no relative name,
+   because pushing from a page three weeks back does not land on tomorrow. */
+const pushLabel = () =>
+  periodLen() === 1 ? "tomorrow" : periodLen() === 7 ? "next week" : "next sprint";
+const nextPageLabel = () =>
+  periodLen() === 1 ? "next day" : periodLen() === 7 ? "next week" : "next sprint";
+
+/* "This sprint" beats a pair of dates for the page you're on. Null falls back
+   to the range, the same way relative() falls back to the date. */
+function relativePeriod(s) {
+  const n = periodLen();
+  if (n === 1) return relative(s);
+  const unit = n === 7 ? "week" : "sprint";
+  const here = periodStart(s);
+  const now = periodStart(TODAY());
+  if (here === now) return "This " + unit;
+  if (here === nextPeriod(now)) return "Next " + unit;
+  if (nextPeriod(here) === now) return "Last " + unit;
+  return null;
+}
+
+/* "22 Sep – 5 Oct", dropping the first month when both ends share it. */
+function periodRange(s) {
+  const a = parse(periodStart(s));
+  const b = parse(periodEnd(s));
+  const am = MON[a.getMonth()].slice(0, 3);
+  const bm = MON[b.getMonth()].slice(0, 3);
+  const head = am === bm ? String(a.getDate()) : `${a.getDate()} ${am}`;
+  return `${head} – ${b.getDate()} ${bm}`;
+}
+
 /* ── store ─────────────────────────────────────────────────────────── */
 
 const WELCOME = [
@@ -86,6 +159,10 @@ function load() {
     theme: "auto",
     text: 1,
     hideLogged: false,
+    /* A fresh journal is a daily one. Board mode is opt-in, per device — an
+       install that never opens the menu behaves exactly as it always has. */
+    period: "day",
+    sprintStart: null,
     entries: WELCOME.map((w, i) => ({
       id: uid(),
       type: w.type,
@@ -105,7 +182,9 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 /* ── view state ────────────────────────────────────────────────────── */
 
 const S = {
-  sel: TODAY(), // "YYYY-MM-DD" or "someday"
+  /* Always the *first day* of the selected page, or "someday". Every write to
+     it goes through periodStart(), so a week page can never be half-aligned. */
+  sel: periodStart(TODAY()),
   type: "task",
   typePinned: false,
   anim: new Set(), // ids whose state changed this tick — animate those only
@@ -114,6 +193,12 @@ const S = {
 
 const isSomeday = () => S.sel === "someday";
 const dateOf = () => (isSomeday() ? null : S.sel);
+/* Where a line written right now belongs: today if today is on this page, else
+   the page's first day. A board entry still records the day it was written. */
+const writeDate = () =>
+  isSomeday() ? null : periodHas(S.sel, TODAY()) ? TODAY() : periodStart(S.sel);
+/* The span the selected page shows. Someday is its own page, not a range. */
+const selSpan = () => [periodStart(S.sel), periodEnd(S.sel)];
 
 /* Tags in the order they were first written, across the whole journal \u2014 not
    alphabetical. That keeps a tag's group in the same relative position on
@@ -133,32 +218,55 @@ function tagOrder() {
   return order;
 }
 
-const forDay = (d) => {
+/* Not finished — todo or in flight. Every rule that used to ask `state ===
+   "open"` means this, so asking it in one place is what keeps a Doing line from
+   being quietly counted as closed, hidden by Hide-logged, or left behind. */
+const isLive = (e) => e.state === "open" || e.state === "doing";
+
+/* On a board page a line's column outranks its day: in-flight work first, then
+   the backlog, then everything already settled. Deliberately not Jira's
+   left-to-right Todo → Doing → Done — read top-down on a phone, what belongs
+   under your thumb is what you already started. */
+const column = (e) => (e.state === "doing" ? 0 : e.state === "open" ? 1 : 2);
+
+/* Entries on one page. `from`/`to` are an inclusive ISO date range — plain
+   string comparison, which is why the window never had to touch the data — or
+   both null for Someday. A single day is just from === to. */
+const entriesIn = (from, to) => {
   const order = new Map(tagOrder().map((t, i) => [t, i]));
   /* Untagged sorts last: an unknown tag falls through to the same rank. */
   const rank = (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
   return db.entries
-    .filter((e) => (d === null ? e.date === null : e.date === d))
-    .filter((e) => !db.hideLogged || e.state === "open")
+    .filter((e) => (from === null ? e.date === null : e.date && e.date >= from && e.date <= to))
+    .filter((e) => !db.hideLogged || isLive(e))
     .sort(
       (a, b) =>
         /* Starred lines lift out of their tag group into one priority block
            at the very top of the page, ahead of every tag. */
         (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
         rank(a) - rank(b) ||
-        /* Within a group, open entries lead and closed ones trail — one
+        /* Within a group, live entries lead and settled ones trail — one
            heading instead of the page splitting into an open half and a
            closed half with every heading repeated. */
-        (a.state === "open" ? 0 : 1) - (b.state === "open" ? 0 : 1) ||
+        column(a) - column(b) ||
+        /* A multi-day page runs in date order inside its column; a day page has
+           only one date, so this costs it nothing. */
+        (a.date || "").localeCompare(b.date || "") ||
         (a.time || "99:99").localeCompare(b.time || "99:99") ||
         a.created - b.created
     );
 };
 
-/* Open tasks stranded on days before today — the thing a bullet journal
-   makes you look in the eye each morning. */
+const forDay = (d) => entriesIn(d, d);
+const forSel = () => (isSomeday() ? entriesIn(null, null) : entriesIn(...selSpan()));
+
+/* Open tasks stranded on pages before this one — the thing a bullet journal
+   makes you look in the eye each morning. Measured against the current page's
+   first day, so a fortnight doesn't nag about work still inside the sprint. */
 const stranded = () =>
-  db.entries.filter((e) => e.type === "task" && e.state === "open" && e.date && e.date < TODAY());
+  db.entries.filter(
+    (e) => e.type === "task" && isLive(e) && e.date && e.date < periodStart(TODAY())
+  );
 
 /* ── mutation + undo ───────────────────────────────────────────────── */
 
@@ -221,9 +329,32 @@ function toggleDone(id) {
   if (!e) return;
   S.anim.add(id);
   mutate(null, () => {
+    // a line in flight finishes; it never toggles back into "doing" from done
     e.state = e.state === "done" ? "open" : "done";
   });
   buzz(e.state === "done" ? 12 : 6);
+}
+
+/* todo → doing → done → todo. The bullet's tap on a board page, where a line
+   lives long enough for "started" to be worth recording. A day page keeps the
+   two-state toggle it always had — see the bullet handler in row(). */
+function cycleState(id) {
+  const e = byId(id);
+  if (!e) return;
+  const next = { open: "doing", doing: "done", done: "open" };
+  S.anim.add(id);
+  mutate(null, () => {
+    e.state = next[e.state] || "done";
+  });
+  buzz(e.state === "done" ? 12 : e.state === "doing" ? 9 : 6);
+}
+
+function setState(id, state) {
+  S.anim.add(id);
+  mutate(null, () => {
+    byId(id).state = state;
+  });
+  buzz(state === "doing" ? 9 : 6);
 }
 
 function setStar(id, v) {
@@ -256,7 +387,7 @@ function migrateAll(ids, target, label) {
   mutate(label, () => {
     ids.forEach((id) => {
       const e = byId(id);
-      if (!e || e.state !== "open") return;
+      if (!e || !isLive(e)) return;
       e.state = "moved";
       e.movedTo = target;
       db.entries.push({
@@ -358,7 +489,7 @@ function add(raw) {
     type: p.type,
     text: p.text,
     time: p.time,
-    date: dateOf(),
+    date: writeDate(),
     state: "open",
     star: p.star,
     created: Date.now(),
@@ -389,6 +520,11 @@ const ICON = {
   strike: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M5.6 5.6l12.8 12.8"/></svg>',
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
   notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
+  /* A half-filled bullet: the "in flight" mark, matching .b-doing in the CSS.
+     fill on the path, not the svg — the global `svg { fill: none }` only
+     reaches the svg element, so the path's own attribute wins. */
+  half: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 4a8 8 0 010 16z" fill="currentColor" stroke="none"/></svg>',
+  board: '<svg viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="M9 4.5v15M15 4.5v15"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
@@ -405,13 +541,16 @@ const bwrap = (cls) => {
 const bulletClass = (e) =>
   e.state === "done"
     ? "b b-done"
-    : e.state === "moved"
-      ? // parked in Someday is scheduled (<), pushed to a date is migrated (>).
-        // Strictly null: a legacy entry with no movedTo keeps the > it had.
-        e.movedTo === null
-        ? "b b-sched"
-        : "b b-moved"
-      : `b b-${e.type}`;
+    : // in flight: a half-filled bullet, whatever kind of line it is
+      e.state === "doing"
+      ? "b b-doing"
+      : e.state === "moved"
+        ? // parked in Someday is scheduled (<), pushed to a date is migrated (>).
+          // Strictly null: a legacy entry with no movedTo keeps the > it had.
+          e.movedTo === null
+          ? "b b-sched"
+          : "b b-moved"
+        : `b b-${e.type}`;
 
 function render() {
   renderHead();
@@ -427,6 +566,16 @@ function renderHead() {
     $("#dow").textContent = "Someday";
     $("#dmy").textContent = "no date, not forgotten";
     head.classList.remove("is-today");
+  } else if (isBoard()) {
+    /* A board page is named by where it sits — "This sprint" — and dated by the
+       span it covers, because no single weekday describes it. */
+    const [from, to] = selSpan();
+    const unit = periodLen() === 7 ? "Week" : "Sprint";
+    $("#dow").textContent = relativePeriod(S.sel) || unit;
+    $("#dmy").textContent =
+      periodRange(S.sel) +
+      (parse(to).getFullYear() === new Date().getFullYear() ? "" : ` ${parse(to).getFullYear()}`);
+    head.classList.toggle("is-today", from <= today && today <= to);
   } else {
     const d = parse(S.sel);
     $("#dow").textContent = relative(S.sel) || DOW[d.getDay()];
@@ -436,9 +585,9 @@ function renderHead() {
     head.classList.toggle("is-today", S.sel === today);
   }
 
-  const items = forDay(dateOf());
+  const items = forSel();
   const tasks = items.filter((e) => e.type === "task" || e.type === "event");
-  const closed = tasks.filter((e) => e.state !== "open").length;
+  const closed = tasks.filter((e) => !isLive(e)).length;
   const open = tasks.length - closed;
   const pct = tasks.length ? closed / tasks.length : 0;
   $("#ringFg").style.strokeDashoffset = String(94.25 * (1 - pct));
@@ -449,30 +598,57 @@ function renderHead() {
 function dayPulse(d) {
   const items = forDay(d).filter((e) => e.type === "task" || e.type === "event");
   if (!items.length) return "";
-  return items.some((e) => e.state === "open") ? "has" : "clear";
+  return items.some(isLive) ? "has" : "clear";
+}
+
+/* Does any page in [from,to] hold live work? The strip's pulse, widened. */
+function spanPulse(from, to) {
+  const items = entriesIn(from, to).filter((e) => e.type === "task" || e.type === "event");
+  if (!items.length) return "";
+  return items.some(isLive) ? "has" : "clear";
 }
 
 function renderStrip() {
   const strip = $("#strip");
   strip.textContent = "";
   const base = isSomeday() ? TODAY() : S.sel;
-  const d = parse(base);
-  const monday = shift(base, -((d.getDay() + 6) % 7));
   const today = TODAY();
 
-  for (let i = 0; i < 7; i++) {
-    const ds = shift(monday, i);
-    const dd = parse(ds);
-    const b = el("button", "day");
-    b.classList.toggle("is-today", ds === today);
-    b.classList.toggle("is-sel", ds === S.sel);
-    b.append(
-      el("span", "d-l", DOW[dd.getDay()][0]),
-      el("span", "d-n", String(dd.getDate())),
-      el("span", `d-p ${dayPulse(ds)}`)
-    );
-    b.onclick = () => go(ds);
-    strip.append(b);
+  if (isBoard()) {
+    /* One cell per page rather than per day: the strip is how you move between
+       pages, and on a board a page is a span. The day rhythm inside the current
+       span moves to the pulse bar below. */
+    const here = periodStart(base);
+    for (let i = -1; i <= 2; i++) {
+      const ds = shift(here, i * periodLen());
+      const dd = parse(ds);
+      const b = el("button", "day is-span");
+      b.classList.toggle("is-today", periodHas(ds, today));
+      b.classList.toggle("is-sel", !isSomeday() && ds === S.sel);
+      b.append(
+        el("span", "d-l", MON[dd.getMonth()].slice(0, 3)),
+        el("span", "d-n", String(dd.getDate())),
+        el("span", `d-p ${spanPulse(ds, periodEnd(ds))}`)
+      );
+      b.onclick = () => go(ds);
+      strip.append(b);
+    }
+  } else {
+    const monday = mondayOf(base);
+    for (let i = 0; i < 7; i++) {
+      const ds = shift(monday, i);
+      const dd = parse(ds);
+      const b = el("button", "day");
+      b.classList.toggle("is-today", ds === today);
+      b.classList.toggle("is-sel", ds === S.sel);
+      b.append(
+        el("span", "d-l", DOW[dd.getDay()][0]),
+        el("span", "d-n", String(dd.getDate())),
+        el("span", `d-p ${dayPulse(ds)}`)
+      );
+      b.onclick = () => go(ds);
+      strip.append(b);
+    }
   }
 
   const s = el("button", "day is-someday");
@@ -480,13 +656,40 @@ function renderStrip() {
   s.append(
     el("span", "d-l", "SOME"),
     el("span", "d-n", "✦"),
-    el("span", `d-p ${forDay(null).some((e) => e.state === "open") ? "has" : ""}`)
+    el("span", `d-p ${forDay(null).some(isLive) ? "has" : ""}`)
   );
   s.onclick = () => go("someday");
   strip.append(s);
+
+  renderPulseBar();
+}
+
+/* The days inside a board page, as one thin bar: where the work sits across the
+   span and where today falls in it. Presentational — the strip above it is what
+   navigates, so there is nothing here to tap. */
+function renderPulseBar() {
+  const bar = $("#pdays");
+  if (isSomeday() || !isBoard()) {
+    bar.hidden = true;
+    return;
+  }
+  bar.hidden = false;
+  bar.textContent = "";
+  const today = TODAY();
+  const from = periodStart(S.sel);
+  for (let i = 0; i < periodLen(); i++) {
+    const ds = shift(from, i);
+    const seg = el("span", `pd ${dayPulse(ds)}`);
+    if (ds === today) seg.classList.add("is-today");
+    if (ds < today) seg.classList.add("is-past");
+    bar.append(seg);
+  }
 }
 
 function go(sel, dir) {
+  /* The one door into S.sel, so snapping to the page boundary happens here and
+     nowhere else — callers can hand over any date inside the page they mean. */
+  if (sel !== "someday") sel = periodStart(sel);
   if (sel === S.sel) return;
   const rank = (x) => (x === "someday" ? "9999-99-99" : x);
   const d = dir ?? (rank(sel) > rank(S.sel) ? 1 : -1);
@@ -502,7 +705,7 @@ function go(sel, dir) {
 function renderList() {
   const list = $("#list");
   list.textContent = "";
-  const items = forDay(dateOf());
+  const items = forSel();
 
   /* Headings only where the sort actually grouped anything — a page with no
      tags at all would otherwise get one pointless "untagged" bar. Open and
@@ -537,8 +740,8 @@ function renderList() {
     empty.hidden = false;
     empty.innerHTML = isSomeday()
       ? "<b>Someday</b>The parking lot for things with no date yet. Migrate anything here when it stops belonging to today."
-      : S.sel === TODAY()
-        ? "<b>A clean page</b>Write the first line below. Tasks, notes, whatever the day is."
+      : periodHas(S.sel, TODAY())
+        ? "<b>A clean page</b>Write the first line below. Tasks, notes, whatever the page holds."
         : "<b>Nothing here</b>This page was never written on.";
   }
 
@@ -549,31 +752,48 @@ function row(e) {
   const li = el("li", "row type-" + e.type);
   li.dataset.id = e.id;
   if (e.state === "done") li.classList.add("is-done");
+  if (e.state === "doing") li.classList.add("is-doing");
   if (e.state === "dropped") li.classList.add("is-dropped");
   if (e.state === "moved") li.classList.add("is-moved");
   if (S.anim.has(e.id)) li.classList.add("anim");
-  if (S.anim.has(e.id) && e.state === "open") li.classList.add("enter");
+  if (S.anim.has(e.id) && isLive(e)) li.classList.add("enter");
 
   li.innerHTML = `<div class="row-under"><span class="u-l">${ICON.check}</span><span class="u-r">${ICON.arrow}</span></div>`;
 
   const face = el("div", "row-face");
 
   const bul = el("button", "bul");
-  bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
+  bul.setAttribute(
+    "aria-label",
+    e.state === "done" ? "Reopen" : isBoard() && e.state === "open" ? "Start" : "Complete"
+  );
   bul.append(el("i", bulletClass(e)));
   bul.onclick = (ev) => {
     ev.stopPropagation();
     if (e.state === "dropped" || e.state === "moved") return openEntry(e.id);
-    toggleDone(e.id);
+    /* On a board the bullet walks the three columns; on a day page it stays the
+       plain done/not-done toggle. Swipe-right still jumps straight to done in
+       both, so the quick path never grows a step. */
+    isBoard() ? cycleState(e.id) : toggleDone(e.id);
   };
 
   const txt = el("button", "row-text");
-  /* The chip rides inside the text button, inline with the first word, so an
-     untagged line reserves nothing and a wrapped line still uses the full
-     width. A span, not a button — nested buttons are invalid; the tap is
-     picked off the one click handler below. */
+  /* Which day of the span a line sits on. Only on a board — a day page already
+     answers it in the header, and the chip would read the same on every row. A
+     fortnight also needs the date: it holds two of every weekday. */
+  const dayChip = (() => {
+    if (!isBoard() || !e.date) return "";
+    const d = parse(e.date);
+    const lbl = DOW[d.getDay()].slice(0, 3) + (periodLen() > 7 ? " " + d.getDate() : "");
+    return `<span class="row-day${e.date === TODAY() ? " is-today" : ""}">${lbl}</span>`;
+  })();
+  /* The chips ride inside the text button, inline with the first word, so a
+     bare line reserves nothing and a wrapped line still uses the full width.
+     Spans, not buttons — nested buttons are invalid; the tap is picked off the
+     one click handler below. */
   txt.innerHTML =
     (e.tag ? `<span class="tag">${safeHtml(e.tag)}</span>` : "") +
+    dayChip +
     (e.time ? `<span class="row-time">${pretty(e.time)}</span>` : "") +
     safeHtml(e.text);
   // `movedTo: null` means Someday — falsy, but a destination all the same
@@ -606,7 +826,7 @@ function row(e) {
 function renderCarry() {
   const box = $("#carry");
   const late = stranded();
-  if (S.sel !== TODAY() || !late.length) {
+  if (isSomeday() || !periodHas(S.sel, TODAY()) || !late.length) {
     box.hidden = true;
     return;
   }
@@ -688,10 +908,10 @@ function swipeable(li, face, e) {
       toggleDone(e.id);
     } else if (hit && dx < 0) {
       reset(false);
-      const target = isSomeday() ? TODAY() : shift(S.sel, 1);
+      const target = isSomeday() ? TODAY() : nextPeriod(S.sel);
       const lbl = isSomeday()
         ? "Pulled into today"
-        : "Pushed to " + (relative(target) || "next day").toLowerCase();
+        : "Pushed to " + (relativePeriod(target) || nextPageLabel()).toLowerCase();
       migrate(e.id, target, lbl);
     } else {
       reset();
@@ -908,6 +1128,24 @@ function openEntry(id) {
       timeRow.append(tin);
       acts.append(timeRow);
 
+      /* Start it is a board idea, so it only appears on a board page — but a
+         line already in flight can always be put back, wherever it is seen,
+         so no entry can get stranded in a state this page can't undo. */
+      if (isBoard() && e.state === "open")
+        acts.append(
+          actRow(ICON.half, "Start it", () => {
+            setState(id, "doing");
+            refreshSheet();
+          })
+        );
+      if (e.state === "doing")
+        acts.append(
+          actRow(ICON.undo, "Back to todo", () => {
+            setState(id, "open");
+            refreshSheet();
+          })
+        );
+
       if (e.state !== "done")
         acts.append(
           actRow(ICON.check, "Mark done", () => {
@@ -923,15 +1161,15 @@ function openEntry(id) {
           })
         );
 
-      if (e.state === "open") {
+      if (isLive(e)) {
         if (!isSomeday())
           acts.append(
-            actRow(ICON.arrow, "Push to tomorrow", () => {
-              migrate(id, shift(S.sel, 1), "Pushed to tomorrow");
+            actRow(ICON.arrow, "Push to " + pushLabel(), () => {
+              migrate(id, nextPeriod(S.sel), "Pushed to " + pushLabel());
               closeSheet();
             })
           );
-        if (S.sel !== TODAY())
+        if (!periodHas(S.sel, TODAY()))
           acts.append(
             actRow(ICON.cal, "Pull into today", () => {
               migrate(id, TODAY(), "Pulled into today");
@@ -1108,6 +1346,58 @@ function openMenu() {
     loggedRow.append(lseg);
     acts.append(loggedRow);
 
+    /* What one page holds. Changing it re-anchors the selection onto the new
+       page boundary and rebuilds the sheet, so the sprint-start row below can
+       appear or vanish with the choice. */
+    const periodRow = el("div", "s-act");
+    periodRow.innerHTML = ICON.board + "<span>Page is</span>";
+    const pseg = el("div", "s-seg");
+    [
+      ["day", "Day"],
+      ["week", "Week"],
+      ["fortnight", "2 wks"],
+    ].forEach(([v, l]) => {
+      const btn = el("button", (db.period || "day") === v ? "on" : "", l);
+      btn.onclick = () => {
+        /* Asked before the switch: if you were on the page holding today, you
+           stay there afterwards rather than landing on its first day. */
+        const hadToday = periodHas(S.sel, TODAY());
+        db.period = v;
+        // the first fortnight needs an anchor; this week's Monday is the guess
+        if (v === "fortnight" && !db.sprintStart) db.sprintStart = mondayOf(TODAY());
+        save();
+        S.sel = isSomeday() ? S.sel : periodStart(hadToday ? TODAY() : S.sel);
+        buzz(6);
+        render();
+        refreshSheet();
+      };
+      pseg.append(btn);
+    });
+    periodRow.append(pseg);
+    acts.append(periodRow);
+
+    /* Only a fortnight needs telling where to start — weeks always begin on a
+       Monday. Snapped to a Monday on the way in, so a sprint can't start
+       mid-week and leave every boundary looking arbitrary. */
+    if (db.period === "fortnight") {
+      const sprintRow = el("div", "s-act");
+      sprintRow.innerHTML = ICON.cal + "<span>Sprint starts</span>";
+      const sin = el("input", "s-seg");
+      sin.type = "date";
+      sin.value = sprintAnchor();
+      sin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
+      sin.onchange = () => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(sin.value)) return;
+        db.sprintStart = mondayOf(sin.value);
+        save();
+        S.sel = isSomeday() ? S.sel : periodStart(TODAY());
+        render();
+        refreshSheet();
+      };
+      sprintRow.append(sin);
+      acts.append(sprintRow);
+    }
+
     acts.append(
       actRow(ICON.cal, "The month", openMonth),
       actRow(ICON.search, "Search", () => openSearch()),
@@ -1163,6 +1453,7 @@ function openMonth() {
       c.append(pulse ? el("div", "pip", String(i)) : el("span", "", String(i)));
       c.onclick = () => {
         closeSheet();
+        // land on the page that contains the day, whatever size a page is
         go(ds);
       };
       g.append(c);
@@ -1283,6 +1574,7 @@ function openHelp() {
       line("b b-task", "<b>Task</b> — something to do"),
       line("b b-note", "<b>Note</b> — something to remember"),
       line("b b-event", "<b>Event</b> — something that happens, at a time"),
+      line("b b-doing", "<b>In flight</b> — started, not finished. Board pages only"),
       line("b b-done", "<b>Done</b> — tap the bullet, or swipe the line right"),
       line("b b-moved", "<b>Migrated</b> — swipe left; it moves on and leaves a mark"),
       line("b b-sched", "<b>Scheduled</b> — parked in Someday, off the calendar"),
@@ -1307,7 +1599,14 @@ function openHelp() {
       <b style="color:var(--ink-2)">The daily habit</b><br>
       Open the app in the morning. Anything left behind gets a decision:
       pull it forward, park it in Someday, or strike it out. Migration is the
-      point — if a task isn't worth rewriting, it wasn't worth doing.`;
+      point — if a task isn't worth rewriting, it wasn't worth doing.<br><br>
+      <b style="color:var(--ink-2)">Board pages</b><br>
+      <b>Page is</b> in the menu makes a page a week or a fortnight instead of a
+      day — a sprint on one page. A board page adds a third bullet state: the
+      bullet cycles todo → in flight → done, in-flight lines rise to the top of
+      their group, and swiping left pushes to the next page rather than to
+      tomorrow. Nothing is rewritten when you change it, so switching back to
+      Day puts every line back on the day it was written.`;
     b.append(tips);
   });
 }
@@ -1331,7 +1630,7 @@ function exportJson() {
    — a file from a *newer* build is still someone's data, and dropping fields
    we don't recognise would quietly destroy it on the next export. */
 const TYPES = new Set(["task", "note", "event"]);
-const STATES = new Set(["open", "done", "dropped", "moved"]);
+const STATES = new Set(["open", "doing", "done", "dropped", "moved"]);
 
 function adopt(raw, i) {
   if (!raw || typeof raw !== "object") return null;
@@ -1387,7 +1686,16 @@ function importJson() {
           (dropped ? ` — skipped ${dropped}` : "");
         // theme and text size belong to this device, not to the file
         mutate(label, () => {
-          db = { v: 1, theme: db.theme, text: db.text, entries };
+          // theme, text size and page shape belong to this device, not the file
+          db = {
+            v: 1,
+            theme: db.theme,
+            text: db.text,
+            hideLogged: db.hideLogged,
+            period: db.period,
+            sprintStart: db.sprintStart,
+            entries,
+          };
         });
         closeSheet();
       } catch {
@@ -1454,9 +1762,13 @@ document.querySelectorAll(".type").forEach((b) => {
 
 /* ── wiring ────────────────────────────────────────────────────────── */
 
-$("#prevDay").onclick = () => go(isSomeday() ? TODAY() : shift(S.sel, -1), -1);
-$("#nextDay").onclick = () => go(isSomeday() ? TODAY() : shift(S.sel, 1), 1);
-$("#dateBtn").onclick = () => (S.sel === TODAY() ? openMonth() : go(TODAY()));
+/* The arrows, the header swipe and the ← → keys all step one *page* — a day,
+   a week or a fortnight, whichever the page currently is. */
+const step = (n) => go(isSomeday() ? TODAY() : shift(S.sel, n * periodLen()), n);
+$("#prevDay").onclick = () => step(-1);
+$("#nextDay").onclick = () => step(1);
+$("#dateBtn").onclick = () =>
+  S.sel === periodStart(TODAY()) ? openMonth() : go(TODAY());
 $("#menuBtn").onclick = openMenu;
 $("#ringBtn").onclick = () => {
   const late = stranded();
@@ -1475,7 +1787,7 @@ $("#ringBtn").onclick = () => {
       const dx = e.clientX - x0;
       x0 = null;
       if (Math.abs(dx) < 55 || isSomeday()) return;
-      go(shift(S.sel, dx < 0 ? 1 : -1), dx < 0 ? 1 : -1);
+      step(dx < 0 ? 1 : -1);
     },
     { passive: true }
   );

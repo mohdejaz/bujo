@@ -266,6 +266,32 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .day.is-sel.is-today .d-n { color: var(--accent); }
 .day.is-someday { flex: 0 0 46px; }
 .day.is-someday .d-n { font-size: 0.875rem; }
+/* A span cell carries a month and a start date rather than one weekday. */
+.day.is-span .d-l { letter-spacing: 0.06em; }
+
+/* day pulses inside a board page */
+.pdays {
+  display: flex;
+  gap: 3px;
+  margin: 5px 2px 1px;
+}
+.pdays[hidden] { display: none; }
+.pd {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--hair);
+}
+/* Days already gone read fainter, so the bar shows where you are in the span
+   without needing a separate marker for it. */
+.pd.is-past { opacity: 0.55; }
+.pd.has { background: var(--accent); opacity: 1; }
+.pd.clear { background: var(--good); }
+.pd.is-today {
+  height: 5px;
+  margin-top: -1px;
+  opacity: 1;
+}
 
 /* ── list ───────────────────────────────────────────────────────────── */
 
@@ -379,6 +405,28 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   from { transform: rotate(0deg) scaleX(0.1); opacity: 0; }
   to { transform: rotate(-45deg) scaleX(1); opacity: 1; }
 }
+/* ◑ for in flight — the same ring as .b-event with its leading half filled,
+   in the accent colour so started work reads off the page at a glance. */
+.b-doing {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 2px solid var(--accent);
+  color: var(--accent);
+  overflow: hidden;
+}
+.b-doing::before {
+  content: "";
+  position: absolute;
+  inset: -1px 50% -1px -1px;
+  background: currentColor;
+}
+.row.anim .b-doing::before { animation: fill-half 0.2s ease-out both; }
+@keyframes fill-half {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
 /* › for migrated, ✕-less slash for dropped */
 .b-moved { width: 0.75rem; height: 0.75rem; color: var(--dim); }
 .b-moved::before {
@@ -422,6 +470,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--accent);
   margin-right: 7px;
 }
+/* Which day of a board page a line sits on. Dim by default so the page still
+   reads as one list; today's lines get the accent. */
+.row-day {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim);
+  margin-right: 7px;
+}
+.row-day.is-today { color: var(--accent); }
 .row.type-note .row-text { color: var(--ink-2); font-size: 1rem; }
 
 .row.is-done .row-text,
@@ -441,6 +500,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .row.is-dropped .row-meta,
 .row.is-moved .row-meta { text-decoration: none; }
 .row.is-moved .row-text { color: var(--dim); }
+/* In flight: the text stays full strength — it is the live line on the page —
+   and its own tag chip keeps the accent the bullet is wearing. */
+.row.is-doing .row-text { color: var(--ink); }
+.row.is-doing .row-day { color: var(--accent); }
 
 .star {
   flex: none;
