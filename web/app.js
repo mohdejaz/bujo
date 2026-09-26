@@ -139,6 +139,174 @@ function periodRange(s) {
   return `${head} – ${b.getDate()} ${bm}`;
 }
 
+/* ── date phrases ──────────────────────────────────────────────────── */
+
+/* "India Trip on Nov 21, 2026" → a line reading "India Trip", dated 2026-11-21.
+ *
+ * The danger here is over-reading: several date words are ordinary English, and
+ * a line that silently jumps to another page looks like a line that vanished.
+ * So words are tiered by how ambiguous they are:
+ *
+ *   free  — cannot mean anything else, so they are read anywhere in the line.
+ *           today, tomorrow, tonight, yesterday, "next week", and any date
+ *           carrying a 4-digit year.
+ *   bound — ordinary words too (sat, sun, oct), so they are read only where
+ *           English wouldn't put them: at the END of the line, or introduced
+ *           by on/next/this/by/due/coming.
+ *
+ * That is what keeps "sat with mum", "buy sun cream" and "march on the office"
+ * as plain text while "call dentist friday" lands on Friday. A bare month name
+ * is never a date at all — a day number has to be next to it — which retires
+ * "may", "march" and "august" as false positives on their own.
+ *
+ * Two further guards, both borrowed from the time parse below: a phrase is only
+ * taken if words remain after it (so a line reading just "tomorrow" stays a
+ * line reading "tomorrow"), and an impossible date (31 Feb) is left as text.
+ */
+
+const MONTHS = "jan feb mar apr may jun jul aug sep oct nov dec".split(" ");
+const MONTH_RE =
+  "jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|" +
+  "aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?";
+const DOW_RE =
+  "mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thu(?:r|rs|rsday)?|fri(?:day)?|" +
+  "sat(?:urday)?|sun(?:day)?";
+/* Words that mark what follows as a date. "next" also shifts its meaning, so it
+   is read back off the match rather than just consumed. */
+const LEAD_RE = "on|next|this|by|due|coming";
+const ORD = "(?:st|nd|rd|th)?";
+const monthNo = (w) => MONTHS.indexOf(w.slice(0, 3).toLowerCase()) + 1;
+const dowNo = (w) => ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].indexOf(w.slice(0, 3).toLowerCase());
+
+/* A real day in a real month, or null — so 31 Feb never becomes 3 March. */
+function ymd(y, m, d) {
+  if (!(m >= 1 && m <= 12) || !(d >= 1 && d <= 31) || !(y >= 1970 && y <= 2999)) return null;
+  const dt = new Date(y, m - 1, d);
+  return dt.getMonth() === m - 1 && dt.getDate() === d ? iso(dt) : null;
+}
+
+/* A month and a day with no year: the next time that date comes round, today
+   included. Walks years so "feb 29" resolves to the next leap year. */
+function comingYmd(m, d) {
+  const t = TODAY();
+  let y = parse(t).getFullYear();
+  for (let i = 0; i < 9; i++, y++) {
+    const got = ymd(y, m, d);
+    if (got && got >= t) return got;
+  }
+  return null;
+}
+
+/* "friday" — the next one, today counting as itself. */
+const comingDow = (n) => shift(TODAY(), (n - parse(TODAY()).getDay() + 7) % 7);
+/* "next friday" — the one in the week after this, not merely the next to come.
+   Monday-based, matching the week the strip draws. */
+const nextWeekDow = (n) => {
+  const mon = shift(mondayOf(TODAY()), 7);
+  return shift(mon, (n - parse(mon).getDay() + 7) % 7);
+};
+
+/* Each rule: a pattern whose group 1 is the optional lead word, how freely it
+   may sit in the line, and how to turn the match into a date. Tried in order,
+   most explicit first, so "nov 21 2026" is read as a full date before the
+   year-less rule gets a look at "nov 21". */
+const WHEN_RULES = [
+  // 2026-11-21
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(\\d{4})-(\\d{1,2})-(\\d{1,2})\\b`,
+    free: true,
+    fn: (m) => ymd(+m[2], +m[3], +m[4]),
+  },
+  // Nov 21, 2026 · november 21st 2026
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})${ORD}\\s*,?\\s*(\\d{4})\\b`,
+    free: true,
+    fn: (m) => ymd(+m[4], monthNo(m[2]), +m[3]),
+  },
+  // 21 Nov 2026 · 21st november, 2026
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(\\d{1,2})${ORD}\\s+(${MONTH_RE})\\.?\\s*,?\\s*(\\d{4})\\b`,
+    free: true,
+    fn: (m) => ymd(+m[4], monthNo(m[3]), +m[2]),
+  },
+  // today · tonight · tomorrow · yesterday
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(today|tonight|tomorrow|tmrw|tmr|yesterday)\\b`,
+    free: true,
+    fn: (m) => {
+      const w = m[2].toLowerCase();
+      return shift(TODAY(), w === "yesterday" ? -1 : w === "today" || w === "tonight" ? 0 : 1);
+    },
+  },
+  // in 3 days · in 2 weeks — the word "days" is required, so no bare number counts
+  {
+    re: `(?:\\b(in)\\s+)(\\d{1,3})\\s+(day|week)s?\\b`,
+    free: true,
+    fn: (m) => shift(TODAY(), +m[2] * (m[3].toLowerCase() === "week" ? 7 : 1)),
+  },
+  // next week · next sprint — the first day of the page after this one
+  {
+    re: `\\b(next)\\s+(week|fortnight|sprint)\\b`,
+    free: true,
+    fn: (m) =>
+      m[2].toLowerCase() === "week" ? shift(mondayOf(TODAY()), 7) : nextPeriod(periodStart(TODAY())),
+  },
+  // Nov 21 · 21 nov · 3rd oct — no year, so bound to the end of the line
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(${MONTH_RE})\\.?\\s+(\\d{1,2})${ORD}\\b`,
+    free: false,
+    fn: (m) => comingYmd(monthNo(m[2]), +m[3]),
+  },
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(\\d{1,2})${ORD}\\s+(${MONTH_RE})\\.?\\b`,
+    free: false,
+    fn: (m) => comingYmd(monthNo(m[3]), +m[2]),
+  },
+  // friday · on thu · next monday
+  {
+    re: `(?:\\b(${LEAD_RE})\\s+)?\\b(${DOW_RE})\\b`,
+    free: false,
+    fn: (m, lead) => (lead === "next" ? nextWeekDow(dowNo(m[2])) : comingDow(dowNo(m[2]))),
+  },
+].map((r) => ({ ...r, re: new RegExp(r.re, "gi") }));
+
+/* The first phrase any rule will own, with the line that's left once it's gone.
+   Null when the line holds no date — which is most lines. */
+function parseWhen(raw) {
+  for (const rule of WHEN_RULES) {
+    rule.re.lastIndex = 0;
+    let m;
+    while ((m = rule.re.exec(raw))) {
+      const lead = (m[1] || "").toLowerCase();
+      const date = rule.fn(m, lead);
+      if (!date) continue;
+      const tail = raw.slice(m.index + m[0].length);
+      // "at the end" tolerates trailing punctuation, not trailing words
+      if (!rule.free && !lead && /\w/.test(tail)) continue;
+      const rest = (raw.slice(0, m.index) + " " + tail)
+        .replace(/\s+/g, " ")
+        // the punctuation the phrase was sitting behind goes with it; "!" and
+        // "?" stay, they carry meaning the writer put there
+        .replace(/[\s.,;:-]+$/, "")
+        .trim();
+      if (!rest) continue; // a line that is only a date is a line about that word
+      return { date, rest };
+    }
+  }
+  return null;
+}
+
+/* How a destination reads to a person: "Tomorrow", or "Sat 21 Nov". */
+function whenLabel(d) {
+  const r = relative(d);
+  if (r) return r;
+  const dt = parse(d);
+  return (
+    `${DOW[dt.getDay()].slice(0, 3)} ${dt.getDate()} ${MON[dt.getMonth()].slice(0, 3)}` +
+    (dt.getFullYear() === new Date().getFullYear() ? "" : ` ${dt.getFullYear()}`)
+  );
+}
+
 /* ── store ─────────────────────────────────────────────────────────── */
 
 const WELCOME = [
@@ -425,6 +593,7 @@ function parseInput(raw, type, pinned) {
   let star = false;
   let time = null;
   let tag = null;
+  let date = null;
 
   /* #tag anywhere in the line, first one wins. Pulled out before everything
      else so it composes with the other shortcuts — "#wrk 9:30 standup" is a
@@ -445,6 +614,15 @@ function parseInput(raw, type, pinned) {
     star = true;
     text = text.slice(0, -1).trimEnd();
   }
+  /* After the stars, so "call mum friday !" still finds the phrase at the end
+     of the line; before the kind prefixes and the time, so lifting the date out
+     can expose a leading time — "on thu 9:30 standup" is a Thursday event. */
+  const when = parseWhen(text);
+  if (when) {
+    date = when.date;
+    text = when.rest;
+  }
+
   if (/^-\s+/.test(text)) {
     type = "note";
     pinned = true;
@@ -470,7 +648,7 @@ function parseInput(raw, type, pinned) {
       if (!pinned) type = "event";
     }
   }
-  return { text, type, time, star, tag };
+  return { text, type, time, star, tag, date };
 }
 
 const pretty = (t) => {
@@ -486,17 +664,21 @@ function add(raw) {
   if (!p.text) return;
   const e = {
     id: uid(),
+    // a date written into the line wins over the page you happen to be on
+    date: p.date || writeDate(),
     type: p.type,
     text: p.text,
     time: p.time,
-    date: writeDate(),
     state: "open",
     star: p.star,
     created: Date.now(),
   };
   if (p.tag) e.tag = p.tag;
   S.anim.add(e.id);
-  mutate(null, () => db.entries.push(e));
+  /* Only announce a line that left the page. One that landed here is already
+     visible, and a toast for it would be noise on every entry. */
+  const away = p.date && !periodHas(S.sel, p.date);
+  mutate(away ? "Added to " + whenLabel(p.date) : null, () => db.entries.push(e));
   buzz(8);
   return e;
 }
@@ -1591,6 +1773,18 @@ function openHelp() {
       <code>- </code> makes a note, <code>o </code> makes an event.<br>
       <code>#wrk</code> tags the line — 3–5 letters, one per entry. Tap a tag
       to see everything in that group.<br><br>
+      <b style="color:var(--ink-2)">Writing a date into the line</b><br>
+      <code>India Trip on Nov 21, 2026</code> files itself on that day, and the
+      date drops out of the text. So do <code>taxes 3 oct</code>,
+      <code>call dentist friday</code>, <code>standup next monday</code>,
+      <code>ring the bank tomorrow</code> and <code>chase in 3 days</code>. A
+      year is optional — without one you get the next time that date comes
+      round.<br>
+      Words that are also ordinary English only count at the end of the line, or
+      after <code>on</code>, <code>next</code>, <code>this</code>,
+      <code>by</code>: so <i>sat with mum</i> and <i>buy sun cream</i> stay
+      exactly as written. The hint above the composer shows where a line is
+      about to go before you commit it.<br><br>
       <b style="color:var(--ink-2)">Notes behind a line</b><br>
       Tap any line to open it. Under the text is room for the questions,
       links and detail that don't belong on the page itself — a line with
@@ -1728,7 +1922,30 @@ function applyTheme() {
 const input = $("#input");
 const composer = $("#composer");
 
-input.addEventListener("input", () => composer.classList.toggle("armed", !!input.value.trim()));
+/* Shows the destination while you type, so a line about to leave the page says
+   so first. Runs the same parseInput the commit will, rather than a second
+   guess at it — what the hint promises is what gets filed. */
+function renderHint() {
+  const box = $("#hint");
+  const raw = input.value;
+  const p = raw.trim() ? parseInput(raw, S.type, S.typePinned) : null;
+  if (!p || !p.date || !p.text) {
+    box.hidden = true;
+    box.textContent = "";
+    return;
+  }
+  box.hidden = false;
+  box.textContent = "";
+  box.append(
+    el("span", "h-d", "→ " + safeHtml(whenLabel(p.date))),
+    el("span", "h-t", safeHtml(p.text) + (p.time ? " · " + pretty(p.time) : ""))
+  );
+}
+
+input.addEventListener("input", () => {
+  composer.classList.toggle("armed", !!input.value.trim());
+  renderHint();
+});
 
 composer.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -1737,6 +1954,7 @@ composer.addEventListener("submit", (e) => {
   add(v);
   input.value = "";
   composer.classList.remove("armed");
+  renderHint();
   S.typePinned = false;
   setType("task");
   $("#page").scrollTop = $("#page").scrollHeight;
@@ -1756,6 +1974,7 @@ document.querySelectorAll(".type").forEach((b) => {
     setType(b.dataset.type);
     S.typePinned = true;
     buzz(5);
+    renderHint();
     input.focus();
   };
 });
