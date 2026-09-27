@@ -96,9 +96,10 @@ const newBook = (name, period = "day", sprintStart = null) => ({
   sprintStart,
 });
 
-/* Trimmed, collapsed, never empty, and short enough that the header chip has a
+/* Short display labels — notebook names and page-unit names share these rules.
+   Trimmed, collapsed, never empty, and short enough that the header has a
    fighting chance. Same shape as cleanTag: normalise, or return null. */
-const cleanBookName = (s) => {
+const cleanLabel = (s) => {
   const t = String(s || "")
     .replace(/\s+/g, " ")
     .trim()
@@ -118,9 +119,12 @@ function withBooks(raw) {
     .slice(0, BOOK_MAX)
     .map((b) => ({
       id: typeof b.id === "string" && b.id ? b.id : uid(),
-      name: cleanBookName(b.name) || "journal",
+      name: cleanLabel(b.name) || "journal",
       period: PERIOD_DAYS[b.period] ? b.period : "day",
       sprintStart: /^\d{4}-\d{2}-\d{2}$/.test(b.sprintStart || "") ? b.sprintStart : null,
+      // null means "use the default for this size", so a renamed page size
+      // follows the size when you change it rather than going stale
+      unit: cleanLabel(b.unit),
     }));
   if (!raw.books.length) raw.books = legacy;
   // whatever the page size used to be, it is a property of a notebook now
@@ -129,6 +133,14 @@ function withBooks(raw) {
   if (!raw.books.some((b) => b.id === raw.book)) raw.book = raw.books[0].id;
   return raw;
 }
+
+/* What a page of each size is called when the notebook hasn't said otherwise. */
+const UNIT_DEFAULT = { day: "Day", week: "Week", fortnight: "2 Weeks" };
+/* A notebook can rename its page unit — "Sprint", "Cycle", "Iteration" — and
+   that name is then the word used everywhere the app refers to one: the header
+   subtitle, the push action, the toast. Stored per notebook, because work and
+   home have no reason to agree about it. */
+const unitName = (bk) => cleanLabel((bk || curBook()).unit) || UNIT_DEFAULT[(bk || curBook()).period] || "Day";
 
 const byBook = (id) => db.books.find((b) => b.id === id);
 const curBook = () => byBook(db.book) || db.books[0];
@@ -188,17 +200,17 @@ const periodHas = (s, d) => s !== "someday" && d >= periodStart(s) && d <= perio
    from the page you're standing on — "tomorrow". nextPageLabel is the neutral
    one the toast falls back to when the destination has no relative name,
    because pushing from a page three weeks back does not land on tomorrow. */
-const pushLabel = () =>
-  periodLen() === 1 ? "tomorrow" : periodLen() === 7 ? "next week" : "next sprint";
-const nextPageLabel = () =>
-  periodLen() === 1 ? "next day" : periodLen() === 7 ? "next week" : "next sprint";
+/* A day page's next page is tomorrow, and no name improves on that word. Longer
+   pages use whatever the notebook calls one. */
+const pushLabel = () => (periodLen() === 1 ? "tomorrow" : "next " + unitName());
+const nextPageLabel = () => (periodLen() === 1 ? "next day" : "next " + unitName());
 
-/* "This sprint" beats a pair of dates for the page you're on. Null falls back
-   to the range, the same way relative() falls back to the date. */
+/* "This Sprint" beats a pair of dates for the page you're on. Null falls back to
+   the range, the same way relative() falls back to the date. */
 function relativePeriod(s) {
   const n = periodLen();
   if (n === 1) return relative(s);
-  const unit = n === 7 ? "week" : "sprint";
+  const unit = unitName();
   const here = periodStart(s);
   const now = periodStart(TODAY());
   if (here === now) return "This " + unit;
@@ -349,10 +361,26 @@ const WHEN_RULES = [
   },
 ].map((r) => ({ ...r, re: new RegExp(r.re, "gi") }));
 
+/* "next <whatever this notebook calls a page>". Built at match time rather than
+   baked into WHEN_RULES, because the name can be changed under us — and skipped
+   when it is a word the static rules already cover, or when it holds anything a
+   regex would have to escape. Tried last, so a notebook perversely called
+   "Friday" still loses to the weekday rule. */
+function unitRule() {
+  const n = unitName();
+  if (!/^[\w ]+$/.test(n) || /^(day|week|2 weeks|fortnight|sprint)$/i.test(n)) return null;
+  return {
+    re: new RegExp(`\\b(next)\\s+(${n})\\b`, "gi"),
+    free: true,
+    fn: () => nextPeriod(periodStart(TODAY())),
+  };
+}
+
 /* The first phrase any rule will own, with the line that's left once it's gone.
    Null when the line holds no date — which is most lines. */
 function parseWhen(raw) {
-  for (const rule of WHEN_RULES) {
+  for (const rule of [...WHEN_RULES, unitRule()]) {
+    if (!rule) continue;
     rule.re.lastIndex = 0;
     let m;
     while ((m = rule.re.exec(raw))) {
@@ -890,7 +918,7 @@ function renderHead() {
     $("#dow").textContent = periodRange(S.sel);
     $("#dmy").textContent =
       year === new Date().getFullYear()
-        ? relativePeriod(S.sel) || (periodLen() === 7 ? "Week" : "Sprint")
+        ? relativePeriod(S.sel) || unitName()
         : String(year);
     head.classList.toggle("is-today", from <= today && today <= to);
   } else {
@@ -1757,6 +1785,27 @@ function periodRows(bk) {
   periodRow.append(pseg);
   rows.push(periodRow);
 
+  /* What this notebook calls one page. Committed as you type, like the notebook
+     name, so the header renames live. Emptying it returns to the default for the
+     current size rather than leaving a blank word in the header. A day page has
+     nowhere to show it — "Today" and the date already fill both lines — so it
+     only takes effect once the page is a week or longer. */
+  const unitRow = el("div", "s-act");
+  unitRow.innerHTML = ICON.book + "<span>Called</span>";
+  const uin = el("input", "s-seg s-unitin");
+  uin.type = "text";
+  uin.value = bk.unit || "";
+  uin.placeholder = UNIT_DEFAULT[bk.period] || "Day";
+  uin.maxLength = BOOK_NAME_MAX;
+  uin.autocomplete = "off";
+  uin.oninput = () => {
+    bk.unit = cleanLabel(uin.value);
+    save();
+    render();
+  };
+  unitRow.append(uin);
+  rows.push(unitRow);
+
   /* Only a fortnight needs telling where to start — weeks always begin on a
      Monday. Snapped to a Monday on the way in, so a sprint can't start mid-week
      and leave every boundary looking arbitrary. */
@@ -1912,7 +1961,7 @@ function openBookEdit(id) {
        live. An empty box is not a name, so it leaves the old one standing until
        there are characters again. No refreshSheet: it would drop focus. */
     nameIn.oninput = () => {
-      const n = cleanBookName(nameIn.value);
+      const n = cleanLabel(nameIn.value);
       if (!n) return;
       bk.name = n;
       save();
@@ -2159,7 +2208,10 @@ function openHelp() {
       Tap the chip to switch, rename, or add one. To move a line, open it and
       pick a notebook under <b>Notebook</b>.<br><br>
       <b style="color:var(--ink-2)">Board pages</b><br>
-      <b>Page is</b> makes a page a week or a fortnight instead of a day — a sprint on one page. A board page adds a third bullet state: the
+      <b>Page is</b> makes a page a week or a fortnight instead of a day — a
+      sprint on one page — and <b>Called</b> names it, so the header can read
+      <i>This Sprint</i> or <i>This Cycle</i> rather than <i>2 Weeks</i>. Each
+      notebook names its own. A board page adds a third bullet state: the
       bullet cycles todo → in flight → done, in-flight lines rise to the top of
       their group, and swiping left pushes to the next page rather than to
       tomorrow. Nothing is rewritten when you change it, so switching back to

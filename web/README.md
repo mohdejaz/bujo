@@ -90,6 +90,16 @@ group so what you started is under your thumb, each line carries the day it was
 written, and a thin bar under the strip shows where the work sits across the
 span. Swiping left pushes to the next page, not to tomorrow.
 
+**Naming the page.** `Called` next to `Page is` names the unit: call a fortnight
+a **Sprint**, a week a **Cycle**, whatever your team says. The name replaces the
+word everywhere the app uses it — the header reads *This Sprint*, the entry sheet
+offers *Push to next Sprint*, and typing `next sprint` into a line still works.
+It defaults to **Day**, **Week** or **2 Weeks** depending on the size, and each
+notebook names its own. Clear the box to go back to the default.
+
+A day page has nowhere to show it — *Today* and the date already fill both lines
+— so a name only takes effect once the page is a week or longer.
+
 None of this rewrites anything. A page is a window over the same entries —
 every line keeps the exact date it was written on — so switching back to **Day**
 puts the journal back exactly as it was. The setting belongs to the notebook, and
@@ -120,6 +130,9 @@ ring the bank tomorrow      → tomorrow
 chase invoice in 3 days     → three days out
 plan the offsite next week  → next Monday
 ```
+
+If you've named the page unit (below), that name works here too — `next cycle`
+lands on the next page.
 
 A year is optional; without one you get the next time that date comes round, so
 `1 jan` typed in December means next January, never a date in the past. An
