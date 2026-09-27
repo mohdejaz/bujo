@@ -223,13 +223,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-/* A range is several times longer than "Today", so it is set smaller to fit the
-   same slot with the notebook chip beside it. */
-#head.is-board .dow {
-  font-size: 1.0625rem;
-  letter-spacing: -0.01em;
-  font-variant-numeric: tabular-nums;
-}
+/* A board page's title sits at the same size as a day page's — the two headers
+   read the same way. Its date range goes in the subtitle, where tabular figures
+   stop the numbers shifting about as you page through. */
+#head.is-board .dmy { font-variant-numeric: tabular-nums; }
 .dmy {
   font-size: 0.78125rem;
   font-weight: 500;

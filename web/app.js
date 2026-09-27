@@ -910,16 +910,14 @@ function renderHead() {
     $("#dmy").textContent = "no date, not forgotten";
     head.classList.remove("is-today");
   } else if (isBoard()) {
-    /* The dates lead on a board page: no single weekday describes a span, and
-       "This sprint" is the part you can work out from the strip. Where it sits
-       goes underneath, which is also the line with room for a long word. */
+    /* Same shape as a day page: what this page is called on top, the dates that
+       pin it down underneath. Naming the unit is what makes that work — the
+       title is only as long as you choose to make it. */
     const [from, to] = selSpan();
     const year = parse(to).getFullYear();
-    $("#dow").textContent = periodRange(S.sel);
+    $("#dow").textContent = relativePeriod(S.sel) || unitName();
     $("#dmy").textContent =
-      year === new Date().getFullYear()
-        ? relativePeriod(S.sel) || unitName()
-        : String(year);
+      periodRange(S.sel) + (year === new Date().getFullYear() ? "" : ` ${year}`);
     head.classList.toggle("is-today", from <= today && today <= to);
   } else {
     const d = parse(S.sel);
