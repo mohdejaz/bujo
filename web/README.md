@@ -49,6 +49,20 @@ earlier page surfaces as *N unfinished tasks → Review*. Each one gets a
 decision: pull it forward, park it, or strike it out. That review is the whole
 point of the method — if a task isn't worth moving again, it wasn't worth doing.
 
+**Tags.** A tag isn't a thing you create or destroy — it exists in a notebook for
+exactly as long as some line there carries it, and disappears on its own when the
+last one is cleared or moved away. `⋯ → Tags` lists the current notebook's tags
+with their counts: tap one to see what carries it, or the bin to clear it off
+every line at once. That leaves the lines themselves alone and one **Undo** puts
+the tag back.
+
+Two things worth knowing. A tag survives on a line in *any* state, so finished
+and struck-out lines keep it alive. And a migrated line leaves a `›` stub behind
+that keeps its tag — search deliberately skips those stubs, so a tag can be held
+alive by something you can't find. Tags in that state aren't offered in the
+picker any more, and the Tags sheet labels them, because it's the only place you
+can reach them.
+
 **Notebooks.** The chip in the header names the notebook you're writing in. Tap
 it to switch, rename, or add one — work, private, reading, whatever you keep.
 One is open at a time: the page, the carry-over review, search, the month grid
