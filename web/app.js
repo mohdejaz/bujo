@@ -207,14 +207,15 @@ function relativePeriod(s) {
   return null;
 }
 
-/* "22 Sep – 5 Oct", dropping the first month when both ends share it. */
+/* "22 Sep–5 Oct", dropping the first month when both ends share it. Unspaced en
+   dash: the right form for a number range, and the narrowest. */
 function periodRange(s) {
   const a = parse(periodStart(s));
   const b = parse(periodEnd(s));
   const am = MON[a.getMonth()].slice(0, 3);
   const bm = MON[b.getMonth()].slice(0, 3);
   const head = am === bm ? String(a.getDate()) : `${a.getDate()} ${am}`;
-  return `${head} – ${b.getDate()} ${bm}`;
+  return `${head}–${b.getDate()} ${bm}`;
 }
 
 /* ── date phrases ──────────────────────────────────────────────────── */
@@ -577,12 +578,43 @@ $("#toastUndo").onclick = () => {
 const byId = (id) => db.entries.find((e) => e.id === id);
 const hasNotes = (e) => !!e.notes?.trim();
 
-/* Tags actually in use, commonest first. Offering these back is the whole
-   defence against ending up with wrk, work and wrkk as three groups. */
+/* Every tag in this notebook, with two counts: how many lines carry it, and how
+   many of those are real. A migrated line leaves a › stub behind for the record,
+   and that stub keeps its tag — so a tag can outlive every line you would call
+   an entry. `live` is what the pickers ask about; `n` is what the tag manager
+   shows, because you still need to be able to clear the ghosts. */
+function tagCounts() {
+  const m = new Map();
+  mine().forEach((e) => {
+    if (!e.tag) return;
+    const c = m.get(e.tag) || { tag: e.tag, n: 0, live: 0 };
+    c.n++;
+    if (e.state !== "moved") c.live++;
+    m.set(e.tag, c);
+  });
+  return [...m.values()].sort((a, b) => b.n - a.n || a.tag.localeCompare(b.tag));
+}
+
+/* Tags worth offering back, commonest first — the whole defence against ending
+   up with wrk, work and wrkk as three groups. Tags held alive only by migrated
+   stubs are left out: the lines they described live somewhere else now, and
+   suggesting them is how a tag you can't find becomes a tag you can't lose. */
 function knownTags() {
-  const n = new Map();
-  mine().forEach((e) => e.tag && n.set(e.tag, (n.get(e.tag) || 0) + 1));
-  return [...n].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+  return tagCounts()
+    .filter((c) => c.live)
+    .sort((a, b) => b.live - a.live || a.tag.localeCompare(b.tag))
+    .map((c) => c.tag);
+}
+
+/* Clears a tag off every line carrying it in this notebook — and only this one,
+   so the same word in another notebook is untouched. Labelled, so it toasts and
+   one Undo puts all of them back. */
+function removeTag(t) {
+  const hits = db.entries.filter((e) => bookOf(e) === db.book && e.tag === t);
+  if (!hits.length) return;
+  mutate(`Removed #${t} from ${hits.length} ${hits.length === 1 ? "line" : "lines"}`, () => {
+    hits.forEach((e) => delete e.tag);
+  });
 }
 
 function toggleDone(id) {
@@ -833,6 +865,7 @@ const bulletClass = (e) =>
         : `b b-${e.type}`;
 
 function render() {
+  $("#head").classList.toggle("is-board", !isSomeday() && isBoard());
   renderHead();
   renderStrip();
   renderList();
@@ -849,14 +882,16 @@ function renderHead() {
     $("#dmy").textContent = "no date, not forgotten";
     head.classList.remove("is-today");
   } else if (isBoard()) {
-    /* A board page is named by where it sits — "This sprint" — and dated by the
-       span it covers, because no single weekday describes it. */
+    /* The dates lead on a board page: no single weekday describes a span, and
+       "This sprint" is the part you can work out from the strip. Where it sits
+       goes underneath, which is also the line with room for a long word. */
     const [from, to] = selSpan();
-    const unit = periodLen() === 7 ? "Week" : "Sprint";
-    $("#dow").textContent = relativePeriod(S.sel) || unit;
+    const year = parse(to).getFullYear();
+    $("#dow").textContent = periodRange(S.sel);
     $("#dmy").textContent =
-      periodRange(S.sel) +
-      (parse(to).getFullYear() === new Date().getFullYear() ? "" : ` ${parse(to).getFullYear()}`);
+      year === new Date().getFullYear()
+        ? relativePeriod(S.sel) || (periodLen() === 7 ? "Week" : "Sprint")
+        : String(year);
     head.classList.toggle("is-today", from <= today && today <= to);
   } else {
     const d = parse(S.sel);
@@ -1662,7 +1697,8 @@ function openMenu() {
     acts.append(...periodRows(curBook()));
 
     acts.append(
-      actRow(ICON.books, "Notebooks", openBooks, { k: bookName(db.book) })
+      actRow(ICON.books, "Notebooks", openBooks, { k: bookName(db.book) }),
+      actRow(ICON.tag, "Tags", openTags, { k: String(tagCounts().length) })
     );
 
     acts.append(
@@ -1808,6 +1844,53 @@ function openBooks() {
           openBookEdit(bk.id); // land straight in the name field
         })
       );
+  };
+  (sheet.hidden ? openSheet : swapSheet)(build);
+}
+
+/* Tags are not things you make and destroy — a tag exists exactly as long as a
+   line in this notebook carries it, and vanishes on its own when the last one
+   does. This sheet is the shortcut for the case where that isn't enough: tags
+   left behind by work that has moved on, including the ones held alive only by
+   migrated stubs, which search deliberately never shows you. */
+function openTags() {
+  const build = (b) => {
+    b.append(el("div", "s-title", "Tags"));
+    const all = tagCounts();
+    b.append(
+      el(
+        "div",
+        "s-sub",
+        all.length
+          ? `In ${safeHtml(bookName(db.book))}. Clearing one leaves the lines themselves alone.`
+          : `Nothing in ${safeHtml(bookName(db.book))} is tagged yet. Write #wrk in a line to start.`
+      )
+    );
+
+    const list = el("div", "s-acts");
+    all.forEach((c) => {
+      const row = el("div", "s-book");
+      const pick = el("button", "s-book-pick");
+      pick.append(el("span", "tag", safeHtml(c.tag)));
+      const lbl = el("span", "s-book-name", "");
+      /* A tag no live line carries is worth saying out loud — it is the case you
+         cannot reach any other way. */
+      lbl.textContent = c.live
+        ? `${c.live} ${c.live === 1 ? "line" : "lines"}`
+        : `only on ${c.n} migrated ${c.n === 1 ? "stub" : "stubs"}`;
+      if (!c.live) lbl.style.color = "var(--dim)";
+      pick.append(lbl);
+      pick.onclick = () => openSearch("#" + c.tag);
+      const del = el("button", "s-book-edit", ICON.trash);
+      del.setAttribute("aria-label", `Remove #${c.tag}`);
+      del.onclick = () => {
+        removeTag(c.tag);
+        refreshSheet();
+      };
+      row.append(pick, del);
+      list.append(row);
+    });
+    b.append(list);
   };
   (sheet.hidden ? openSheet : swapSheet)(build);
 }
@@ -2044,7 +2127,10 @@ function openHelp() {
       <code>!</code> at either end stars the line.<br>
       <code>- </code> makes a note, <code>o </code> makes an event.<br>
       <code>#wrk</code> tags the line — 3–5 letters, one per entry. Tap a tag
-      to see everything in that group.<br><br>
+      to see everything in that group. A tag isn't something you create or
+      delete: it exists as long as a line in this notebook carries it, and goes
+      when the last one does. <b>⋯ → Tags</b> lists them if you want to clear one
+      off everything at once.<br><br>
       <b style="color:var(--ink-2)">Writing a date into the line</b><br>
       <code>India Trip on Nov 21, 2026</code> files itself on that day, and the
       date drops out of the text. So do <code>taxes 3 oct</code>,

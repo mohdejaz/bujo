@@ -153,11 +153,17 @@ button { cursor: pointer; }
   align-items: center;
   gap: 2px;
 }
-.spacer { flex: 1; }
+/* Was flex: 1, which hoarded every spare pixel and left the date button clipped
+   at its content width. The date is what should take the slack now that it
+   shares the row with the notebook chip. */
+.spacer { flex: 0 0 4px; }
 
 /* the notebook chip */
 .bookbtn {
-  flex: none;
+  /* Shrinks before the date does: a clipped notebook name is still recognisable,
+     a clipped date is not. */
+  flex: 0 1 auto;
+  min-width: 4.5ch;
   display: flex;
   align-items: center;
   gap: 1px;
@@ -202,11 +208,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 4px 6px;
   border-radius: 12px;
   min-width: 0;
-  /* With the notebook chip sharing this row, the date is what gives way on a
-     narrow screen. Without overflow hidden its nowrap children would push the
-     ring and the menu button off the edge instead of being clipped. */
+  /* Takes the row's spare width rather than the spacer, so a date range is shown
+     in full wherever there is room. Overflow hidden is the backstop on a narrow
+     screen: its nowrap children are clipped instead of pushing the ring and the
+     menu button off the edge. */
+  flex: 1 1 auto;
   overflow: hidden;
-  flex-shrink: 1;
 }
 .dow, .dmy { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .datebtn:active { background: var(--hair-2); }
@@ -215,6 +222,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   font-weight: 600;
   letter-spacing: -0.02em;
   white-space: nowrap;
+}
+/* A range is several times longer than "Today", so it is set smaller to fit the
+   same slot with the notebook chip beside it. */
+#head.is-board .dow {
+  font-size: 1.0625rem;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
 }
 .dmy {
   font-size: 0.78125rem;
