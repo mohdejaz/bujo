@@ -647,6 +647,10 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .notemark svg { width: 0.88rem; height: 0.88rem; stroke-width: 2.2; }
 .row.is-done .notemark, .row.is-dropped .notemark, .row.is-moved .notemark { opacity: 0.45; }
+/* The repeat mark is a touch smaller than the notes mark and sits at the same
+   weight, so a line carrying both reads as one pair of marks rather than two
+   competing glyphs. */
+.recurmark svg { width: 0.82rem; height: 0.82rem; stroke-width: 2.4; }
 
 .row-meta {
   font-size: 0.75rem;
@@ -978,6 +982,12 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-block-h svg { width: 1.25rem; height: 1.25rem; flex: none; color: var(--dim); }
 .s-seg-wide { margin-left: 0; width: 100%; }
 .s-seg-wide button { flex: 1; padding: 10px 0; line-height: 1; }
+/* The repeat-day toggles: seven single letters, so they need the tabular
+   treatment the text-size row doesn't. */
+.s-seg-wide.s-seg-days button { font-size: 0.8125rem; font-weight: 700; }
+/* Which line an edit will land on. Tight to the toggles above it, because it is
+   about them rather than about the entry as a whole. */
+.s-repnote { margin: -2px 0 6px; text-align: left; padding: 0 8px; }
 
 .s-seg {
   display: flex;
