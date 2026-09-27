@@ -122,9 +122,6 @@ function withBooks(raw) {
       name: cleanLabel(b.name) || "journal",
       period: PERIOD_DAYS[b.period] ? b.period : "day",
       sprintStart: /^\d{4}-\d{2}-\d{2}$/.test(b.sprintStart || "") ? b.sprintStart : null,
-      // null means "use the default for this size", so a renamed page size
-      // follows the size when you change it rather than going stale
-      unit: cleanLabel(b.unit),
     }));
   if (!raw.books.length) raw.books = legacy;
   // whatever the page size used to be, it is a property of a notebook now
@@ -133,14 +130,6 @@ function withBooks(raw) {
   if (!raw.books.some((b) => b.id === raw.book)) raw.book = raw.books[0].id;
   return raw;
 }
-
-/* What a page of each size is called when the notebook hasn't said otherwise. */
-const UNIT_DEFAULT = { day: "Day", week: "Week", fortnight: "2 Weeks" };
-/* A notebook can rename its page unit — "Sprint", "Cycle", "Iteration" — and
-   that name is then the word used everywhere the app refers to one: the header
-   subtitle, the push action, the toast. Stored per notebook, because work and
-   home have no reason to agree about it. */
-const unitName = (bk) => cleanLabel((bk || curBook()).unit) || UNIT_DEFAULT[(bk || curBook()).period] || "Day";
 
 const byBook = (id) => db.books.find((b) => b.id === id);
 const curBook = () => byBook(db.book) || db.books[0];
@@ -200,10 +189,27 @@ const periodHas = (s, d) => s !== "someday" && d >= periodStart(s) && d <= perio
    from the page you're standing on — "tomorrow". nextPageLabel is the neutral
    one the toast falls back to when the destination has no relative name,
    because pushing from a page three weeks back does not land on tomorrow. */
-/* A day page's next page is tomorrow, and no name improves on that word. Longer
-   pages use whatever the notebook calls one. */
-const pushLabel = () => (periodLen() === 1 ? "tomorrow" : "next " + unitName());
-const nextPageLabel = () => (periodLen() === 1 ? "next day" : "next " + unitName());
+/* Two names for the page after this one. pushLabel is what a button promises from
+   the page you're standing on — "tomorrow". nextPageLabel is the neutral one the
+   toast falls back to when the destination has no relative name, because pushing
+   from a page three weeks back does not land on tomorrow. */
+const pushLabel = () =>
+  periodLen() === 1 ? "tomorrow" : periodLen() === 7 ? "next week" : "next sprint";
+const nextPageLabel = () =>
+  periodLen() === 1 ? "next day" : periodLen() === 7 ? "next week" : "next sprint";
+
+/* "0926" — month then day, both padded. Every header stamp is built from this,
+   so a day reads 0926 and a span reads 0921 - 1004, each a fixed width that
+   cannot shift the header as you page through. */
+const stamp = (s) => {
+  const d = parse(s);
+  return `${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
+};
+const periodRange = (s) => `${stamp(periodStart(s))} - ${stamp(periodEnd(s))}`;
+/* D, W or F after the stamp, so the header says what kind of page you are on
+   without spelling it out. */
+const SIZE_LETTER = { day: "D", week: "W", fortnight: "F" };
+const sizeLetter = () => SIZE_LETTER[curBook().period] || "D";
 
 /* The page you're on is just what it's called — the strip already shows which
    cell is selected, so "This" only took up room. The pages either side keep
@@ -212,7 +218,7 @@ const nextPageLabel = () => (periodLen() === 1 ? "next day" : "next " + unitName
 function relativePeriod(s) {
   const n = periodLen();
   if (n === 1) return relative(s);
-  const unit = unitName();
+  const unit = n === 7 ? "week" : "sprint";
   const here = periodStart(s);
   const now = periodStart(TODAY());
   if (here === now) return unit;
@@ -352,26 +358,10 @@ const WHEN_RULES = [
   },
 ].map((r) => ({ ...r, re: new RegExp(r.re, "gi") }));
 
-/* "next <whatever this notebook calls a page>". Built at match time rather than
-   baked into WHEN_RULES, because the name can be changed under us — and skipped
-   when it is a word the static rules already cover, or when it holds anything a
-   regex would have to escape. Tried last, so a notebook perversely called
-   "Friday" still loses to the weekday rule. */
-function unitRule() {
-  const n = unitName();
-  if (!/^[\w ]+$/.test(n) || /^(day|week|2 weeks|fortnight|sprint)$/i.test(n)) return null;
-  return {
-    re: new RegExp(`\\b(next)\\s+(${n})\\b`, "gi"),
-    free: true,
-    fn: () => nextPeriod(periodStart(TODAY())),
-  };
-}
-
 /* The first phrase any rule will own, with the line that's left once it's gone.
    Null when the line holds no date — which is most lines. */
 function parseWhen(raw) {
-  for (const rule of [...WHEN_RULES, unitRule()]) {
-    if (!rule) continue;
+  for (const rule of WHEN_RULES) {
     rule.re.lastIndex = 0;
     let m;
     while ((m = rule.re.exec(raw))) {
@@ -884,6 +874,8 @@ const bulletClass = (e) =>
         : `b b-${e.type}`;
 
 function render() {
+  /* A dated page prints a numeric stamp, which wants tabular type. */
+  $("#head").classList.toggle("is-stamp", !isSomeday());
   renderHead();
   renderStrip();
   renderList();
@@ -897,26 +889,28 @@ function renderHead() {
   $("#bookBtn").setAttribute("aria-label", `Notebook: ${bookName(db.book)}`);
   if (isSomeday()) {
     $("#dow").textContent = "Someday";
+    $("#dowUnit").textContent = "";
     $("#dmy").textContent = "no date, not forgotten";
     $("#dmy").hidden = false;
     head.classList.remove("is-today");
   } else if (isBoard()) {
-    /* Just the title. A span has no single date to print under it, and a range
-       squeezed into this slot only ever got clipped — the strip below already
-       carries the dates, one cell per page. */
+    /* The span itself, on one line and set smaller so it fits beside the
+       notebook chip. No second line: a span has no single date to put under it,
+       and the range is already the thing you came to read. */
     const [from, to] = selSpan();
-    $("#dow").textContent = relativePeriod(S.sel) || unitName();
+    $("#dow").textContent = periodRange(S.sel);
+    $("#dowUnit").textContent = sizeLetter();
     $("#dmy").textContent = "";
     $("#dmy").hidden = true;
     head.classList.toggle("is-today", from <= today && today <= to);
   } else {
-    const d = parse(S.sel);
-    $("#dow").textContent = relative(S.sel) || DOW[d.getDay()];
-    /* A day page keeps its second line: "Today" alone doesn't say which day. */
-    $("#dmy").textContent =
-      `${DOW[d.getDay()].slice(0, 3)} · ${d.getDate()} ${MON[d.getMonth()]}` +
-      (d.getFullYear() === new Date().getFullYear() ? "" : ` ${d.getFullYear()}`);
-    $("#dmy").hidden = false;
+    /* The date as a stamp, matching a board page. Which day it is comes from the
+       strip, where today's cell is marked, and from the header's own is-today
+       tint. */
+    $("#dow").textContent = stamp(S.sel);
+    $("#dowUnit").textContent = sizeLetter();
+    $("#dmy").textContent = "";
+    $("#dmy").hidden = true;
     head.classList.toggle("is-today", S.sel === today);
   }
 
@@ -1775,27 +1769,6 @@ function periodRows(bk) {
   periodRow.append(pseg);
   rows.push(periodRow);
 
-  /* What this notebook calls one page. Committed as you type, like the notebook
-     name, so the header renames live. Emptying it returns to the default for the
-     current size rather than leaving a blank word in the header. A day page has
-     nowhere to show it — "Today" and the date already fill both lines — so it
-     only takes effect once the page is a week or longer. */
-  const unitRow = el("div", "s-act");
-  unitRow.innerHTML = ICON.book + "<span>Called</span>";
-  const uin = el("input", "s-seg s-unitin");
-  uin.type = "text";
-  uin.value = bk.unit || "";
-  uin.placeholder = UNIT_DEFAULT[bk.period] || "Day";
-  uin.maxLength = BOOK_NAME_MAX;
-  uin.autocomplete = "off";
-  uin.oninput = () => {
-    bk.unit = cleanLabel(uin.value);
-    save();
-    render();
-  };
-  unitRow.append(uin);
-  rows.push(unitRow);
-
   /* Only a fortnight needs telling where to start — weeks always begin on a
      Monday. Snapped to a Monday on the way in, so a sprint can't start mid-week
      and leave every boundary looking arbitrary. */
@@ -2199,10 +2172,10 @@ function openHelp() {
       pick a notebook under <b>Notebook</b>.<br><br>
       <b style="color:var(--ink-2)">Board pages</b><br>
       <b>Page is</b> makes a page a week or a fortnight instead of a day — a
-      sprint on one page — and <b>Called</b> names it, so the header can read
-      <i>Sprint</i> or <i>Cycle</i> rather than <i>2 Weeks</i>. The pages either
-      side say <i>Next Sprint</i> and <i>Last Sprint</i>. Each notebook names its
-      own. A board page adds a third bullet state: the
+      sprint on one page. The header shows the dates it covers, month then day,
+      and a letter for the size — <code>0926 D</code>, <code>0921 - 1004 F</code>.
+      Swipe the header or tap a strip cell to move between pages. On a board page the <code>‹ ›</code> arrows are
+      hidden, because the strip below already has a cell per page. A board page adds a third bullet state: the
       bullet cycles todo → in flight → done, in-flight lines rise to the top of
       their group, and swiping left pushes to the next page rather than to
       tomorrow. Nothing is rewritten when you change it, so switching back to
@@ -2401,11 +2374,11 @@ document.querySelectorAll(".type").forEach((b) => {
 
 /* ── wiring ────────────────────────────────────────────────────────── */
 
-/* The arrows, the header swipe and the ← → keys all step one *page* — a day,
-   a week or a fortnight, whichever the page currently is. */
+/* The header swipe and the ← → keys both step one *page* — a day, a week or a
+   fortnight, whichever the page currently is. There are no arrow buttons: the
+   strip already carries a cell per page, and on a narrow screen those two 44px
+   targets were the difference between a date fitting and being clipped. */
 const step = (n) => go(isSomeday() ? TODAY() : shift(S.sel, n * periodLen()), n);
-$("#prevDay").onclick = () => step(-1);
-$("#nextDay").onclick = () => step(1);
 $("#dateBtn").onclick = () =>
   S.sel === periodStart(TODAY()) ? openMonth() : go(TODAY());
 $("#menuBtn").onclick = openMenu;
@@ -2443,8 +2416,8 @@ document.addEventListener("keydown", (e) => {
   if (e.key === "Escape") return closeSheet();
   const typing = /input|textarea/i.test(document.activeElement?.tagName || "");
   if (typing) return;
-  if (e.key === "ArrowLeft") $("#prevDay").click();
-  else if (e.key === "ArrowRight") $("#nextDay").click();
+  if (e.key === "ArrowLeft") step(-1);
+  else if (e.key === "ArrowRight") step(1);
   else if (e.key === "t") go(TODAY());
   else if (e.key === "/") {
     e.preventDefault();
