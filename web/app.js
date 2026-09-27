@@ -481,6 +481,99 @@ function tagOrder() {
 /* Not finished — todo or in flight. Every rule that used to ask `state ===
    "open"` means this, so asking it in one place is what keeps a Doing line from
    being quietly counted as closed, hidden by Hide-logged, or left behind. */
+/* ── repeats ────────────────────────────────────────────────────────── */
+
+/* "gym on Mon/Wed/Fri" is a rule, not a pile of entries. It rides on an ordinary
+ * line as `repeat: [1,3,5]` — day numbers matching Date.getDay() — and that line
+ * is the series: occurrences inherit its text, kind, time, tag, notes, star and
+ * notebook, because it already has all of them.
+ *
+ * Occurrences are *virtual* until you touch one. They are built on demand for
+ * whatever page is being drawn, never stored, so a habit kept for two years costs
+ * the journal nothing. Touching one materialises a real entry for that date
+ * carrying `from: <seriesId>` — see solid() — which is how the journal ends up
+ * recording only what actually happened.
+ *
+ * Two deliberate limits, and both of them buy something:
+ *
+ *   Nothing is generated before today. A repeat day you ignored leaves no trace,
+ *   which is what keeps stranded() — and so the carry-over review — free of
+ *   missed habits without a single special case.
+ *
+ *   Nothing is generated before the series' own date, so turning on a repeat
+ *   never invents lines on pages you have already written.
+ */
+
+/* Monday first, the way the strip draws a week. */
+const REPEAT_DAYS = [1, 2, 3, 4, 5, 6, 0];
+
+/* A sorted set of real weekday numbers, or null for "doesn't repeat". Same shape
+   as cleanTag: normalise, or null. */
+const cleanRepeat = (r) => {
+  if (!Array.isArray(r)) return null;
+  const days = [...new Set(r.map(Number))]
+    .filter((n) => Number.isInteger(n) && n >= 0 && n <= 6)
+    .sort();
+  return days.length ? days : null;
+};
+
+const repeats = (e) => !!e && Array.isArray(e.repeat) && e.repeat.length > 0;
+/* Dates this series does not happen on. Deleting one occurrence has to leave a
+   record somewhere — without it the next render would simply generate the
+   occurrence again, and Delete would look broken. */
+const cleanSkip = (r) =>
+  Array.isArray(r)
+    ? [...new Set(r.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort()
+    : null;
+const skipped = (e, d) => Array.isArray(e.skip) && e.skip.includes(d);
+/* Deterministic, so a virtual keeps its identity across renders. */
+const vId = (seriesId, d) => `v:${seriesId}:${d}`;
+const isVirtual = (id) => typeof id === "string" && id.startsWith("v:");
+/* "v:<id>:<YYYY-MM-DD>" — the date is the last 10 characters, the id the middle,
+   so an id containing a colon could not break this apart. */
+const vParts = (id) => ({ seriesId: id.slice(2, -11), date: id.slice(-10) });
+
+/* One occurrence, shaped like an entry so every renderer treats it as one. Takes
+   the series' `created` so it sorts where the series would. */
+const occurrence = (e, d) => ({
+  ...e,
+  id: vId(e.id, d),
+  date: d,
+  state: "open",
+  from: e.id,
+  virtual: true,
+  repeat: undefined,
+  movedTo: undefined,
+});
+
+/* Every virtual occurrence falling in [from,to] for the notebook in view. */
+function occurrencesIn(from, to) {
+  if (from === null) return []; // Someday has no weekdays to match
+  const today = TODAY();
+  const start = from < today ? today : from; // never behind today
+  if (start > to) return [];
+  const series = mine().filter((e) => repeats(e) && e.date);
+  if (!series.length) return [];
+
+  /* Which (series, date) pairs are already real, so a touched occurrence is not
+     drawn twice. Built once rather than scanned per date. */
+  const taken = new Set();
+  mine().forEach((e) => e.from && e.date && taken.add(`${e.from}:${e.date}`));
+
+  const out = [];
+  for (const e of series) {
+    const first = e.date > start ? e.date : start;
+    for (let d = first; d <= to; d = shift(d, 1)) {
+      if (d === e.date) continue; // the series' own line is already on the page
+      if (!e.repeat.includes(parse(d).getDay())) continue;
+      if (skipped(e, d)) continue; // deleted once, gone for good
+      if (taken.has(`${e.id}:${d}`)) continue;
+      out.push(occurrence(e, d));
+    }
+  }
+  return out;
+}
+
 const isLive = (e) => e.state === "open" || e.state === "doing";
 
 /* On a board page a line's column outranks its day: in-flight work first, then
@@ -496,7 +589,7 @@ const entriesIn = (from, to) => {
   const order = new Map(tagOrder().map((t, i) => [t, i]));
   /* Untagged sorts last: an unknown tag falls through to the same rank. */
   const rank = (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
-  return mine()
+  return [...mine(), ...occurrencesIn(from, to)]
     .filter((e) => (from === null ? e.date === null : e.date && e.date >= from && e.date <= to))
     .filter((e) => !db.hideLogged || isLive(e))
     .sort(
@@ -525,7 +618,16 @@ const forSel = () => (isSomeday() ? entriesIn(null, null) : entriesIn(...selSpan
    first day, so a fortnight doesn't nag about work still inside the sprint. */
 const stranded = () =>
   mine().filter(
-    (e) => e.type === "task" && isLive(e) && e.date && e.date < periodStart(TODAY())
+    (e) =>
+      e.type === "task" &&
+      isLive(e) &&
+      e.date &&
+      e.date < periodStart(TODAY()) &&
+      /* A line carrying a repeat rule is a rule, not an outstanding task. Its own
+         date is just the first occurrence, and a missed occurrence leaves no trace
+         — so without this the series would sit in the review for ever, which is
+         the exact pile-up virtual occurrences are built to avoid. */
+      !repeats(e)
   );
 
 /* ── mutation + undo ───────────────────────────────────────────────── */
@@ -587,6 +689,42 @@ $("#toastUndo").onclick = () => {
 const byId = (id) => db.entries.find((e) => e.id === id);
 const hasNotes = (e) => !!e.notes?.trim();
 
+/* A real entry id for whatever the UI hands us. A virtual occurrence isn't in
+   db.entries, so byId would return undefined and every mutation would quietly do
+   nothing — this is the one place that trap is closed. Materialises on first
+   touch and returns the new id; a real id passes straight through, so it is safe
+   to call at the top of anything.
+
+   Not wrapped in mutate(): callers do that themselves, and the row they are about
+   to change has to exist before their own mutation body runs. */
+/* A virtual occurrence rebuilt from its id, so one can be opened and read without
+   being written. Opening must not materialise: a stored row would then be subject
+   to the carry-over review, and a repeat you merely glanced at would start
+   nagging. */
+function virtualById(id) {
+  if (!isVirtual(id)) return null;
+  const { seriesId, date } = vParts(id);
+  const series = byId(seriesId);
+  return series && repeats(series) ? occurrence(series, date) : null;
+}
+
+function solid(id) {
+  if (!isVirtual(id)) return id;
+  const { seriesId, date } = vParts(id);
+  const series = byId(seriesId);
+  if (!series) return id; // series deleted mid-render; nothing to make real
+  /* A touched occurrence may already exist — two taps in one tick, or a stale
+     row still on screen. Reuse it rather than growing a duplicate. */
+  const already = db.entries.find((e) => e.from === seriesId && e.date === date);
+  if (already) return already.id;
+  const e = { ...occurrence(series, date), id: uid(), created: Date.now() };
+  delete e.virtual;
+  delete e.repeat;
+  delete e.movedTo;
+  db.entries.push(e);
+  return e.id;
+}
+
 /* Every tag in this notebook, with two counts: how many lines carry it, and how
    many of those are real. A migrated line leaves a › stub behind for the record,
    and that stub keeps its tag — so a tag can outlive every line you would call
@@ -627,6 +765,7 @@ function removeTag(t) {
 }
 
 function toggleDone(id) {
+  id = solid(id);
   const e = byId(id);
   if (!e) return;
   S.anim.add(id);
@@ -641,6 +780,7 @@ function toggleDone(id) {
    lives long enough for "started" to be worth recording. A day page keeps the
    two-state toggle it always had — see the bullet handler in row(). */
 function cycleState(id) {
+  id = solid(id);
   const e = byId(id);
   if (!e) return;
   const next = { open: "doing", doing: "done", done: "open" };
@@ -652,6 +792,8 @@ function cycleState(id) {
 }
 
 function setState(id, state) {
+  id = solid(id);
+  if (!byId(id)) return;
   S.anim.add(id);
   mutate(null, () => {
     byId(id).state = state;
@@ -660,6 +802,8 @@ function setState(id, state) {
 }
 
 function setStar(id, v) {
+  id = solid(id);
+  if (!byId(id)) return;
   mutate(null, () => {
     byId(id).star = v;
   });
@@ -667,6 +811,7 @@ function setStar(id, v) {
 
 /* Migrate: the original keeps a › stub, a fresh copy lands on the target. */
 function migrate(id, target, label) {
+  id = solid(id);
   const e = byId(id);
   if (!e) return;
   S.anim.add(id);
@@ -679,6 +824,11 @@ function migrate(id, target, label) {
       date: target,
       state: "open",
       movedTo: undefined,
+      /* A pushed line is its own line from here on. Keeping the series link would
+         let it stand in for the target day's own occurrence and hide it. */
+      from: undefined,
+      repeat: undefined,
+      skip: undefined,
       created: Date.now(),
     });
   });
@@ -706,15 +856,36 @@ function migrateAll(ids, target, label) {
 }
 
 function drop(id) {
+  id = solid(id);
+  if (!byId(id)) return;
   S.anim.add(id);
   mutate("Struck out", () => {
     byId(id).state = "dropped";
   });
 }
 
+/* Marks one date as not happening, for a series that would otherwise generate
+   it again on the next render. */
+function skipOccurrence(seriesId, date) {
+  const series = byId(seriesId);
+  if (!series || !date) return;
+  series.skip = cleanSkip([...(series.skip || []), date]);
+}
+
 function remove(id) {
+  /* Deleting an occurrence — virtual, or already made real — has to tell the
+     series, or the very next render puts it straight back. */
+  if (isVirtual(id)) {
+    const { seriesId, date } = vParts(id);
+    mutate("Deleted", () => skipOccurrence(seriesId, date));
+    return;
+  }
+  const e = byId(id);
+  const from = e?.from;
+  const date = e?.date;
   mutate("Deleted", () => {
-    db.entries = db.entries.filter((e) => e.id !== id);
+    db.entries = db.entries.filter((x) => x.id !== id);
+    if (from) skipOccurrence(from, date);
   });
 }
 
@@ -846,6 +1017,7 @@ const ICON = {
   pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L20.5 7.5l-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M3 8.5h13l-3.5-3.5M21 15.5H8l3.5 3.5"/></svg>',
+  recur: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4.5V9h-4.5"/><path d="M20 12a8 8 0 01-13.7 5.6L4 15.5M4 19.5V15h4.5"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
 };
@@ -1144,6 +1316,13 @@ function row(e) {
     m.setAttribute("aria-label", "Has notes");
     face.append(m);
   }
+  /* On the series and on every occurrence alike, so a line that will come back is
+     never a surprise. */
+  if (repeats(e) || e.from) {
+    const m = el("span", "notemark recurmark", ICON.recur);
+    m.setAttribute("aria-label", repeats(e) ? "Repeats" : "One of a repeat");
+    face.append(m);
+  }
   if (e.star) face.append(el("span", "star", ICON.star));
 
   li.append(face);
@@ -1344,12 +1523,20 @@ function actRow(icon, label, fn, opts = {}) {
 }
 
 function openEntry(id) {
-  const e = byId(id);
-  if (!e) return;
-  let text = e.text;
-  let notes = e.notes || "";
+  /* `id` may name a virtual occurrence. It is resolved to a real row only when
+     something is actually changed — touch() does that and moves eid onto the new
+     row, so a refreshSheet after an edit rebuilds from the line that now exists.
+     Looking without editing writes nothing. */
+  let eid = id;
+  const touch = () => (eid = solid(eid));
+  const at = () => byId(eid) || virtualById(eid);
+  if (!at()) return;
+  let text = at().text;
+  let notes = at().notes || "";
   openSheet(
     (b, first) => {
+      const e = at();
+      if (!e) return closeSheet();
       const area = el("textarea", "s-input");
       area.rows = 2;
       area.value = e.text;
@@ -1390,7 +1577,7 @@ function openEntry(id) {
       ].forEach(([t, l]) => {
         const btn = el("button", e.type === t ? "on" : "", l);
         btn.onclick = () => {
-          mutate(null, () => (byId(id).type = t));
+          mutate(null, () => (byId(touch()).type = t));
           refreshSheet();
         };
         seg.append(btn);
@@ -1400,7 +1587,7 @@ function openEntry(id) {
 
       acts.append(
         actRow(ICON.star, e.star ? "Starred" : "Star it", () => {
-          setStar(id, !e.star);
+          setStar(touch(), !e.star);
           refreshSheet();
         }, { on: e.star })
       );
@@ -1420,7 +1607,7 @@ function openEntry(id) {
       tagIn.spellcheck = false;
       const commitTag = (t) =>
         mutate(null, () => {
-          const cur = byId(id);
+          const cur = byId(touch());
           if (!cur) return;
           t ? (cur.tag = t) : delete cur.tag;
         });
@@ -1465,7 +1652,7 @@ function openEntry(id) {
             /* Labelled, so it toasts and Undo can bring it back — the line is
                about to leave this page entirely. */
             mutate("Moved to " + bk.name, () => {
-              const cur = byId(id);
+              const cur = byId(touch());
               if (cur) cur.book = bk.id;
             });
             closeSheet();
@@ -1481,9 +1668,73 @@ function openEntry(id) {
       tin.type = "time";
       tin.value = e.time || "";
       tin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
-      tin.onchange = () => mutate(null, () => (byId(id).time = tin.value || null));
+      tin.onchange = () => mutate(null, () => (byId(touch()).time = tin.value || null));
       timeRow.append(tin);
       acts.append(timeRow);
+
+      /* Repeating is the one property that belongs to the *series* rather than to
+         this day, so from an occurrence these controls reach past it to the line
+         that carries the rule. Everything above edits only the day you opened.
+         Someday has no weekday to match, so it is not offered there. */
+      const series = e.from ? byId(e.from) : e;
+      if (!isSomeday() && series && series.date) {
+        const on = repeats(series) ? series.repeat : [];
+        /* Seven toggles never fit beside a label, so this is a block with the
+           heading above the row — the same shape as Text size in the menu. */
+        const repRow = el("div", "s-block");
+        const rh = el("div", "s-block-h");
+        rh.innerHTML = ICON.recur + "<span>Repeats</span>";
+        const rseg = el("div", "s-seg s-seg-wide s-seg-days");
+        REPEAT_DAYS.forEach((n) => {
+          const btn = el("button", on.includes(n) ? "on" : "", DOW[n][0]);
+          btn.setAttribute("aria-label", DOW[n]);
+          btn.setAttribute("aria-pressed", String(on.includes(n)));
+          btn.onclick = () => {
+            mutate(null, () => {
+              const next = on.includes(n) ? on.filter((x) => x !== n) : [...on, n];
+              const clean = cleanRepeat(next);
+              clean ? (series.repeat = clean) : delete series.repeat;
+              // a rule with no days left has no skips to remember either
+              if (!clean) delete series.skip;
+            });
+            buzz(6);
+            refreshSheet();
+          };
+          rseg.append(btn);
+        });
+        repRow.append(rh, rseg);
+        acts.append(repRow);
+
+        if (repeats(series)) {
+          const fromHere = series.id !== e.id;
+          acts.append(
+            el(
+              "div",
+              "s-sub s-repnote",
+              fromHere
+                ? `One of a repeat. Edits above change this day only.`
+                : `This line sets the repeat. Its wording is what new days inherit.`
+            )
+          );
+          if (fromHere)
+            acts.append(
+              actRow(ICON.recur, "Open the series", () => {
+                closeSheet();
+                go(series.date);
+                setTimeout(() => openEntry(series.id), 220);
+              })
+            );
+          acts.append(
+            actRow(ICON.strike, "Stop repeating", () => {
+              mutate("Stopped repeating", () => {
+                delete series.repeat;
+                delete series.skip;
+              });
+              refreshSheet();
+            })
+          );
+        }
+      }
 
       /* Start it is a board idea, so it only appears on a board page — but a
          line already in flight can always be put back, wherever it is seen,
@@ -1491,14 +1742,14 @@ function openEntry(id) {
       if (isBoard() && e.state === "open")
         acts.append(
           actRow(ICON.half, "Start it", () => {
-            setState(id, "doing");
+            setState(touch(), "doing");
             refreshSheet();
           })
         );
       if (e.state === "doing")
         acts.append(
           actRow(ICON.undo, "Back to todo", () => {
-            setState(id, "open");
+            setState(touch(), "open");
             refreshSheet();
           })
         );
@@ -1506,14 +1757,14 @@ function openEntry(id) {
       if (e.state !== "done")
         acts.append(
           actRow(ICON.check, "Mark done", () => {
-            toggleDone(id);
+            toggleDone(touch());
             closeSheet();
           })
         );
       else
         acts.append(
           actRow(ICON.undo, "Reopen", () => {
-            toggleDone(id);
+            toggleDone(touch());
             closeSheet();
           })
         );
@@ -1522,50 +1773,58 @@ function openEntry(id) {
         if (!isSomeday())
           acts.append(
             actRow(ICON.arrow, "Push to " + pushLabel(), () => {
-              migrate(id, nextPeriod(S.sel), "Pushed to " + pushLabel());
+              migrate(touch(), nextPeriod(S.sel), "Pushed to " + pushLabel());
               closeSheet();
             })
           );
         if (!periodHas(S.sel, TODAY()))
           acts.append(
             actRow(ICON.cal, "Pull into today", () => {
-              migrate(id, TODAY(), "Pulled into today");
+              migrate(touch(), TODAY(), "Pulled into today");
               closeSheet();
             })
           );
         if (!isSomeday())
           acts.append(
             actRow(ICON.moon, "Park in Someday", () => {
-              migrate(id, null, "Parked in Someday");
+              migrate(touch(), null, "Parked in Someday");
               closeSheet();
             })
           );
         acts.append(
           actRow(ICON.strike, "Strike out", () => {
-            drop(id);
+            drop(touch());
             closeSheet();
           })
         );
       }
 
       acts.append(
-        actRow(ICON.trash, "Delete", () => {
-          remove(id);
-          closeSheet();
-        }, { danger: true })
+        actRow(
+          ICON.trash,
+          repeats(e) ? "Delete series" : "Delete",
+          () => {
+            remove(eid);
+            closeSheet();
+          },
+          { danger: true }
+        )
       );
 
       b.append(acts);
       if (first) setTimeout(() => area.focus({ preventScroll: true }), 60);
     },
     () => {
-      const cur = byId(id);
-      if (!cur) return;
+      const was = at();
+      if (!was) return;
       const t = text.trim();
       const n = notes.trim();
-      const textMoved = t && t !== cur.text;
-      const notesMoved = n !== (cur.notes || "");
+      const textMoved = t && t !== was.text;
+      const notesMoved = n !== (was.notes || "");
+      // nothing typed: a virtual stays virtual, and no row is written
       if (!textMoved && !notesMoved) return;
+      const cur = byId(touch());
+      if (!cur) return;
       mutate(null, () => {
         if (textMoved) cur.text = t;
         // absent, not empty-string — export stays clean and hasNotes stays honest
@@ -2164,6 +2423,14 @@ function openHelp() {
       Open the app in the morning. Anything left behind gets a decision:
       pull it forward, park it in Someday, or strike it out. Migration is the
       point — if a task isn't worth rewriting, it wasn't worth doing.<br><br>
+      <b style="color:var(--ink-2)">Repeating a line</b><br>
+      Open a line and pick days under <b>Repeats</b> — gym on M/W/F, standup on
+      weekdays. It then shows on those days from today forward, marked with
+      <b>↻</b>. A day you ignore leaves no trace and never turns up in the
+      review: only the ones you actually touch become entries. Completing or
+      editing one changes that day alone; the line you set the rule on is the
+      series, and its wording is what new days inherit. Delete one day and it
+      stays deleted.<br><br>
       <b style="color:var(--ink-2)">Notebooks</b><br>
       The chip in the header is the notebook you're writing in — work, private,
       whatever you name them. One is open at a time, and each keeps its own page
@@ -2225,6 +2492,17 @@ function adopt(raw, i, books) {
   const tag = cleanTag(raw.tag);
   if (tag) e.tag = tag;
   else delete e.tag;
+  /* The repeat rule and its exceptions, same shape as the tag check: keep a legal
+     one, drop anything else rather than let a malformed rule generate nonsense. */
+  const rep = cleanRepeat(raw.repeat);
+  if (rep) e.repeat = rep;
+  else delete e.repeat;
+  const skip = rep ? cleanSkip(raw.skip) : null;
+  if (skip) e.skip = skip;
+  else delete e.skip;
+  // the link back to a series is just an id; it is checked when it is followed
+  if (typeof raw.from === "string" && raw.from) e.from = raw.from;
+  else delete e.from;
   /* `...raw` above keeps `book` for us, but only a notebook the incoming file
      actually defines is meaningful. Dropping the field rather than inventing a
      notebook lets bookOf place the line in the first one. */

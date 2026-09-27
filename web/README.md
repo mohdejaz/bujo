@@ -49,6 +49,29 @@ earlier page surfaces as *N unfinished tasks → Review*. Each one gets a
 decision: pull it forward, park it, or strike it out. That review is the whole
 point of the method — if a task isn't worth moving again, it wasn't worth doing.
 
+**Repeating lines.** Open a line and pick days under **Repeats** — `M T W T F S S`.
+It appears on those days from today forward, marked `↻`. The line you set the rule
+on is the **series**; the days it generates are occurrences.
+
+An occurrence isn't written down until you touch it. Complete one, push one, star
+one — that day becomes a real entry and the rest stay notional. Which means:
+
+- **A day you ignore leaves no trace.** Browse back and it simply isn't there, and
+  it never appears in the carry-over review. A habit can't bury the ritual it was
+  supposed to support.
+- **Edits land on the day.** Rename Wednesday's and only Wednesday changes. Rename
+  the series and every *future* occurrence follows, while ones already made real
+  keep what they said. **Open the series** in the sheet takes you to it.
+- **Delete one day and it stays deleted** — the series records the exception, so it
+  doesn't come back on the next render.
+- **Stop repeating** leaves every occurrence you completed exactly where it is.
+
+The rule lives on an ordinary entry, so it carries that entry's kind, tag, time,
+notes and notebook, and costs the journal nothing however long the habit runs — an
+export holds the rule and the days you actually did, not a row per day forever.
+Search finds the series and any occurrence you touched; it can't find one that was
+never written.
+
 **Tags.** A tag isn't a thing you create or destroy — it exists in a notebook for
 exactly as long as some line there carries it, and disappears on its own when the
 last one is cleared or moved away. `⋯ → Tags` lists the current notebook's tags
