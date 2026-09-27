@@ -39,8 +39,8 @@ whether it's still worth writing.
   `›` behind, so the old page stays honest about what happened.
 - **Tap the text** (or long-press) for the rest: change kind, star, set a time,
   park it in Someday, strike it out, delete.
-- **Swipe the header** — or tap the arrows, or a cell in the strip — to move
-  between pages. The ring shows what's still open.
+- **Swipe the header** — or tap a cell in the strip — to move between pages.
+  The ring shows what's still open.
 - **✦ Someday** is the collection for things with no date. Migrate anything
   there when it stops belonging to a particular day.
 
@@ -90,17 +90,11 @@ group so what you started is under your thumb, each line carries the day it was
 written, and a thin bar under the strip shows where the work sits across the
 span. Swiping left pushes to the next page, not to tomorrow.
 
-**Naming the page.** `Called` next to `Page is` names the unit: call a fortnight
-a **Sprint**, a week a **Cycle**, whatever your team says. The name replaces the
-word everywhere the app uses it — the header reads *Sprint* and nothing else,
-the entry sheet offers *Push to next Sprint*, and typing `next sprint` into a line
-still works. A board page prints only its title; the dates it covers are in the
-strip below, one cell per page.
-It defaults to **Day**, **Week** or **2 Weeks** depending on the size, and each
-notebook names its own. Clear the box to go back to the default.
-
-A day page has nowhere to show it — *Today* and the date already fill both lines
-— so a name only takes effect once the page is a week or longer.
+**The header.** Every dated page shows its date as a stamp, month then day, with
+a letter for the size of the page: `0926 D`, `0921 - 0927 W`, `0921 - 1004 F`.
+Fixed width, so the header can't shift as you page through. There are no `‹ ›`
+arrows: the strip below already has a cell per page, and swiping the header or
+using `←` `→` steps pages.
 
 None of this rewrites anything. A page is a window over the same entries —
 every line keeps the exact date it was written on — so switching back to **Day**

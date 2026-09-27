@@ -216,6 +216,24 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   overflow: hidden;
 }
 .dow, .dmy { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* Stamp and size letter on one line. The stamp is what gives way if the row runs
+   out of width; the letter is one character and always fits. */
+.dow-row {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  max-width: 100%;
+}
+.dow-row .dow { min-width: 0; }
+.dow-u {
+  flex: none;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--dim);
+}
+.dow-u:empty { display: none; }
 .datebtn:active { background: var(--hair-2); }
 .dow {
   font-size: 1.3125rem;
@@ -223,9 +241,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-/* A board page prints only its title, so .dmy is hidden there rather than
-   carrying a range that never had room. [hidden] is enough — .dmy sets no
-   display of its own to beat it. */
+/* A board page prints a 13-character date span on the one line, so it is set
+   smaller to clear the notebook chip on a narrow screen. Tabular figures keep
+   the string a constant width as you page through. .dmy is hidden there rather
+   than carrying a second line — [hidden] is enough, it sets no display of its
+   own to beat it. */
+#head.is-stamp .dow {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
 .dmy {
   font-size: 0.78125rem;
   font-weight: 500;
@@ -937,16 +964,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-book-edit svg { width: 1.125rem; height: 1.125rem; }
 .s-book-edit:active { background: var(--hair-2); color: var(--ink-2); }
 .s-bookname { font-weight: 700; }
-/* The page-unit name sits where a segmented control would, so it is sized to
-   match the controls beside it rather than looking like a text field. */
-.s-unitin {
-  margin-left: auto;
-  max-width: 11ch;
-  padding: 7px 10px;
-  font-size: 0.875rem;
-  font-weight: 600;
-  text-align: right;
-}
+
 
 .s-block { padding: 10px 8px 14px; }
 .s-block-h {

@@ -24,17 +24,16 @@
 
     <header id="head">
       <div class="head-row">
-        <button class="icon-btn" id="prevDay" aria-label="Previous page">
-          <svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7" /></svg>
-        </button>
-
+        <!-- No arrow buttons: the strip below is one cell per page, the header
+             swipes, and the arrow keys still step pages. -->
         <button class="datebtn" id="dateBtn">
-          <span class="dow" id="dow">Saturday</span>
+          <!-- The stamp and the page size sit on one line; the size is its own
+               element so it can be styled down without markup in a string. -->
+          <span class="dow-row">
+            <span class="dow" id="dow">0830</span>
+            <span class="dow-u" id="dowUnit"></span>
+          </span>
           <span class="dmy" id="dmy">30 August</span>
-        </button>
-
-        <button class="icon-btn" id="nextDay" aria-label="Next page">
-          <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" /></svg>
         </button>
 
         <!-- Which notebook you are in, always on screen: the one thing you must
