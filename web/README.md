@@ -92,7 +92,7 @@ span. Swiping left pushes to the next page, not to tomorrow.
 
 **Naming the page.** `Called` next to `Page is` names the unit: call a fortnight
 a **Sprint**, a week a **Cycle**, whatever your team says. The name replaces the
-word everywhere the app uses it — the header reads *This Sprint* and nothing else,
+word everywhere the app uses it — the header reads *Sprint* and nothing else,
 the entry sheet offers *Push to next Sprint*, and typing `next sprint` into a line
 still works. A board page prints only its title; the dates it covers are in the
 strip below, one cell per page.

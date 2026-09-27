@@ -205,15 +205,17 @@ const periodHas = (s, d) => s !== "someday" && d >= periodStart(s) && d <= perio
 const pushLabel = () => (periodLen() === 1 ? "tomorrow" : "next " + unitName());
 const nextPageLabel = () => (periodLen() === 1 ? "next day" : "next " + unitName());
 
-/* "This Sprint" beats a pair of dates for the page you're on. Null falls back to
-   the range, the same way relative() falls back to the date. */
+/* The page you're on is just what it's called — the strip already shows which
+   cell is selected, so "This" only took up room. The pages either side keep
+   their marker, because that is what tells you that you have navigated away.
+   Null for anything further out, and the caller falls back to the bare name. */
 function relativePeriod(s) {
   const n = periodLen();
   if (n === 1) return relative(s);
   const unit = unitName();
   const here = periodStart(s);
   const now = periodStart(TODAY());
-  if (here === now) return "This " + unit;
+  if (here === now) return unit;
   if (here === nextPeriod(now)) return "Next " + unit;
   if (nextPeriod(here) === now) return "Last " + unit;
   return null;
@@ -2198,8 +2200,9 @@ function openHelp() {
       <b style="color:var(--ink-2)">Board pages</b><br>
       <b>Page is</b> makes a page a week or a fortnight instead of a day — a
       sprint on one page — and <b>Called</b> names it, so the header can read
-      <i>This Sprint</i> or <i>This Cycle</i> rather than <i>2 Weeks</i>. Each
-      notebook names its own. A board page adds a third bullet state: the
+      <i>Sprint</i> or <i>Cycle</i> rather than <i>2 Weeks</i>. The pages either
+      side say <i>Next Sprint</i> and <i>Last Sprint</i>. Each notebook names its
+      own. A board page adds a third bullet state: the
       bullet cycles todo → in flight → done, in-flight lines rise to the top of
       their group, and swiping left pushes to the next page rather than to
       tomorrow. Nothing is rewritten when you change it, so switching back to
