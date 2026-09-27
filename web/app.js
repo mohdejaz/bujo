@@ -219,17 +219,6 @@ function relativePeriod(s) {
   return null;
 }
 
-/* "22 Sep–5 Oct", dropping the first month when both ends share it. Unspaced en
-   dash: the right form for a number range, and the narrowest. */
-function periodRange(s) {
-  const a = parse(periodStart(s));
-  const b = parse(periodEnd(s));
-  const am = MON[a.getMonth()].slice(0, 3);
-  const bm = MON[b.getMonth()].slice(0, 3);
-  const head = am === bm ? String(a.getDate()) : `${a.getDate()} ${am}`;
-  return `${head}–${b.getDate()} ${bm}`;
-}
-
 /* ── date phrases ──────────────────────────────────────────────────── */
 
 /* "India Trip on Nov 21, 2026" → a line reading "India Trip", dated 2026-11-21.
@@ -893,7 +882,6 @@ const bulletClass = (e) =>
         : `b b-${e.type}`;
 
 function render() {
-  $("#head").classList.toggle("is-board", !isSomeday() && isBoard());
   renderHead();
   renderStrip();
   renderList();
@@ -908,23 +896,25 @@ function renderHead() {
   if (isSomeday()) {
     $("#dow").textContent = "Someday";
     $("#dmy").textContent = "no date, not forgotten";
+    $("#dmy").hidden = false;
     head.classList.remove("is-today");
   } else if (isBoard()) {
-    /* Same shape as a day page: what this page is called on top, the dates that
-       pin it down underneath. Naming the unit is what makes that work — the
-       title is only as long as you choose to make it. */
+    /* Just the title. A span has no single date to print under it, and a range
+       squeezed into this slot only ever got clipped — the strip below already
+       carries the dates, one cell per page. */
     const [from, to] = selSpan();
-    const year = parse(to).getFullYear();
     $("#dow").textContent = relativePeriod(S.sel) || unitName();
-    $("#dmy").textContent =
-      periodRange(S.sel) + (year === new Date().getFullYear() ? "" : ` ${year}`);
+    $("#dmy").textContent = "";
+    $("#dmy").hidden = true;
     head.classList.toggle("is-today", from <= today && today <= to);
   } else {
     const d = parse(S.sel);
     $("#dow").textContent = relative(S.sel) || DOW[d.getDay()];
+    /* A day page keeps its second line: "Today" alone doesn't say which day. */
     $("#dmy").textContent =
       `${DOW[d.getDay()].slice(0, 3)} · ${d.getDate()} ${MON[d.getMonth()]}` +
       (d.getFullYear() === new Date().getFullYear() ? "" : ` ${d.getFullYear()}`);
+    $("#dmy").hidden = false;
     head.classList.toggle("is-today", S.sel === today);
   }
 
