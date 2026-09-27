@@ -223,10 +223,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: -0.02em;
   white-space: nowrap;
 }
-/* A board page's title sits at the same size as a day page's — the two headers
-   read the same way. Its date range goes in the subtitle, where tabular figures
-   stop the numbers shifting about as you page through. */
-#head.is-board .dmy { font-variant-numeric: tabular-nums; }
+/* A board page prints only its title, so .dmy is hidden there rather than
+   carrying a range that never had room. [hidden] is enough — .dmy sets no
+   display of its own to beat it. */
 .dmy {
   font-size: 0.78125rem;
   font-weight: 500;
