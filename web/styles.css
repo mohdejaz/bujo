@@ -941,6 +941,16 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-book-edit svg { width: 1.125rem; height: 1.125rem; }
 .s-book-edit:active { background: var(--hair-2); color: var(--ink-2); }
 .s-bookname { font-weight: 700; }
+/* The page-unit name sits where a segmented control would, so it is sized to
+   match the controls beside it rather than looking like a text field. */
+.s-unitin {
+  margin-left: auto;
+  max-width: 11ch;
+  padding: 7px 10px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-align: right;
+}
 
 .s-block { padding: 10px 8px 14px; }
 .s-block-h {
