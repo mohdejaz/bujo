@@ -79,14 +79,27 @@ function relative(s) {
  * journal written before notebooks upgrades by gaining a notebook record, and
  * not one entry is rewritten.
  *
- *   book = { id, name, period, sprintStart }
+ *   book = { id, name, period, sprintStart, archived? }
  *
  * Page size belongs to the notebook, not the app, so work can be a fortnight
  * sprint board while private stays a daily log. Theme, text size and
  * Hide-logged stay device-wide — they describe this screen, not this journal.
+ *
+ * Archiving is the same trick one level up: `archived` is a *filter* on the
+ * notebook list, not a deletion. An archived notebook keeps every entry it ever
+ * had, drops out of the picker and the move-a-line chips, and stops counting
+ * against BOOK_MAX — so a finished quarter can step aside without anyone having
+ * to empty it first. Unarchiving is the same flag going the other way, which is
+ * why nothing in here is ever lost.
  */
 
+/* How many notebooks you can have *open* at once. Archived ones are outside
+   this — that is the whole point of archiving one. */
 const BOOK_MAX = 6;
+/* The whole list, archive included, is capped too: withBooks() truncates, and a
+   truncated notebook silently re-homes its entries, so this has to sit well
+   above anything BOOK_MAX can produce rather than equal to it. */
+const BOOK_KEEP_MAX = 40;
 const BOOK_NAME_MAX = 14;
 
 const newBook = (name, period = "day", sprintStart = null) => ({
@@ -116,29 +129,47 @@ function withBooks(raw) {
   const legacy = [newBook("journal", raw.period || "day", raw.sprintStart || null)];
   raw.books = (Array.isArray(raw.books) ? raw.books : [])
     .filter((b) => b && typeof b === "object")
-    .slice(0, BOOK_MAX)
-    .map((b) => ({
-      id: typeof b.id === "string" && b.id ? b.id : uid(),
-      name: cleanLabel(b.name) || "journal",
-      period: PERIOD_DAYS[b.period] ? b.period : "day",
-      sprintStart: /^\d{4}-\d{2}-\d{2}$/.test(b.sprintStart || "") ? b.sprintStart : null,
-    }));
+    .slice(0, BOOK_KEEP_MAX)
+    .map((b) => {
+      const bk = {
+        id: typeof b.id === "string" && b.id ? b.id : uid(),
+        name: cleanLabel(b.name) || "journal",
+        period: PERIOD_DAYS[b.period] ? b.period : "day",
+        sprintStart: /^\d{4}-\d{2}-\d{2}$/.test(b.sprintStart || "") ? b.sprintStart : null,
+      };
+      // absent rather than false when open, so an export gains no noise
+      if (b.archived === true) bk.archived = true;
+      return bk;
+    });
   if (!raw.books.length) raw.books = legacy;
+  /* Something has to be open. A file claiming every notebook is archived would
+     otherwise leave the app with no page to draw, so the first one comes back. */
+  if (!raw.books.some((b) => !b.archived)) delete raw.books[0].archived;
   // whatever the page size used to be, it is a property of a notebook now
   delete raw.period;
   delete raw.sprintStart;
-  if (!raw.books.some((b) => b.id === raw.book)) raw.book = raw.books[0].id;
+  /* db.book must name an *open* notebook: pointing it at an archived one would
+     show a notebook the picker says isn't there. */
+  if (!raw.books.some((b) => b.id === raw.book && !b.archived))
+    raw.book = raw.books.find((b) => !b.archived).id;
   return raw;
 }
 
 const byBook = (id) => db.books.find((b) => b.id === id);
-const curBook = () => byBook(db.book) || db.books[0];
+/* The notebooks you can be in. withBooks guarantees this is never empty, so
+   every caller can take the first one without checking. */
+const liveBooks = () => db.books.filter((b) => !b.archived);
+const archivedBooks = () => db.books.filter((b) => b.archived);
+const firstLive = () => liveBooks()[0] || db.books[0];
+const curBook = () => byBook(db.book) || firstLive();
 const bookName = (id) => byBook(id)?.name || "";
 /* The notebook a line belongs to: its own when that notebook still exists, else
-   the first. One rule covers both a journal written before notebooks (no field
-   at all) and a line imported naming something unknown — it surfaces in the
-   first notebook rather than vanishing. */
-const bookOf = (e) => (e.book && byBook(e.book) ? e.book : db.books[0].id);
+   the first open one. One rule covers both a journal written before notebooks
+   (no field at all) and a line imported naming something unknown — it surfaces
+   in the first notebook rather than vanishing. Archived notebooks keep their own
+   lines, but nothing ever *falls* into one: a line with nowhere to go lands
+   somewhere you can actually see it. */
+const bookOf = (e) => (e.book && byBook(e.book) ? e.book : firstLive().id);
 /* Entries in the notebook being viewed — the scope of nearly everything. */
 const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
 /* Counted through bookOf, so the entries of a pre-notebooks journal count toward
@@ -1020,6 +1051,8 @@ const ICON = {
   recur: '<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 0113.7-5.6L20 8.5M20 4.5V9h-4.5"/><path d="M20 12a8 8 0 01-13.7 5.6L4 15.5M4 19.5V15h4.5"/></svg>',
   tag: '<svg viewBox="0 0 24 24"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z"/><circle cx="7.5" cy="7.5" r="1.3"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  /* a lidded box: the notebook is put away, not thrown out */
+  archive: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5v10.5a1.5 1.5 0 001.5 1.5h11a1.5 1.5 0 001.5-1.5V8.5M10 13h4"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -1638,8 +1671,10 @@ function openEntry(id) {
          segmented control: six notebooks would never fit one row, and this is
          the pattern the tag picker above already uses. Only the notebooks it
          isn't in are offered — tapping the one it's already in would be a
-         no-op wearing the same clothes as a real action. */
-      const elsewhere = db.books.filter((bk) => bk.id !== bookOf(e));
+         no-op wearing the same clothes as a real action. Archived notebooks are
+         not offered either: they are put away, and filing fresh work into one
+         would be a line you couldn't find again. */
+      const elsewhere = liveBooks().filter((bk) => bk.id !== bookOf(e));
       if (elsewhere.length) {
         const moveRow = el("div", "s-act s-tag");
         moveRow.innerHTML = ICON.move + "<span>Notebook</span>";
@@ -2067,8 +2102,39 @@ function goBook(id) {
   render();
 }
 
+/* Put the archive flag up or down. Both directions are labelled mutations —
+   snapshot() already carries db.books and db.book, so Undo puts the notebook,
+   its page shape and the one you were looking at back together.
+
+   Archiving the notebook you are *in* has to move you somewhere, and the first
+   other open one is the only answer that needs no question asked. goBook does
+   the rest: it is the same context change as switching by hand, because the
+   notebook you land in may keep a different page shape. */
+function archiveBook(id) {
+  const bk = byBook(id);
+  if (!bk || bk.archived || liveBooks().length < 2) return;
+  const next = liveBooks().find((b) => b.id !== id);
+  mutate("Archived " + bk.name, () => {
+    bk.archived = true;
+  });
+  if (db.book === id) goBook(next.id);
+  else render();
+}
+
+/* The way back. Refused when the shelf is full rather than silently dropping
+   something else off it — the notebook stays archived and nothing is lost. */
+function unarchiveBook(id) {
+  const bk = byBook(id);
+  if (!bk || !bk.archived) return;
+  if (liveBooks().length >= BOOK_MAX) return toast(`${BOOK_MAX} notebooks open already`);
+  mutate("Restored " + bk.name, () => {
+    delete bk.archived;
+  });
+}
+
 /* A name no other notebook is already using, so "New notebook" twice doesn't
-   give you two rows you can't tell apart. */
+   give you two rows you can't tell apart. Archived names count: one of them can
+   come back at any time, and it should not collide when it does. */
 function freeBookName(base) {
   const taken = new Set(db.books.map((b) => b.name));
   if (!taken.has(base)) return base;
@@ -2084,7 +2150,7 @@ function openBooks() {
     );
 
     const list = el("div", "s-acts");
-    db.books.forEach((bk) => {
+    liveBooks().forEach((bk) => {
       const row = el("div", "s-book" + (bk.id === db.book ? " on" : ""));
       /* Two buttons, so the row can't be one: the whole width switches, and the
          pencil at the end edits. Nested buttons would be invalid markup. */
@@ -2106,7 +2172,7 @@ function openBooks() {
     });
     b.append(list);
 
-    if (db.books.length < BOOK_MAX)
+    if (liveBooks().length < BOOK_MAX)
       b.append(
         actRow(ICON.plus, "New notebook", () => {
           const bk = newBook(freeBookName("notebook"));
@@ -2115,6 +2181,45 @@ function openBooks() {
           openBookEdit(bk.id); // land straight in the name field
         })
       );
+
+    /* The shelf. Present only when something is on it, so a journal that has
+       never archived anything never learns the word. Each row still carries its
+       entry count — that count is the reason the notebook is here rather than
+       deleted — and the arrow puts it back. Tapping the name opens the editor
+       rather than switching: you cannot be *in* an archived notebook. */
+    const off = archivedBooks();
+    if (off.length) {
+      const shelf = el("div", "s-acts");
+      shelf.append(el("div", "sep", "Archived"));
+      off.forEach((bk) => {
+        const row = el("div", "s-book off");
+        const pick = el("button", "s-book-pick");
+        pick.append(
+          el("span", "s-book-dot"),
+          el("span", "s-book-name", safeHtml(bk.name)),
+          el("span", "k", `${bookCount(bk.id)}`)
+        );
+        pick.onclick = () => openBookEdit(bk.id);
+        const back = el("button", "s-book-edit", ICON.undo);
+        back.setAttribute("aria-label", `Restore ${bk.name}`);
+        back.onclick = () => {
+          unarchiveBook(bk.id);
+          refreshSheet();
+        };
+        row.append(pick, back);
+        shelf.append(row);
+      });
+      b.append(shelf);
+      b.append(
+        el(
+          "div",
+          "s-sub s-shelf-note",
+          "Archived notebooks keep their entries and don't count toward the " +
+            BOOK_MAX +
+            "."
+        )
+      );
+    }
   };
   (sheet.hidden ? openSheet : swapSheet)(build);
 }
@@ -2166,7 +2271,7 @@ function openTags() {
   (sheet.hidden ? openSheet : swapSheet)(build);
 }
 
-/* Rename, and delete when there is nothing to lose. */
+/* Rename, put away, bring back — and delete when there is nothing to lose. */
 function openBookEdit(id) {
   const build = (bd, first) => {
     const bk = byBook(id);
@@ -2195,16 +2300,37 @@ function openBookEdit(id) {
     acts.append(...periodRows(bk));
     acts.append(actRow(ICON.books, "All notebooks", openBooks));
 
+    const n = bookCount(id);
+
+    /* The way out for a notebook with entries in it, and the way back. Not
+       danger-styled: putting something on a shelf is not destructive, and the
+       count on the row says the entries are going with it. Archiving needs
+       another notebook to leave you in, so the last open one can't go. */
+    if (bk.archived)
+      acts.append(
+        actRow(ICON.undo, "Restore notebook", () => {
+          unarchiveBook(id);
+          refreshSheet();
+        })
+      );
+    else if (liveBooks().length > 1)
+      acts.append(
+        actRow(ICON.archive, "Archive notebook", () => {
+          archiveBook(id);
+          openBooks();
+        }, { k: n ? `${n}` : "" })
+      );
+
     /* Offered only when the notebook is empty, so no entry can be orphaned —
        and absent rather than greyed out, because a dead control invites a
-       second tap. The last notebook always stays. */
-    const n = bookCount(id);
-    if (db.books.length > 1 && n === 0)
+       second tap. The last open notebook always stays; an archived one is free
+       to go, since something else is already open. */
+    if (n === 0 && (bk.archived || liveBooks().length > 1))
       acts.append(
         actRow(ICON.trash, "Delete notebook", () => {
           mutate("Deleted " + bk.name, () => {
             db.books = db.books.filter((x) => x.id !== id);
-            if (db.book === id) db.book = db.books[0].id;
+            if (db.book === id) db.book = firstLive().id;
           });
           if (!isSomeday()) S.sel = periodStart(S.sel);
           render();
@@ -2217,7 +2343,10 @@ function openBookEdit(id) {
         el(
           "div",
           "s-sub",
-          `${n} ${n === 1 ? "entry" : "entries"} in here. Move them elsewhere to delete it.`
+          `${n} ${n === 1 ? "entry" : "entries"} in here. ` +
+            (bk.archived
+              ? "They're kept — restore it to write in it again."
+              : "Archiving keeps them; deleting needs it empty.")
         )
       );
 
@@ -2436,7 +2565,10 @@ function openHelp() {
       whatever you name them. One is open at a time, and each keeps its own page
       size, so work can be a fortnight board while private stays a daily page.
       Tap the chip to switch, rename, or add one. To move a line, open it and
-      pick a notebook under <b>Notebook</b>.<br><br>
+      pick a notebook under <b>Notebook</b>. A notebook you're done with can be
+      <b>archived</b>: it keeps every entry, leaves the picker, and stops
+      counting toward the six you can have open — restore it any time from the
+      <b>Archived</b> list. Deleting is only for an empty one.<br><br>
       <b style="color:var(--ink-2)">Board pages</b><br>
       <b>Page is</b> makes a page a week or a fortnight instead of a day — a
       sprint on one page. The header shows the dates it covers, month then day,

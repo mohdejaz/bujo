@@ -955,6 +955,12 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-book.on .s-book-dot { border-color: var(--accent); background: var(--accent); }
 .s-book.on .s-book-name { font-weight: 700; }
+/* An archived notebook is present but put away: the name dims and the dot goes
+   dashed, so the row reads as a shelf rather than a choice. It is still a live
+   button — it opens the editor — so it never drops to a disabled grey. */
+.s-book.off .s-book-name { color: var(--dim); }
+.s-book.off .s-book-dot { border-style: dashed; }
+.s-shelf-note { margin: 10px 0 0; }
 .s-book-edit {
   flex: none;
   width: var(--tap);
