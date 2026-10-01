@@ -1555,38 +1555,6 @@ function actRow(icon, label, fn, opts = {}) {
   return b;
 }
 
-/* A sheet row that asks for a date instead of acting straight away. Push only
-   ever promises the next page, so anything further out — a week on Thursday, a
-   date next March — needs the day said out loud. `min` keeps it forward-looking:
-   a line migrated into the past would land behind you and read as a line that
-   vanished.
-
-   The whole row is the target, not just the small field at its end; showPicker
-   needs the user gesture it is called from, and throws where it is unsupported,
-   so focus is the fallback. */
-function dateRow(icon, label, min, fn) {
-  const r = el("div", "s-act");
-  r.innerHTML = icon + `<span>${label}</span>`;
-  const inp = el("input", "s-field");
-  inp.type = "date";
-  inp.min = min;
-  inp.setAttribute("aria-label", label);
-  inp.onchange = () => {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value) || inp.value < min) return;
-    fn(inp.value);
-  };
-  r.onclick = (ev) => {
-    if (ev.target === inp) return;
-    try {
-      inp.showPicker();
-    } catch {
-      inp.focus();
-    }
-  };
-  r.append(inp);
-  return r;
-}
-
 function openEntry(id) {
   /* `id` may name a virtual occurrence. It is resolved to a real row only when
      something is actually changed — touch() does that and moves eid onto the new
@@ -1844,13 +1812,28 @@ function openEntry(id) {
             })
           );
         /* Any day from today forward, including the ones no date phrase can
-           name. Picking the day this line already sits on is a no-op rather
-           than a stub pointing at itself. */
+           name. The app's own month grid rather than a native date field: it
+           shows which days are already busy, it is the same calendar the ring
+           opens, and it behaves the same on every phone. */
         acts.append(
-          dateRow(ICON.move, "Move to a date", TODAY(), (d) => {
-            if (d === e.date) return closeSheet();
-            migrate(touch(), d, "Moved to " + whenLabel(d).toLowerCase());
-            closeSheet();
+          actRow(ICON.move, "Move to a date", () => {
+            const from = e.date;
+            /* Open where the choices are. On the 30th, today's month is all
+               grey but one cell — so a line sitting on or before today opens
+               on tomorrow's month. Today stays one ‹ away, for pulling a
+               future line back. */
+            S.monthAnchor = from && from > TODAY() ? from : shift(TODAY(), 1);
+            openMonth({
+              title: "Move to",
+              sub: "Tap a day. The line moves there and leaves a mark behind.",
+              min: TODAY(),
+              pick: (d) => {
+                closeSheet();
+                // the day it already sits on is a no-op, not a stub pointing at itself
+                if (d === from) return;
+                migrate(eid, d, "Moved to " + whenLabel(d).toLowerCase());
+              },
+            });
           })
         );
         if (!periodHas(S.sel, TODAY()))
@@ -2396,7 +2379,12 @@ function openBookEdit(id) {
   (sheet.hidden ? openSheet : swapSheet)(build);
 }
 
-function openMonth() {
+/* The month grid. Two jobs, one calendar: with no options it navigates — tap a
+   day and the journal opens there. Given `pick` it becomes a destination
+   chooser, and the caller decides what the day means. `min` greys out the days
+   before it, so a picker that only looks forward cannot be made to look back. */
+function openMonth(opts = {}) {
+  const { title = "The month", sub = null, pick = null, min = null } = opts;
   const build = (b) => {
     const d = parse(S.monthAnchor);
     const y = d.getFullYear(),
@@ -2426,17 +2414,34 @@ function openMonth() {
     for (let i = 1; i <= days; i++) {
       const ds = iso(new Date(y, m, i));
       const pulse = dayPulse(ds);
-      const c = el("div", "mon-c" + (pulse === "clear" ? " clear" : "") + (ds === TODAY() ? " today" : ""));
+      const off = min !== null && ds < min;
+      const c = el(
+        "div",
+        "mon-c" +
+          (pulse === "clear" ? " clear" : "") +
+          (ds === TODAY() ? " today" : "") +
+          (off ? " off" : "")
+      );
       c.append(pulse ? el("div", "pip", String(i)) : el("span", "", String(i)));
-      c.onclick = () => {
-        closeSheet();
-        // land on the page that contains the day, whatever size a page is
-        go(ds);
-      };
+      if (!off)
+        c.onclick = () => {
+          if (pick) return pick(ds);
+          closeSheet();
+          // land on the page that contains the day, whatever size a page is
+          go(ds);
+        };
       g.append(c);
     }
     wrap.append(g);
-    b.append(el("div", "s-title", "The month"), wrap);
+    b.append(el("div", "s-title", title), wrap);
+
+    /* Picking says what the tap will do; navigating counts the month instead —
+       a line about how much got written is noise when you are aiming at a day. */
+    if (sub) {
+      const t = el("div", "s-sub", sub);
+      t.style.cssText = "margin:16px 0 0;text-align:center";
+      return b.append(t);
+    }
 
     const inMonth = mine().filter((e) => e.date?.startsWith(`${y}-${String(m + 1).padStart(2, "0")}`));
     const done = inMonth.filter((e) => e.state === "done").length;
