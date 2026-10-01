@@ -1555,6 +1555,38 @@ function actRow(icon, label, fn, opts = {}) {
   return b;
 }
 
+/* A sheet row that asks for a date instead of acting straight away. Push only
+   ever promises the next page, so anything further out — a week on Thursday, a
+   date next March — needs the day said out loud. `min` keeps it forward-looking:
+   a line migrated into the past would land behind you and read as a line that
+   vanished.
+
+   The whole row is the target, not just the small field at its end; showPicker
+   needs the user gesture it is called from, and throws where it is unsupported,
+   so focus is the fallback. */
+function dateRow(icon, label, min, fn) {
+  const r = el("div", "s-act");
+  r.innerHTML = icon + `<span>${label}</span>`;
+  const inp = el("input", "s-field");
+  inp.type = "date";
+  inp.min = min;
+  inp.setAttribute("aria-label", label);
+  inp.onchange = () => {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(inp.value) || inp.value < min) return;
+    fn(inp.value);
+  };
+  r.onclick = (ev) => {
+    if (ev.target === inp) return;
+    try {
+      inp.showPicker();
+    } catch {
+      inp.focus();
+    }
+  };
+  r.append(inp);
+  return r;
+}
+
 function openEntry(id) {
   /* `id` may name a virtual occurrence. It is resolved to a real row only when
      something is actually changed — touch() does that and moves eid onto the new
@@ -1699,10 +1731,9 @@ function openEntry(id) {
 
       const timeRow = el("div", "s-act");
       timeRow.innerHTML = ICON.clock + "<span>Time</span>";
-      const tin = el("input", "s-seg");
+      const tin = el("input", "s-field");
       tin.type = "time";
       tin.value = e.time || "";
-      tin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
       tin.onchange = () => mutate(null, () => (byId(touch()).time = tin.value || null));
       timeRow.append(tin);
       acts.append(timeRow);
@@ -1812,6 +1843,16 @@ function openEntry(id) {
               closeSheet();
             })
           );
+        /* Any day from today forward, including the ones no date phrase can
+           name. Picking the day this line already sits on is a no-op rather
+           than a stub pointing at itself. */
+        acts.append(
+          dateRow(ICON.move, "Move to a date", TODAY(), (d) => {
+            if (d === e.date) return closeSheet();
+            migrate(touch(), d, "Moved to " + whenLabel(d).toLowerCase());
+            closeSheet();
+          })
+        );
         if (!periodHas(S.sel, TODAY()))
           acts.append(
             actRow(ICON.cal, "Pull into today", () => {
@@ -2069,10 +2110,9 @@ function periodRows(bk) {
   if (bk.period === "fortnight") {
     const sprintRow = el("div", "s-act");
     sprintRow.innerHTML = ICON.cal + "<span>Sprint starts</span>";
-    const sin = el("input", "s-seg");
+    const sin = el("input", "s-field");
     sin.type = "date";
     sin.value = bk.sprintStart || mondayOf(TODAY());
-    sin.style.cssText = "margin-left:auto;padding:7px 10px;font-size:14px;font-weight:600";
     sin.onchange = () => {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(sin.value)) return;
       bk.sprintStart = mondayOf(sin.value);
@@ -2550,8 +2590,9 @@ function openHelp() {
       migrate it.<br><br>
       <b style="color:var(--ink-2)">The daily habit</b><br>
       Open the app in the morning. Anything left behind gets a decision:
-      pull it forward, park it in Someday, or strike it out. Migration is the
-      point — if a task isn't worth rewriting, it wasn't worth doing.<br><br>
+      pull it forward, send it to a day further out with <b>Move to a date</b>,
+      park it in Someday, or strike it out. Migration is the point — if a task
+      isn't worth rewriting, it wasn't worth doing.<br><br>
       <b style="color:var(--ink-2)">Repeating a line</b><br>
       Open a line and pick days under <b>Repeats</b> — gym on M/W/F, standup on
       weekdays. It then shows on those days from today forward, marked with
