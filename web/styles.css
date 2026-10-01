@@ -1082,6 +1082,9 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .mon-c.clear .pip { background: var(--good); }
 .mon-c.today { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 11px; }
 .mon-c.blank { visibility: hidden; }
+/* A day the picker won't take — still printed, so the month reads as a month,
+   but plainly not a target. */
+.mon-c.off { opacity: 0.3; }
 
 .s-search {
   width: 100%;
