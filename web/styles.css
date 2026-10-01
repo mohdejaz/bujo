@@ -1012,6 +1012,26 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
 
+/* A native field at the end of a sheet row — a time, a date. Shaped like a
+   .s-seg so a row that asks for a value sits level with the rows that only
+   offer choices. appearance:none keeps iOS from painting its own grey box
+   over the card. */
+.s-field {
+  margin-left: auto;
+  padding: 7px 10px;
+  border-radius: 13px;
+  background: var(--hair-2);
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 34px;
+}
+.s-field::-webkit-date-and-time-value { text-align: right; }
+.s-field::-webkit-calendar-picker-indicator { opacity: 0.55; }
+
 /* month dot-grid */
 .mon { margin: 2px 0 6px; }
 .mon-h {
