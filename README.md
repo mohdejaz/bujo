@@ -1,10 +1,5 @@
 # bujo
 
-A bullet journal, in two programs. **Use the PWA.** The command-line version is
-kept for its archive, not for daily use.
-
-## The app — [`web/`](web/)
-
 A touch-first bullet journal built for a thumb, live at
 **https://mohdejaz.github.io/bujo/**. Add it to your home screen and it works
 offline.
@@ -16,250 +11,25 @@ morning for a decision. The journal lives in `localStorage` on the device and
 is exported and imported as JSON from the ☰ menu — that export is the only
 backup, so take one now and then.
 
-No build step, no dependencies, no account. See [`web/README.md`](web/README.md).
+No build step, no dependencies, no account.
 
-**This is the version to use.**
+## Running it
 
-## The CLI — `bujo.py` *(dormant)*
-
-A command-line bullet journal backed by SQLite, and where this project started.
-**No longer developed.** Everything written since is in the PWA.
-
-It is kept for one reason: it is the only thing that can read a `bujo.db`. That
-file is local and never committed, and the meaning of what's in it — a tree of
-parent links with symbol semantics, plus a separate log table — is defined by
-this code, not by the schema. Open it to read an existing journal back. Don't
-start a new one in it.
-
-It shares nothing with the app above: separate storage, a different model, and
-it neither reads nor writes the PWA's data. There is no migration between them.
-
-Everything in it lives in a tree: the root task contains folders (usually daily
-folders like `07.18.sat`), folders contain tasks/notes/meetings/events, and
-tasks can contain their own child tasks and notes. You navigate the tree with
-`use`/`cd` and act on entries by their numeric id.
-
-The rest of this file documents that CLI.
-
-## Requirements
-
-- Python 3
-- `pyreadline3` on Windows if you want line editing/history in the prompt
-  (optional — bujo runs fine without it)
-
-## Getting started
+The app is [`web/`](web/) — four files and three PNGs, served by any static
+host. Locally:
 
 ```sh
-./bujo.sh     # macOS/Linux
-bujo.bat      # Windows
+cd web
+./serve.sh          # prints the LAN URL; open it on your phone
+./serve.sh 9000     # or pick a port
 ```
 
-Both wrappers set `BUJO_DB` to `./bujo.db` before launching `bujo.py`, so the
-database lives alongside the script. Without that variable, bujo defaults to
-`~/.bujo/bujo.db`. You can point it anywhere:
+*Add to Home Screen* and offline mode need HTTPS or localhost, so over the LAN
+you get the app but not the installable layer. Pushes to `main` that touch
+`web/` deploy to GitHub Pages automatically.
 
-```sh
-BUJO_DB=/path/to/bujo.db python3 bujo.py
-```
-
-## Concepts
-
-- **Root** — the top-level task every folder lives under.
-- **Folder** (`+`) — a root-level container, e.g. a daily folder `mm.dd.dow`
-  or a named folder like `cal`.
-- **Task** (`*`) — an open item; can have child tasks/notes.
-- **Note** (`-`) — non-actionable text.
-- **Meeting** (`@`) — a time-prefixed entry (`hh:mm`).
-- **Event** (`o`) — a calendar entry, always filed under the root-level `cal`
-  folder.
-- Deleting with `~` is a toggle, not a hard delete — it marks the entry (and
-  its children) with `~` and remembers the prior symbol(s), so running `~`
-  again restores them. `~~` permanently purges an entry that's already
-  marked `~`, removing it (and its children) from the database for good.
-- Entries can be given a recurrence rule with `schd` so they're
-  auto-copied into matching daily folders as those folders get created.
-- A task can carry a **due date** (`due`), which is a property of the task
-  itself, not of the folder it sits in: it survives `>`, `<`, and `ro`. Bare
-  `due` shows a journal-wide agenda of what's overdue, due today, or coming up.
-- Every entry gets a numeric **id**, which you use to reference it in
-  commands like `x`, `b`, `!`, `>`, `~`, `tag`, etc.
-
-## Commands
-
-```
-* <text>        create a new task
-- <text>        create a new note
-@ hh:mm <text>  create a new meeting, time-prefixed; meetings must be
-                filed directly under a folder (the current folder, or
-                ^<id> where <id> is a folder)
-                for *, -, and @: prefix <text> with ^<id> to create
-                under <id> instead of the current task, without cding
-                into it first, e.g. `- ^5 remember X`
-o mm.dd <text>  create a calendar event; always filed under the root-level
-                "cal" folder (created if needed), regardless of current task
-e <id> <text>   edit an entry's text; for meetings/events the hh:mm/mm.dd
-                prefix is kept and only the text after it is replaced
-e <name> <new name>
-                rename a root-level folder, from anywhere
-schd <dow [dow...]> <id>
-                recur <id> on the given weekday(s) (mon tue wed thu fri
-                sat sun); works from anywhere
-schd <dom [dom...]> <id>
-                recur <id> on the given day(s) of month (1-31); works
-                from anywhere
-schd <id>       show <id>'s current recurrence rule(s); works from
-                anywhere
-                recurring entries are copied as fresh open items into a
-                daily folder (mm.dd.dow) the moment that folder is
-                first created (via +, >, <, or cp); entries with
-                children, folders, events, or deleted entries can't be
-                scheduled
-unschd <id>     clear <id>'s recurrence rule(s); works from anywhere
-due <spec> <id> [id...]
-                give entries a due date; <spec> is mm.dd, today/tod,
-                tom, a weekday (mon..sun, next occurrence), or +N
-                days out; works from anywhere. The date rides with
-                the entry when it moves, and is independent of which
-                daily folder the entry sits in
-due <id>        show <id>'s due date and how far off it is
-undue <id> [id...]
-                clear the due date on entries
-due             (no args) agenda of every open entry with a due date,
-                across the whole journal, grouped overdue / today /
-                upcoming
-x <id> [id...]  mark task(s)/note(s)/meeting(s) as done
-b <id> [id...]  toggle blocked (⊘) on open task(s); blocked tasks still
-                show in ls and still roll over with ro
-& <id> [id...]  toggle snooze on open task(s); snoozed tasks are
-                hidden from plain ls (see with ls & or ls f), but ro
-                still picks them up and auto-unsnoozes them on rollover
-! <id> [id...]  toggle priority on entries; priority entries sort first
-                in ls output
-`<id>           mark <id> as what you're currently working on; shown
-                in the prompt and highlighted in ls; picking a new
-                one switches (remembering the one you switched from);
-                marking the active task done auto-reverts to it
-> <id> [id...]  move entries to tomorrow's folder (mm.dd.dow), creating
-                it if needed; entries move as whole branches (children
-                come along) and keep their symbol; completed (x) entries
-                stay put, like with ro; the move is recorded in the
-                action log (see `log <id>`)
-< <name> <id> [id...]
-                move entries to a root-level named folder, creating it
-                if needed; for a daily folder use mm.dd as the name,
-                auto-expanded to mm.dd.dow
-mv <id> [id...] move entries into the current task/folder from
-                wherever they currently live; works on any id, so
-                you can pull in something an `f` search turned up
-                without cd-ing to it first. Unlike <, the
-                destination can be a task, not just a root-level
-                folder; entries move as whole branches. Not
-                allowed at root
-~ <id> [id...]  toggle delete on entries and all their children; marks
-                them with ~ instead of removing them (see with ls ~ or
-                ls f); running ~ again on an already-deleted id restores
-                it and its children to their prior symbol(s)
-~ <name>        toggle delete on a root-level folder (and its children),
-                from anywhere
-~~ <id> [id...] permanently purge already-deleted (~) entries and their
-                children; irreversible except via undo run right after;
-                refuses ids that aren't currently marked ~
-~~ <name>       purge an already-deleted root-level folder, from anywhere
-tag <name> <id> [id...]
-                tag entries with <name>; works from anywhere
-untag <name> <id> [id...]
-                remove <name> from entries; works from anywhere
-                new children inherit their parent's tags by default
-                at creation time (untag afterward if unwanted)
-tags            list every tag in the journal with how many entries
-                carry it (all / still open); works from anywhere
-use <id>        change into a child task, note, event, or meeting
-use <name>      change into a root-level folder, to create sub tasks,
-                notes, events, meetings etc. under it; <name> may be
-                partial, as long as it matches exactly one folder
-use cal         change into the root-level "cal" folder, from anywhere
-use ..          move up to the parent task
-use /           move to the root task
-cd              alias for use
-+ <name>        create a new folder at root, from anywhere; for a daily
-                folder use mm.dd as the name, auto-expanded to mm.dd.dow
-ro mm.dd        roll all open items (* o) from the current folder into
-                the given root-level folder, recursively; matched items
-                move as whole branches (children come along); notes (-)
-                directly under a folder are left behind, but notes
-                nested under a task still move with it; @ meetings
-                never roll over; must be run from inside a folder
-f "text"        find all entries whose text contains string (case-insensitive);
-                searches the whole journal (global) by default
-                results show each hit's containing folder in [brackets]
-f #<tag>        find all entries tagged with <tag> (exact match); also global
-                by default
-f ^ "text"      restrict a text/tag find to the current task's subtree
-                (local); combine with #<tag> too, e.g. f ^ #<tag>
-f ^<id> "text"  restrict a text/tag find to <id>'s subtree instead
-ls              list open tasks, notes, meetings, events & folders
-ls * - x @ ⊘ & ~  list only the given kinds (space separated, any combo):
-                  *  open tasks
-                  -  notes
-                  x  completed tasks
-                  @  meetings
-                  ⊘  blocked tasks
-                  &  snoozed tasks
-                  ~  deleted entries
-ls f            list all entries, every kind, no filtering
-ls date         add "date" to any ls form above (e.g. ls date, ls f date,
-                ls * date) to show each entry's create date (mm/dd)
-                just before its text
-ls !            add "!" to any ls form above (e.g. ls !, ls f !,
-                ls * !) to show only priority entries
-ls due          add "due" to any ls form above (e.g. ls due, ls f due,
-                ls ^5 due) to show only entries with a due date,
-                sorted soonest first
-ls <id> [id...] show stats (symbol, text, parent, timestamps) for id(s)
-ls ^<id> [filters]
-                list <id>'s children (its notes, subtasks, etc.) without
-                switching into it; takes the same filters as plain ls,
-                e.g. ls ^5, ls ^5 f, ls ^5 - date
-log             show the last 20 action log entries, most recent first
-log <id> [id...]
-                show all action log entries for id(s), most recent first
-undo            undo the last mutating command
-cls             clear the screen
-help            show this help
-quit / exit     leave bujo
-```
-
-## Example session
-
-```
-(root) » -
-# + 07.18.fri
-(root) »
-# use 07.18.fri
-(07.18.fri) »
-# * write project proposal
-(07.18.fri) »
-# - remember to call Sam
-(07.18.fri) »
-# @ 14:00 sync with design
-(07.18.fri) »
-# ls
-   1 * write project proposal
-   2 - remember to call Sam
-   3 @ 14:00 sync with design
-3 entries
-# x 1
-(07.18.fri) »
-# > 2
-moved 1 item(s) to 07.19.sat
-```
-
-## Data & undo
-
-All state lives in a single SQLite database (`bujo.db` by default). Every
-mutating command records a snapshot beforehand, so `undo` reverts the most
-recent change. A full action log is also kept in the `log` table for
-history/auditing.
+See [`web/README.md`](web/README.md) for the full guide: gestures, repeats,
+tags, notebooks, board pages, typing shortcuts and the data format.
 
 ## License
 

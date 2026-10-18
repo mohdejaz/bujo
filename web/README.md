@@ -3,14 +3,9 @@
 A pocket bullet journal. One page a day — or a week, or a sprint — a dot grid,
 and a thumb.
 
-This is the web front-end of this repo, and a deliberately small rewrite of the
-one that used to live here. [`../bujo.py`](../bujo.py) is the terminal app —
-~50 commands over a SQLite database, powerful and worth learning. The previous
-`web/` was a direct port of it, commands and all. This one asks nothing: you
-open it, you write a line, you tap a bullet.
-
-It shares no code with `bujo.py` and reads none of its data; see **Your data**
-below. The CLI is untouched and stays the reference for that workflow.
+This is the whole app, and it asks nothing of you: you open it, you write a
+line, you tap a bullet. Your journal stays on the device — see **Your data**
+below.
 
 ## What it is
 
@@ -25,10 +20,9 @@ Three kinds of entry, straight out of Ryder Carroll's method:
 and four things that can happen to them: **×** done, **›** migrated,
 **–** struck out, **★** starred.
 
-Everything else the CLI does — folders, trees, tags, recurrence, blocked,
-snoozed, `ro`, `cd` — is gone. What's left is the part of a bullet journal that
-actually changes behaviour: you write a line, and every morning you decide again
-whether it's still worth writing.
+There are no folders, no trees, no nesting. What's left is the part of a bullet
+journal that actually changes behaviour: you write a line, and every morning you
+decide again whether it's still worth writing.
 
 ## Using it
 
