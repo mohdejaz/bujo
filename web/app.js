@@ -587,9 +587,14 @@ function occurrencesIn(from, to) {
   if (!series.length) return [];
 
   /* Which (series, date) pairs are already real, so a touched occurrence is not
-     drawn twice. Built once rather than scanned per date. */
+     drawn twice. Built once rather than scanned per date, and deliberately over
+     the whole journal rather than mine(): an occurrence filed into another
+     notebook is still that day's occurrence, and asking only this notebook
+     would generate a fresh virtual to stand beside it — the same job showing up
+     twice, in two different notebooks. solid() dedupes journal-wide for the
+     same reason. */
   const taken = new Set();
-  mine().forEach((e) => e.from && e.date && taken.add(`${e.from}:${e.date}`));
+  db.entries.forEach((e) => e.from && e.date && taken.add(`${e.from}:${e.date}`));
 
   const out = [];
   for (const e of series) {
@@ -901,6 +906,17 @@ function skipOccurrence(seriesId, date) {
   const series = byId(seriesId);
   if (!series || !date) return;
   series.skip = cleanSkip([...(series.skip || []), date]);
+}
+
+/* Files a line into another notebook. A series takes its materialised
+   occurrences with it: they are the same repeating job, and leaving them behind
+   would leave it standing in two notebooks at once — the new one generating the
+   days afresh while the old one still holds every day you had touched. */
+function setBook(id, book) {
+  const e = byId(id);
+  if (!e) return;
+  e.book = book;
+  if (repeats(e)) db.entries.forEach((x) => x.from === e.id && (x.book = book));
 }
 
 function remove(id) {
@@ -1686,10 +1702,7 @@ function openEntry(id) {
           c.onclick = () => {
             /* Labelled, so it toasts and Undo can bring it back — the line is
                about to leave this page entirely. */
-            mutate("Moved to " + bk.name, () => {
-              const cur = byId(touch());
-              if (cur) cur.book = bk.id;
-            });
+            mutate("Moved to " + bk.name, () => setBook(touch(), bk.id));
             closeSheet();
           };
           picks.append(c);
