@@ -6,8 +6,10 @@ offline.
 
 Two pages. **Tasks have no date** and share one endless *Journal*, newest
 first, each line stamped with the day it was written. **Events have a date**
-and live on the *Calendar*, grouped by day. Switching between the two is the
-only navigation there is.
+and live on the *Calendar*, grouped by day — and whatever falls on today is
+printed at the head of the Journal, so the page you open shows what is on as
+well as what is outstanding. Switching between the two is the only navigation
+there is.
 
 Tap a bullet to complete, swipe right to complete, swipe left to set a task
 aside in the backlog. Every line carries its own `#tag` and long-form notes —

@@ -485,6 +485,23 @@ function journalEntries() {
     );
 }
 
+/* What is on today, shown at the head of the Journal. An event still belongs
+   to the Calendar — this is a read of it, not a second home — but the one day
+   you need without going looking is the one you are standing in. */
+const todayEvents = () => {
+  const t = TODAY();
+  return mine()
+    .filter((e) => e.type === "event" && e.date === t)
+    .filter((e) => !S.tag || e.tag === S.tag)
+    .filter((e) => !db.hideLogged || isLive(e))
+    .sort(
+      (a, b) =>
+        (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
+        (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) ||
+        b.created - a.created
+    );
+};
+
 /* Tasks explicitly set aside, newest first: the backlog is a pile, not a
    page. */
 const backlogEntries = () =>
@@ -714,8 +731,16 @@ function renderJournal() {
   const f = filterRow();
   if (f) list.append(f);
 
+  const today = todayEvents();
   const rows = journalEntries();
   const back = backlogEntries();
+
+  /* Today's events lead the page, directly under the date stamp that names the
+     day they fall on — so they read as that heading's content and need no
+     heading of their own. A hairline closes them off from the undated work
+     below; without it the two would run together into one list. */
+  today.forEach((e) => list.append(row(e)));
+  if (today.length && rows.length) list.append(el("li", "sep-rule"));
 
   rows.forEach((e) => list.append(row(e)));
 
@@ -733,7 +758,7 @@ function renderJournal() {
   }
 
   const empty = $("#empty");
-  const bare = !rows.length && !back.length;
+  const bare = !rows.length && !back.length && !today.length;
   empty.hidden = !bare;
   if (bare) {
     empty.innerHTML = S.tag
