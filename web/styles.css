@@ -1,4 +1,4 @@
-/* bujo — pocket bullet journal.
+/* bujo — tasks on one page, events on a calendar.
    Light is "paper": warm off-white, dot grid, ink. Dark is the same page at
    night. Every colour is a token on :root so the two themes stay in step. */
 
@@ -26,7 +26,6 @@
   --fs: 1; /* text-size multiplier, set from the menu */
   --sans: ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI",
     Inter, system-ui, sans-serif;
-  --r: 16px;
   --tap: 44px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
@@ -106,7 +105,8 @@ body {
 }
 
 button,
-input {
+input,
+textarea {
   font: inherit;
   color: inherit;
   background: none;
@@ -115,8 +115,10 @@ input {
 }
 button { cursor: pointer; }
 
-/* .carry/.toast/.sheet set display, which would otherwise beat [hidden] */
+/* .toast/.sheet set display, which would otherwise beat [hidden] */
 [hidden] { display: none !important; }
+
+svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
 /* The dot grid of a real bullet-journal page, fixed behind everything. */
 .grid-bg {
@@ -138,8 +140,8 @@ button { cursor: pointer; }
 #head {
   position: sticky;
   top: 0;
-  z-index: 20;
-  padding: calc(var(--safe-t) + 8px) 14px 6px;
+  z-index: 30;
+  padding: calc(var(--safe-t) + 6px) 12px 0;
   background: var(--bar);
   backdrop-filter: saturate(1.6) blur(14px);
   -webkit-backdrop-filter: saturate(1.6) blur(14px);
@@ -151,34 +153,51 @@ button { cursor: pointer; }
 .head-row {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
+  min-height: var(--tap);
 }
-/* Was flex: 1, which hoarded every spare pixel and left the date button clipped
-   at its content width. The date is what should take the slack now that it
-   shares the row with the notebook chip. */
-.spacer { flex: 0 0 4px; }
+.spacer { flex: 1; }
 
-/* the notebook chip */
+/* ── the two pages ──────────────────────────────────────────────────── */
+
+/* Journal | Calendar. A segmented control rather than a bottom bar: the
+   composer already owns the bottom of the screen, and the switch belongs
+   next to the notebook it applies to. */
+.tabs {
+  flex: none;
+  display: flex;
+  gap: 1px;
+  padding: 3px;
+  border-radius: 13px;
+  background: var(--hair-2);
+}
+.tab {
+  padding: 7px 13px;
+  border-radius: 10px;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  color: var(--dim);
+  transition: background 0.16s, color 0.16s, transform 0.12s;
+}
+.tab:active { transform: scale(0.94); }
+.tab.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
+
 .bookbtn {
-  /* Shrinks before the date does: a clipped notebook name is still recognisable,
-     a clipped date is not. */
   flex: 0 1 auto;
-  min-width: 4.5ch;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 1px;
-  max-width: 9ch;
-  padding: 4px 4px 4px 8px;
-  border-radius: 999px;
+  gap: 3px;
+  max-width: 9.5em;
+  padding: 7px 9px;
+  border-radius: 11px;
   background: var(--hair-2);
+  font-size: 0.84375rem;
+  font-weight: 600;
   color: var(--ink-2);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  transition: background 0.15s, transform 0.1s;
+  transition: transform 0.12s;
 }
 .bookbtn:active { transform: scale(0.94); }
-/* A long name is clipped rather than allowed to widen the row. */
 .bookbtn span {
   min-width: 0;
   overflow: hidden;
@@ -188,181 +207,40 @@ button { cursor: pointer; }
 .bookbtn svg { width: 13px; height: 13px; flex: none; color: var(--dim); stroke-width: 2.6; }
 
 .icon-btn {
+  flex: none;
   width: var(--tap);
   height: var(--tap);
   display: grid;
   place-items: center;
   border-radius: 12px;
-  color: var(--dim);
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  color: var(--ink-2);
+  transition: background 0.15s, transform 0.12s;
 }
 .icon-btn:active { transform: scale(0.9); background: var(--hair-2); }
 .icon-btn svg { width: 22px; height: 22px; }
-svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 
-.datebtn {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  line-height: 1.1;
-  padding: 4px 6px;
-  border-radius: 12px;
-  min-width: 0;
-  /* Takes the row's spare width rather than the spacer, so a date range is shown
-     in full wherever there is room. Overflow hidden is the backstop on a narrow
-     screen: its nowrap children are clipped instead of pushing the ring and the
-     menu button off the edge. */
-  flex: 1 1 auto;
-  overflow: hidden;
-}
-.dow, .dmy { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-/* Stamp and size letter on one line. The stamp is what gives way if the row runs
-   out of width; the letter is one character and always fits. */
-.dow-row {
+/* today, in words — the Journal's own date, not a filter on its lines */
+.stamp {
   display: flex;
   align-items: baseline;
-  gap: 5px;
+  gap: 8px;
+  padding: 2px 2px 10px;
   min-width: 0;
-  max-width: 100%;
 }
-.dow-row .dow { min-width: 0; }
-.dow-u {
-  flex: none;
-  font-size: 0.6875rem;
+.stamp-d {
+  font-size: 1.375rem;
   font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--dim);
+  letter-spacing: -0.03em;
+  color: var(--accent);
 }
-.dow-u:empty { display: none; }
-.datebtn:active { background: var(--hair-2); }
-.dow {
-  font-size: 1.3125rem;
-  font-weight: 600;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-}
-/* A board page prints a 13-character date span on the one line, so it is set
-   smaller to clear the notebook chip on a narrow screen. Tabular figures keep
-   the string a constant width as you page through. .dmy is hidden there rather
-   than carrying a second line — [hidden] is enough, it sets no display of its
-   own to beat it. */
-#head.is-stamp .dow {
-  font-size: 0.9375rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.dmy {
-  font-size: 0.78125rem;
+.stamp-m {
+  font-size: 0.875rem;
   font-weight: 500;
   color: var(--dim);
-  letter-spacing: 0.02em;
-  white-space: nowrap;
-}
-#head.is-today .dow { color: var(--accent); }
-
-.ring-btn {
-  position: relative;
-  width: var(--tap);
-  height: var(--tap);
-  display: grid;
-  place-items: center;
-}
-.ring-btn:active { transform: scale(0.92); }
-.ring { width: 34px; height: 34px; transform: rotate(-90deg); }
-.ring circle { fill: none; stroke-width: 3; }
-.ring-bg { stroke: var(--hair); }
-.ring-fg {
-  stroke: var(--good);
-  stroke-linecap: round;
-  stroke-dasharray: 94.25;
-  stroke-dashoffset: 94.25;
-  transition: stroke-dashoffset 0.5s cubic-bezier(0.2, 0.9, 0.3, 1);
-}
-.ring-num {
-  position: absolute;
-  font-size: 0.71875rem;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-}
-.ring-btn.is-clear .ring-num { color: var(--good); }
-
-/* week strip */
-.strip {
-  display: flex;
-  gap: 4px;
-  margin-top: 4px;
-  padding-bottom: 2px;
-}
-.day {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 0 7px;
-  border-radius: 13px;
-  transition: background 0.18s;
-}
-.day .d-l {
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  color: var(--dim);
-  text-transform: uppercase;
-}
-.day .d-n {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--ink-2);
-  line-height: 1;
-}
-.day .d-p {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--hair);
-}
-.day .d-p.has { background: var(--accent); }
-.day .d-p.clear { background: var(--good); }
-.day.is-today .d-n { color: var(--accent); }
-.day.is-sel { background: var(--hair-2); }
-.day.is-sel .d-n { color: var(--ink); font-weight: 700; }
-.day.is-sel.is-today .d-n { color: var(--accent); }
-.day.is-someday { flex: 0 0 46px; }
-.day.is-someday .d-n { font-size: 0.875rem; }
-/* A span cell carries a month and a start date rather than one weekday. */
-.day.is-span .d-l { letter-spacing: 0.06em; }
-
-/* day pulses inside a board page */
-.pdays {
-  display: flex;
-  gap: 3px;
-  margin: 5px 2px 1px;
-}
-.pdays[hidden] { display: none; }
-.pd {
-  flex: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: var(--hair);
-}
-/* Days already gone read fainter, so the bar shows where you are in the span
-   without needing a separate marker for it. */
-.pd.is-past { opacity: 0.55; }
-.pd.has { background: var(--accent); opacity: 1; }
-.pd.clear { background: var(--good); }
-.pd.is-today {
-  height: 5px;
-  margin-top: -1px;
-  opacity: 1;
+  letter-spacing: -0.01em;
 }
 
-/* ── list ───────────────────────────────────────────────────────────── */
+/* ── page ───────────────────────────────────────────────────────────── */
 
 #page {
   position: relative;
@@ -379,6 +257,49 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   margin: 0;
   padding: 0 12px;
 }
+
+/* A section heading in the list: a day on the Calendar, the Backlog fold on
+   the Journal, the active tag filter above either. */
+.sep {
+  list-style: none;
+  padding: 16px 14px 6px;
+  font-size: 0.71875rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.sep-day { color: var(--ink-2); }
+.sep-day.is-today { color: var(--accent); }
+.sep-day .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
+
+/* A heading you can fold: the backlog and the logged pile both start closed,
+   because neither is what you came to the page to read. */
+.sep-fold {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 0.71875rem;
+  font-weight: 700;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--dim);
+  padding: 16px 14px 6px;
+  border-radius: 12px;
+}
+.sep-fold:active { color: var(--ink-2); }
+.sep-fold svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke-width: 2.6;
+  transition: transform 0.18s;
+}
+.sep-fold.open svg { transform: rotate(90deg); }
+.sep-fold .sep-n { margin-left: auto; letter-spacing: 0.04em; font-weight: 600; }
+.s-acts .sep { padding: 14px 8px 4px; }
 
 .row {
   position: relative;
@@ -441,7 +362,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--ink);
 }
 .b-task { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: currentColor; }
-.b-note { width: 0.75rem; height: 2px; border-radius: 2px; background: currentColor; }
 .b-event {
   width: 0.7rem;
   height: 0.7rem;
@@ -474,53 +394,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   from { transform: rotate(0deg) scaleX(0.1); opacity: 0; }
   to { transform: rotate(-45deg) scaleX(1); opacity: 1; }
 }
-/* ◑ for in flight — the same ring as .b-event with its leading half filled,
-   in the accent colour so started work reads off the page at a glance. */
-.b-doing {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  border: 2px solid var(--accent);
-  color: var(--accent);
-  overflow: hidden;
-}
-.b-doing::before {
-  content: "";
-  position: absolute;
-  inset: -1px 50% -1px -1px;
-  background: currentColor;
-}
-.row.anim .b-doing::before { animation: fill-half 0.2s ease-out both; }
-@keyframes fill-half {
-  from { transform: translateX(-100%); }
-  to { transform: translateX(0); }
-}
 
-/* › for migrated, ✕-less slash for dropped */
-.b-moved { width: 0.75rem; height: 0.75rem; color: var(--dim); }
-.b-moved::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-right: 2px solid currentColor;
-  border-top: 2px solid currentColor;
-  transform: rotate(45deg) scale(0.72);
-  border-radius: 1px;
-}
-/* The same chevron as .b-moved, turned to point back: > pushes an entry
-   forward to a date, < sets it aside with no date at all. */
-.b-sched { width: 0.75rem; height: 0.75rem; color: var(--dim); }
-.b-sched::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-right: 2px solid currentColor;
-  border-top: 2px solid currentColor;
-  transform: rotate(-135deg) scale(0.72);
-  border-radius: 1px;
-}
-
-.row.is-dropped .b, .b.dim { color: var(--dim); }
+.row.is-dropped .b { color: var(--dim); }
 
 .row-text {
   flex: 1;
@@ -533,15 +408,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-align: left;
   position: relative;
 }
-.row-time {
-  font-variant-numeric: tabular-nums;
-  font-weight: 600;
-  color: var(--accent);
-  margin-right: 7px;
-}
-/* Which day of a board page a line sits on. Dim by default so the page still
-   reads as one list; today's lines get the accent. */
-.row-day {
+/* When a line was written. Undated lines still have a day they came from, and
+   on an endless page that is the only thing telling you how old a line is.
+   inline-block so a struck line's rule stops at the words and does not run
+   back through the stamp, which is metadata rather than part of the sentence. */
+.row-when {
+  display: inline-block;
   font-size: 0.6875rem;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -549,8 +421,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
   margin-right: 7px;
 }
-.row-day.is-today { color: var(--accent); }
-.row.type-note .row-text { color: var(--ink-2); font-size: 1rem; }
+.row-when.is-today { color: var(--accent); }
 
 .row.is-done .row-text,
 .row.is-dropped .row-text {
@@ -565,14 +436,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   from { text-decoration-color: transparent; }
   to { text-decoration-color: currentColor; }
 }
-.row.is-done .row-meta,
-.row.is-dropped .row-meta,
-.row.is-moved .row-meta { text-decoration: none; }
-.row.is-moved .row-text { color: var(--dim); }
-/* In flight: the text stays full strength — it is the live line on the page —
-   and its own tag chip keeps the accent the bullet is wearing. */
-.row.is-doing .row-text { color: var(--ink); }
-.row.is-doing .row-day { color: var(--accent); }
+/* set aside, not finished: dim the line but leave it unstruck */
+.row.is-backlog .row-text { color: var(--ink-2); }
 
 .star {
   flex: none;
@@ -585,8 +450,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .star svg { width: 0.94rem; height: 0.94rem; }
 svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
-/* "there is more behind this line" — quiet on purpose, the note itself never
-   shows up here. Sits left of the star so the star stays the far-right mark. */
 /* ── tags ───────────────────────────────────────────────────────────── */
 
 /* Inverted: ink block, paper letters — the one thing on the page that reads as
@@ -608,13 +471,18 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   white-space: nowrap;
 }
 /* a struck or finished line shouldn't shout its group */
-.row.is-done .tag, .row.is-dropped .tag, .row.is-moved .tag { opacity: 0.4; }
+.row.is-done .tag, .row.is-dropped .tag { opacity: 0.4; }
 .row-text:active .tag { opacity: 0.6; }
 
 /* the picker in the entry sheet */
 .s-tags {
   display: flex;
   flex-wrap: wrap;
+  /* Not the default `stretch`: the #tag field is half again as tall as a chip,
+     so stretching would size every chip sharing its flex line to the field and
+     leave the chips that wrapped above at their natural height — the same tag
+     picker showing two different chip heights. */
+  align-items: center;
   gap: 6px;
   padding: 4px 8px 10px;
 }
@@ -626,6 +494,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   padding: 4px 9px 5px;
 }
 .tag.pick:active { background: var(--ink); color: var(--paper); }
+.tag.pick.on { background: var(--accent); color: #fff; }
 .s-tagin {
   margin-left: auto;
   width: 6.5em;
@@ -646,46 +515,16 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   color: var(--dim);
 }
 .notemark svg { width: 0.88rem; height: 0.88rem; stroke-width: 2.2; }
-.row.is-done .notemark, .row.is-dropped .notemark, .row.is-moved .notemark { opacity: 0.45; }
-/* The repeat mark is a touch smaller than the notes mark and sits at the same
-   weight, so a line carrying both reads as one pair of marks rather than two
-   competing glyphs. */
-.recurmark svg { width: 0.82rem; height: 0.82rem; stroke-width: 2.4; }
+.row.is-done .notemark, .row.is-dropped .notemark { opacity: 0.45; }
 
-.row-meta {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--dim);
-  margin-top: 2px;
-}
-
-/* entry animations */
-.row.enter .row-face { animation: pop 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
-@keyframes pop {
-  from { opacity: 0; transform: translateY(10px) scale(0.985); }
-}
+/* switching pages */
 #list.slide-l { animation: slideL 0.26s cubic-bezier(0.16, 1, 0.3, 1); }
 #list.slide-r { animation: slideR 0.26s cubic-bezier(0.16, 1, 0.3, 1); }
 @keyframes slideL { from { opacity: 0; transform: translateX(22px); } }
 @keyframes slideR { from { opacity: 0; transform: translateX(-22px); } }
 
-.s-acts .sep { padding: 14px 8px 4px; }
-.sep {
-  list-style: none;
-  padding: 16px 14px 6px;
-  font-size: 0.71875rem;
-  font-weight: 700;
-  letter-spacing: 0.11em;
-  text-transform: uppercase;
-  color: var(--dim);
-}
-
-/* A tag group heading in the day list. Slightly stronger than the plain
-   .sep used for date dividers elsewhere (e.g. the "left behind" sheet). */
-.sep-tag { color: var(--ink-2); }
-
 .empty {
-  margin: 20vh 32px 0;
+  margin: 18vh 32px 0;
   text-align: center;
   color: var(--dim);
   font-size: 0.96875rem;
@@ -693,23 +532,6 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .empty b { display: block; color: var(--ink-2); font-size: 1.125rem; font-weight: 600; margin-bottom: 6px; }
 
-/* ── carry-over card (the migration ritual) ─────────────────────────── */
-
-.carry {
-  margin: 6px 12px 12px;
-  padding: 13px 15px;
-  border-radius: var(--r);
-  background: var(--card);
-  border: 1px solid var(--hair);
-  box-shadow: var(--lift-1);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  animation: pop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-.carry .c-txt { flex: 1; min-width: 0; }
-.carry .c-h { font-size: 0.9375rem; font-weight: 600; letter-spacing: -0.01em; }
-.carry .c-s { font-size: 0.8125rem; color: var(--dim); margin-top: 1px; }
 .pill {
   flex: none;
   padding: 9px 15px;
@@ -737,36 +559,16 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   display: flex;
   align-items: center;
   gap: 8px;
-  /* The date hint is a full-width child that wraps onto its own row above the
-     rest. Hidden it is display:none, so it costs no gap when there is no date. */
+  /* The date row is a full-width child that wraps above the rest. Hidden it is
+     display:none, so it costs no gap on the Journal. */
   flex-wrap: wrap;
-  row-gap: 5px;
+  row-gap: 6px;
   padding: 8px 12px calc(8px + var(--safe-b));
   background: var(--bar);
   backdrop-filter: saturate(1.6) blur(14px);
   -webkit-backdrop-filter: saturate(1.6) blur(14px);
   border-top: 1px solid var(--hair);
 }
-
-.types {
-  flex: none;
-  display: flex;
-  gap: 1px;
-  padding: 3px;
-  border-radius: 12px;
-  background: var(--hair-2);
-}
-.type {
-  width: 30px;
-  height: 32px;
-  display: grid;
-  place-items: center;
-  border-radius: 9px;
-  color: var(--dim);
-  transition: background 0.16s, color 0.16s, transform 0.12s;
-}
-.type:active { transform: scale(0.9); }
-.type.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
 
 #input {
   flex: 1;
@@ -790,41 +592,31 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   transition: background 0.18s, color 0.18s, transform 0.14s, opacity 0.18s;
 }
 .send svg { width: 19px; height: 19px; stroke-width: 2.4; }
-
-/* the composer's date hint */
-.hint {
-  flex: 0 0 100%;
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-  min-width: 0;
-  padding: 0 2px;
-  font-size: 0.8125rem;
-  line-height: 1.3;
-}
-.hint[hidden] { display: none; }
-.hint .h-d {
-  flex: none;
-  font-weight: 700;
-  color: var(--accent);
-  letter-spacing: -0.01em;
-}
-/* The line as it will actually be filed, date words removed. Truncated rather
-   than wrapped: the hint must never grow tall enough to shove the input. */
-.hint .h-t {
-  flex: 1;
-  min-width: 0;
-  color: var(--dim);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .composer.armed .send { background: var(--accent); color: #fff; transform: scale(1.04); }
 :root[data-theme="dark"] .composer.armed .send { color: #21140c; }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .composer.armed .send { color: #21140c; }
 }
 .send:active { transform: scale(0.88); }
+
+/* the composer's day row, Calendar only */
+.when {
+  flex: 0 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 0 2px;
+}
+.when[hidden] { display: none; }
+.when label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--dim);
+}
+.when-date { margin-left: 0; flex: 1 1 auto; min-width: 0; }
 
 /* ── sheet ──────────────────────────────────────────────────────────── */
 
@@ -884,8 +676,8 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-input:focus { outline: none; border-color: var(--accent); }
 
-/* The note is the quieter half of the sheet: same box, lighter ink, and it
-   grows from two rows as you type (height is set in app.js). */
+/* The notes a line carries: the quieter half of the sheet, same box, lighter
+   ink, growing from two rows as you type (height is set in app.js). */
 .s-note {
   color: var(--ink-2);
   background: var(--hair-2);
@@ -920,8 +712,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-book {
   display: flex;
   align-items: center;
-  width: 100%;
-  border-radius: 12px;
+  gap: 4px;
 }
 .s-book-pick {
   flex: 1;
@@ -929,7 +720,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   display: flex;
   align-items: center;
   gap: 13px;
-  padding: 13px 4px 13px 8px;
+  padding: 13px 8px;
   border-radius: 12px;
   font-size: 1rem;
   font-weight: 500;
@@ -945,36 +736,30 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   white-space: nowrap;
 }
 .s-book-pick .k { flex: none; font-size: 0.8125rem; font-weight: 600; color: var(--dim); }
-/* The dot is the radio: hollow for the others, filled for the one you're in. */
 .s-book-dot {
   flex: none;
-  width: 0.7rem;
-  height: 0.7rem;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 50%;
   border: 2px solid var(--hair);
 }
 .s-book.on .s-book-dot { border-color: var(--accent); background: var(--accent); }
 .s-book.on .s-book-name { font-weight: 700; }
-/* An archived notebook is present but put away: the name dims and the dot goes
-   dashed, so the row reads as a shelf rather than a choice. It is still a live
-   button — it opens the editor — so it never drops to a disabled grey. */
 .s-book.off .s-book-name { color: var(--dim); }
 .s-book.off .s-book-dot { border-style: dashed; }
 .s-shelf-note { margin: 10px 0 0; }
 .s-book-edit {
   flex: none;
-  width: var(--tap);
-  height: var(--tap);
+  width: 38px;
+  height: 38px;
   display: grid;
   place-items: center;
-  border-radius: 12px;
+  border-radius: 11px;
   color: var(--dim);
-  transition: background 0.14s, color 0.14s;
 }
-.s-book-edit svg { width: 1.125rem; height: 1.125rem; }
 .s-book-edit:active { background: var(--hair-2); color: var(--ink-2); }
+.s-book-edit svg { width: 1.125rem; height: 1.125rem; }
 .s-bookname { font-weight: 700; }
-
 
 .s-block { padding: 10px 8px 14px; }
 .s-block-h {
@@ -986,14 +771,6 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   margin-bottom: 12px;
 }
 .s-block-h svg { width: 1.25rem; height: 1.25rem; flex: none; color: var(--dim); }
-.s-seg-wide { margin-left: 0; width: 100%; }
-.s-seg-wide button { flex: 1; padding: 10px 0; line-height: 1; }
-/* The repeat-day toggles: seven single letters, so they need the tabular
-   treatment the text-size row doesn't. */
-.s-seg-wide.s-seg-days button { font-size: 0.8125rem; font-weight: 700; }
-/* Which line an edit will land on. Tight to the toggles above it, because it is
-   about them rather than about the entry as a whole. */
-.s-repnote { margin: -2px 0 6px; text-align: left; padding: 0 8px; }
 
 .s-seg {
   display: flex;
@@ -1011,10 +788,12 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   color: var(--dim);
 }
 .s-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
+.s-seg-wide { margin-left: 0; width: 100%; }
+.s-seg-wide button { flex: 1; padding: 10px 0; line-height: 1; }
 
-/* A native field at the end of a sheet row — a time, a date. Shaped like a
-   .s-seg so a row that asks for a value sits level with the rows that only
-   offer choices. appearance:none keeps iOS from painting its own grey box
+/* A native field at the end of a sheet row — the day an event falls on.
+   Shaped like a .s-seg so a row that asks for a value sits level with the
+   rows that only offer choices. appearance:none keeps iOS from painting its own grey box
    over the card. */
 .s-field {
   margin-left: auto;
@@ -1032,59 +811,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-field::-webkit-date-and-time-value { text-align: right; }
 .s-field::-webkit-calendar-picker-indicator { opacity: 0.55; }
 
-/* month dot-grid */
-.mon { margin: 2px 0 6px; }
-.mon-h {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-  font-size: 0.9375rem;
-  font-weight: 600;
-}
-.mon-h button { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 10px; color: var(--dim); }
-.mon-g {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 7px;
-}
-.mon-g .h {
-  text-align: center;
-  font-size: 0.625rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--dim);
-  padding-bottom: 4px;
-}
-.mon-c {
-  aspect-ratio: 1;
-  display: grid;
-  place-items: center;
-  border-radius: 11px;
-  position: relative;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--dim);
-}
-.mon-c .pip {
-  width: 100%;
-  height: 100%;
-  border-radius: 11px;
-  display: grid;
-  place-items: center;
-  background: var(--accent);
-  color: #fff;
-}
-:root[data-theme="dark"] .mon-c .pip { color: #21140c; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .mon-c .pip { color: #21140c; }
-}
-.mon-c.clear .pip { background: var(--good); }
-.mon-c.today { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 11px; }
-.mon-c.blank { visibility: hidden; }
-/* A day the picker won't take — still printed, so the month reads as a month,
-   but plainly not a target. */
-.mon-c.off { opacity: 0.3; }
+/* ── search ─────────────────────────────────────────────────────────── */
 
 .s-search {
   width: 100%;
@@ -1110,7 +837,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-t { flex: 1; min-width: 0; font-size: 0.96875rem; }
 .hit .h-d { font-size: 0.75rem; font-weight: 600; color: var(--dim); margin-top: 2px; }
 .hit mark { background: var(--accent-soft); color: inherit; border-radius: 3px; padding: 0 1px; }
-/* a hit that matched inside the note, not the line: show the words that matched
+/* a hit that matched inside a line's notes, not its words: show what matched
    so the row doesn't read as a false positive */
 .hit .h-n {
   display: flex;
@@ -1124,10 +851,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-n svg { flex: none; width: 0.8125rem; height: 0.8125rem; margin-top: 3px; color: var(--dim); }
 .hit .h-n span { min-width: 0; }
 
-.legend { display: flex; flex-direction: column; gap: 11px; margin: 2px 0 4px; }
-.legend div { display: flex; align-items: center; gap: 13px; font-size: 0.9375rem; color: var(--ink-2); }
 .lb { width: 1.375rem; display: grid; place-items: center; flex: none; align-self: center; }
-.legend b { color: var(--ink); font-weight: 600; }
 
 /* ── toast ──────────────────────────────────────────────────────────── */
 
