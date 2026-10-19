@@ -1,212 +1,84 @@
 # bujo
 
-A pocket bullet journal. One page a day — or a week, or a sprint — a dot grid,
-and a thumb.
+A touch-first bullet journal in two pages. Tasks have no date and share one
+endless **Journal**; events have a date and live on the **Calendar**.
+Switching between the two is the only navigation there is.
 
-This is the whole app, and it asks nothing of you: you open it, you write a
-line, you tap a bullet. Your journal stays on the device — see **Your data**
-below.
+No build step, no dependencies, no account. The journal lives in
+`localStorage` on the device.
 
 ## What it is
 
-Three kinds of entry, straight out of Ryder Carroll's method:
+```
+  •  a task        something to do, whenever
+  ○  an event      something that happens, on a day
+  ×  done
+  ≡  carries notes
+```
 
-| | | |
-|---|---|---|
-| **•** | task  | something to do |
-| **–** | note  | something to remember |
-| **○** | event | something that happens, at a time |
+Two kinds of line, and the page you are on decides which you are writing. A
+**task** never carries a date: it goes on the Journal, newest first, and each
+row prints the day it was written — that stamp is the only thing telling you
+how old a line is. An **event** always carries a date, and that is what makes
+it an event; it goes on the Calendar. A date and no clock — an event is placed
+on a day, and the day heading it sits under says which.
 
-and four things that can happen to them: **×** done, **›** migrated,
-**–** struck out, **★** starred.
+There is no free-standing note. **Every line carries its own notes** instead —
+open a line and write underneath it — so what you want to remember lives with
+the thing it is about rather than floating loose on the page. A line that
+holds notes is marked `≡`; the notes themselves never appear in the list,
+because a line stays one line.
 
-There are no folders, no trees, no nesting. What's left is the part of a bullet
-journal that actually changes behaviour: you write a line, and every morning you
-decide again whether it's still worth writing.
+A task set aside in the backlog keeps its ordinary `•`. The Backlog heading
+already says where it is, and a second glyph only competed with the one
+distinction that matters: whether the line is still open.
 
 ## Using it
 
-**On the phone**
+**Writing.** Type at the bottom and press return. There is nothing to pick:
+the Journal writes a task, and the Calendar writes an event and asks for the
+day it falls on, because an event without one is not an event. The Calendar
+reads back from the furthest day towards the oldest; several events on one day
+sit newest-written first.
 
-- **Tap a bullet** to complete an entry. **Swipe the line right** does the same.
-- **Swipe the line left** to push it to the next page. It moves on and leaves a
-  `›` behind, so the old page stays honest about what happened.
-- **Tap the text** (or long-press) for the rest: change kind, star, set a time,
-  park it in Someday, strike it out, delete.
-- **Swipe the header** — or tap a cell in the strip — to move between pages.
-  The ring shows what's still open.
-- **✦ Someday** is the collection for things with no date. Migrate anything
-  there when it stops belonging to a particular day.
+**Gestures.** Tap a bullet to complete a line. Swipe a row **right** to
+complete it, **left** to set it aside — which for a live task means the
+backlog, and for anything else means striking it out. Tap the text, or
+long-press the row, to open everything else.
 
-**The morning ritual.** Open the app on a new day and anything still open on an
-earlier page surfaces as *N unfinished tasks → Review*. Each one gets a
-decision: pull it forward, park it, or strike it out. That review is the whole
-point of the method — if a task isn't worth moving again, it wasn't worth doing.
+**Notes on a line.** Tap a line to open it and write underneath — links, the
+detail, the questions behind it. Strike a line out when it stops being worth
+keeping; delete it when it was never worth writing.
 
-**Repeating lines.** Open a line and pick days under **Repeats** — `M T W T F S S`.
-It appears on those days from today forward, marked `↻`. The line you set the rule
-on is the **series**; the days it generates are occurrences.
+**The backlog.** Tasks you are not doing now but have not given up on. It sits
+folded at the foot of the Journal with a count; tap the heading to open it, and
+set a line aside or pull it back from the swipe or the entry sheet. A finished
+task has no backlog to go to.
 
-An occurrence isn't written down until you touch it. Complete one, push one, star
-one — that day becomes a real entry and the rest stay notional. Which means:
+**Tags.** Write `#home buy a doorstop` and the line carries a `#home` chip —
+three to five lowercase letters, one tag per line, so a chip can never wrap.
+A tag is a label on the row and nothing more: the page stays in one flat list
+in the order you wrote it, rather than being cut into a section per tag.
+**⋯ → Tags** lists them with counts, narrows the page to one, and renames a
+tag across the whole notebook at once.
 
-- **A day you ignore leaves no trace.** Browse back and it simply isn't there, and
-  it never appears in the carry-over review. A habit can't bury the ritual it was
-  supposed to support.
-- **Edits land on the day.** Rename Wednesday's and only Wednesday changes. Rename
-  the series and every *future* occurrence follows, while ones already made real
-  keep what they said. **Open the series** in the sheet takes you to it.
-- **Delete one day and it stays deleted** — the series records the exception, so it
-  doesn't come back on the next render.
-- **Stop repeating** leaves every occurrence you completed exactly where it is.
+**Starring** lifts a line out of its group to the very top of the page.
 
-The rule lives on an ordinary entry, so it carries that entry's kind, tag, time,
-notes and notebook, and costs the journal nothing however long the habit runs — an
-export holds the rule and the days you actually did, not a row per day forever.
-Search finds the series and any occurrence you touched; it can't find one that was
-never written.
+**Notebooks.** Several journals in one app — work, private — with one open at a
+time, named in the header. A notebook is a *filter*, not a container:
+archiving one keeps every line it holds and only takes it out of the picker. Up
+to six open at once; archived ones don't count. Move a single line between them
+from its entry sheet.
 
-**Tags.** A tag isn't a thing you create or destroy — it exists in a notebook for
-exactly as long as some line there carries it, and disappears on its own when the
-last one is cleared or moved away. `⋯ → Tags` lists the current notebook's tags
-with their counts: tap one to see what carries it, or the bin to clear it off
-every line at once. That leaves the lines themselves alone and one **Undo** puts
-the tag back.
+**Search** (**⋯ → Search**, or `f`) looks across *every* notebook, line and
+note — you search because you forgot where something is, and the notebook is
+part of what you forgot. A hit jumps to the right page and notebook.
 
-Two things worth knowing. A tag survives on a line in *any* state, so finished
-and struck-out lines keep it alive. And a migrated line leaves a `›` stub behind
-that keeps its tag — search deliberately skips those stubs, so a tag can be held
-alive by something you can't find. Tags in that state aren't offered in the
-picker any more, and the Tags sheet labels them, because it's the only place you
-can reach them.
+**Logged lines** can be hidden wholesale from **⋯ → Logged lines**, which is
+the pressure valve for an endless page.
 
-**Notebooks.** The chip in the header names the notebook you're writing in. Tap
-it to switch, rename, or add one — work, private, reading, whatever you keep.
-One is open at a time: the page, the carry-over review, search, the month grid
-and the tag chips all belong to it, so work tags never turn up in private.
-
-Each notebook keeps **its own page size**, which is the point — work can be a
-fortnight sprint board while private stays a daily journal, and switching the
-chip switches the shape of the page with it.
-
-To move a line, open it and pick a notebook under **Notebook**. It leaves the
-page, a toast says where it went, and **Undo** brings it back.
-
-Notebooks are journal data, so they travel in an export. A notebook can only be
-deleted once it's empty — there is no way to lose entries to a deleted notebook.
-An older journal opens as a single notebook called *journal* holding everything;
-rename it and add a second. Nothing is rewritten to make that happen.
-
-**Board pages.** `⋯ → Page is` sets what one page holds: a **day**, a **week**,
-or a **fortnight**. On a fortnight you also pick the sprint start date, so the
-boundaries line up with a real sprint instead of the calendar.
-
-A multi-day page is a board. The bullet cycles **todo → in flight → done**
-rather than just toggling, in-flight lines (`◑`) rise to the top of their tag
-group so what you started is under your thumb, each line carries the day it was
-written, and a thin bar under the strip shows where the work sits across the
-span. Swiping left pushes to the next page, not to tomorrow.
-
-**The header.** Every dated page shows its date as a stamp, month then day, with
-a letter for the size of the page: `0926 D`, `0921 - 0927 W`, `0921 - 1004 F`.
-Fixed width, so the header can't shift as you page through. There are no `‹ ›`
-arrows: the strip below already has a cell per page, and swiping the header or
-using `←` `→` steps pages.
-
-None of this rewrites anything. A page is a window over the same entries —
-every line keeps the exact date it was written on — so switching back to **Day**
-puts the journal back exactly as it was. The setting belongs to the notebook, and
-a fresh install starts with one daily notebook.
-
-**Typing shortcuts.** The composer parses as you write:
-
-```
-9:30 dentist        → event at 09:30
-7pm dinner with R   → event at 19:00
-3 sets of squats    → stays a task (a bare number is never a time)
-call mum !          → starred task
-- worth remembering → note
-o 12.15 lunch       → event
-#wrk review the PR  → tagged task
-```
-
-**Dates in the line.** Write when something happens and it files itself there,
-with the date dropping out of the text:
-
-```
-India Trip on Nov 21, 2026  → "India Trip" on 21 Nov 2026
-taxes 3 oct                 → "taxes" on the next 3 October
-standup 2026-11-21          → "standup" on that day
-call dentist friday         → "call dentist" on the coming Friday
-standup next monday         → the Monday of next week
-ring the bank tomorrow      → tomorrow
-chase invoice in 3 days     → three days out
-plan the offsite next week  → next Monday
-```
-
-If you've named the page unit (below), that name works here too — `next cycle`
-lands on the next page.
-
-A year is optional; without one you get the next time that date comes round, so
-`1 jan` typed in December means next January, never a date in the past. An
-impossible date (`31 feb`) is left alone as text.
-
-Date words that are also ordinary English are only read **at the end of the
-line, or after `on` / `next` / `this` / `by` / `due`** — the places English
-wouldn't put them. That's what keeps these as plain text:
-
-```
-sat with mum          buy sun cream
-march on the office   may need to ring back
-```
-
-A bare month name is never a date on its own; a day number has to sit next to
-it. And a line that is *only* a date stays a line about those words — `tomorrow`
-on its own gives you a task called "tomorrow".
-
-While you type, a hint above the composer shows where the line will land and how
-it will read once the date is stripped. On a date that leaves the page you're on,
-a toast names the destination with **Undo**.
-
-**Text size.** `⋯ → Text size` has five steps, from 0.9× to 1.5×. Every size in
-the app is `rem` off one root multiplier, so the whole thing moves together —
-list, header, sheets, bullets and all — rather than just the entry text growing
-out of its layout. The setting is stored with your journal.
-
-**On a keyboard.** `←` `→` change page, `t` jumps to today, `/` focuses the
-composer, `Esc` closes a sheet.
-
-## Running it
-
-Live at **https://mohdejaz.github.io/bujo/** — that's HTTPS, so *Add to Home
-Screen* and full offline work there. Locally:
-
-```sh
-cd web
-./serve.sh          # prints the LAN URL; open it on your phone
-./serve.sh 9000     # or pick a port
-```
-
-`serve.sh` sends `Cache-Control: no-store`. Plain `python3 -m http.server`
-sends only `Last-Modified`, which lets iOS Safari heuristically cache `app.js`
-and `styles.css` — so you edit a file, refresh the phone, and silently get the
-old build. Use `serve.sh`, not `http.server`, or you will lose time to this.
-
-The menu footer shows the running version — `dev` locally, or the deployed
-`git describe` string on Pages. If the phone disagrees with what you just
-saved, it's serving a cached copy.
-
-On Pages this is handled automatically: the deploy stamps the commit SHA into
-the asset URLs and the service-worker cache name, so every deploy invalidates
-the last one.
-
-There is no build step and there are no dependencies — it's four files and
-three PNGs. Any static host will do.
-
-To install it to the home screen, the page must be served over **HTTPS or
-localhost**; iOS won't register a service worker on a plain-HTTP LAN address, so
-over `serve.sh` you get the app but not offline mode or *Add to Home Screen*.
-Put the folder on GitHub Pages (or any HTTPS host) and both work, unchanged.
+**Keys.** `←` `→` switch pages, `/` focuses the composer, `f` searches, `Esc`
+closes a sheet.
 
 ## Your data
 
@@ -215,27 +87,77 @@ sent anywhere; there is no account and no network call. **⋯ → Export journal
 writes a `bujo-YYYY-MM-DD.json` you can keep, and **Import journal** reads one
 back — that's also how you move between phone and desktop.
 
-The stored shape is a flat list, which is most of why this version is small:
-
 ```json
-{ "v": 1, "theme": "auto", "text": 1, "entries": [
-  { "id": "k3f9a1", "type": "task", "text": "Book the flights",
-    "time": null, "date": "2026-08-30", "state": "open",
-    "star": true, "created": 1756...  }
-]}
+{ "v": 2, "theme": "auto", "text": 1, "view": "journal",
+  "books": [{ "id": "b1", "name": "journal" }],
+  "book": "b1",
+  "entries": [
+    { "id": "k3f9a1", "type": "task", "text": "Book the flights",
+      "state": "open", "star": true, "tag": "trip",
+      "notes": "Check the consulate hours first", "created": 1756000000000 },
+    { "id": "k3f9a2", "type": "event", "text": "Flight to Dubai",
+      "date": "2026-11-02", "state": "open", "star": false,
+      "created": 1756000000001 }
+  ]}
 ```
 
-`date` is `null` for Someday. `state` is `open`, `done`, `dropped`, or `moved`
-(a `moved` entry is the `›` stub left behind by a migration, and carries
-`movedTo`).
+`state` is `open`, `done` or `dropped`. `type` is `task` or `event` — nothing
+else. `date` appears on events and only on events; there is no time of day.
+`backlog: true` marks a task set aside. `book` is absent for the first
+notebook, which is how a journal written before notebooks existed needed no
+migration.
+
+## Coming from the dated journal
+
+The first time this version opens on a device holding a `bujo.v1` journal, it
+migrates it once and shows a summary of what moved. The rules:
+
+| old | new |
+|---|---|
+| task | Journal — the date is dropped, `created` already records when it was written |
+| a free-standing note | becomes a task, words, tag and notes intact |
+| event with a date | Calendar — the date is kept, the time of day is dropped |
+| event with no date | becomes a task; a calendar has nowhere to put it |
+| Someday tasks | the backlog, which is what that collection was for |
+| `moved` stubs (`›`) | discarded — they pointed at dated pages that no longer exist |
+| `doing` | `open`; board pages were the only place it could be set |
+| repeating rules | the rule is stripped and the line stays as one ordinary task |
+
+Notebooks, tags, stars, per-line notes, theme and text size all carry over.
+Page size (day/week/fortnight) is gone, so notebooks lose it.
+
+Old notes arrive as ordinary tasks, sitting on the page where you can see
+them: they are not actionable, so expect to strike out or delete a few. That
+is deliberate — filing them somewhere tidy would have meant never reading them
+again.
+
+Repeats generated their occurrences on the fly rather than storing them, so a
+series collapses to a single line; occurrences you had actually completed are
+real entries and are kept as history. **The old `bujo.v1` key is never written
+to or cleared** — it stays on the device as the backup, and the summary is
+still readable afterwards from **⋯ → What was migrated**.
+
+## Running it
+
+Four files and three PNGs, served by any static host. Locally:
+
+```sh
+cd web
+./serve.sh          # prints the LAN URL; open it on your phone
+./serve.sh 9000     # or pick a port
+```
+
+*Add to Home Screen* and offline mode need HTTPS or localhost, so over the LAN
+you get the app but not the installable layer. Pushes to `main` that touch
+`web/` deploy to GitHub Pages automatically.
 
 ## Files
 
 | file | |
 |---|---|
-| `index.html` | the shell — header, list, composer, sheet, toast |
+| `index.html` | the shell — header, tabs, list, composer, sheet, toast |
 | `styles.css` | the paper: colour tokens, dot grid, both themes, the type scale |
-| `app.js` | store, dates, render, gestures, sheets |
+| `app.js` | store, migration, dates, render, gestures, sheets |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable/offline layer |
 | `serve.sh` | LAN dev server (no-store headers) |
 
@@ -243,13 +165,9 @@ The stored shape is a flat list, which is most of why this version is small:
 
 The look comes from the physical object: warm paper, a dot grid you can
 actually see, and one accent that only ever means *this is now*. Dark mode is
-the same page at night, not an inversion. Type is SF Rounded on Apple devices,
-which is why it reads as soft rather than clinical.
+the same page at night, so every colour is a token redefined in one block.
 
-Nothing animates for decoration: the `×` draws itself and the strike-through
-fades in because completing something should feel like it landed. Swipes
-rubber-band past their commit point so the gesture has a shape you can feel
-before you let go.
-
-Every destructive action is undoable from the toast, because the whole app is
-one thumb away from a mis-tap.
+The model is deliberately thin. There is one array of entries; the notebook
+narrows it and the type of a line decides its page. Neither filter ever
+rewrites an entry, which is why a notebook can be archived without touching
+what it holds, and why the whole store is small enough to read in one sitting.

@@ -4,12 +4,24 @@ A touch-first bullet journal built for a thumb, live at
 **https://mohdejaz.github.io/bujo/**. Add it to your home screen and it works
 offline.
 
-Tasks, notes and events on a dated page. Tap a bullet to complete, swipe right
-to complete, swipe left to migrate to tomorrow. Entries can carry a `#tag` and
-long-form notes, and anything left behind on an earlier page surfaces each
-morning for a decision. The journal lives in `localStorage` on the device and
-is exported and imported as JSON from the ☰ menu — that export is the only
-backup, so take one now and then.
+Two pages. **Tasks have no date** and share one endless *Journal*, newest
+first, each line stamped with the day it was written. **Events have a date**
+and live on the *Calendar*, grouped by day. Switching between the two is the
+only navigation there is.
+
+Tap a bullet to complete, swipe right to complete, swipe left to set a task
+aside in the backlog. Every line carries its own `#tag` and long-form notes —
+there is no free-standing note, because what you want to remember belongs with
+the thing it is about — and several notebooks can sit side by side. The
+journal lives in `localStorage` on the device and is exported and imported as
+JSON from the ☰ menu — that export is the only backup, so take one now and
+then.
+
+A journal written in the previous, dated version of this app is migrated once,
+automatically, the first time this one opens; the old data is left on the
+device untouched as a backup. See
+[the migration table](web/README.md#coming-from-the-dated-journal) for exactly
+what moves where.
 
 No build step, no dependencies, no account.
 
@@ -28,8 +40,8 @@ cd web
 you get the app but not the installable layer. Pushes to `main` that touch
 `web/` deploy to GitHub Pages automatically.
 
-See [`web/README.md`](web/README.md) for the full guide: gestures, repeats,
-tags, notebooks, board pages, typing shortcuts and the data format.
+See [`web/README.md`](web/README.md) for the full guide: gestures, the backlog,
+tags, notebooks, search and the data format.
 
 ## License
 

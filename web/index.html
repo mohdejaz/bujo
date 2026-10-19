@@ -12,7 +12,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="bujo" />
-    <meta name="description" content="A pocket bullet journal. Dot grid, one thumb, offline." />
+    <meta name="description" content="Tasks and notes on one page, events on a calendar. Offline, one thumb." />
     <link rel="manifest" href="manifest.webmanifest" />
     <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="icon" href="icons/icon-192.png" />
@@ -24,33 +24,25 @@
 
     <header id="head">
       <div class="head-row">
-        <!-- No arrow buttons: the strip below is one cell per page, the header
-             swipes, and the arrow keys still step pages. -->
-        <button class="datebtn" id="dateBtn">
-          <!-- The stamp and the page size sit on one line; the size is its own
-               element so it can be styled down without markup in a string. -->
-          <span class="dow-row">
-            <span class="dow" id="dow">0830</span>
-            <span class="dow-u" id="dowUnit"></span>
-          </span>
-          <span class="dmy" id="dmy">30 August</span>
-        </button>
+        <!-- The two places anything can live. Tasks are undated and sit on the
+             Journal; events carry a date and sit on the Calendar. Switching
+             is the only navigation the app has. -->
+        <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
+          <button class="tab is-on" id="tabJournal" data-view="journal" role="tab" aria-selected="true">
+            Journal
+          </button>
+          <button class="tab" id="tabCalendar" data-view="calendar" role="tab" aria-selected="false">
+            Calendar
+          </button>
+        </nav>
+
+        <div class="spacer"></div>
 
         <!-- Which notebook you are in, always on screen: the one thing you must
              never have to guess before writing a line. -->
         <button class="bookbtn" id="bookBtn">
           <span id="bookName">journal</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" /></svg>
-        </button>
-
-        <div class="spacer"></div>
-
-        <button class="ring-btn" id="ringBtn" aria-label="Page progress">
-          <svg class="ring" viewBox="0 0 36 36">
-            <circle class="ring-bg" cx="18" cy="18" r="15" />
-            <circle class="ring-fg" cx="18" cy="18" r="15" id="ringFg" />
-          </svg>
-          <span class="ring-num" id="ringNum">0</span>
         </button>
 
         <button class="icon-btn" id="menuBtn" aria-label="Menu">
@@ -60,43 +52,37 @@
         </button>
       </div>
 
-      <nav class="strip" id="strip" aria-label="Pages"></nav>
-      <!-- The days inside a multi-day page, as pulses. Hidden on a day page,
-           where the strip above already shows exactly this. -->
-      <div class="pdays" id="pdays" aria-hidden="true" hidden></div>
+      <!-- Today, in words. The Journal's lines are undated, so this is the
+           page's own date rather than a filter on it. -->
+      <div class="stamp" id="stamp">
+        <span class="stamp-d" id="stampDow">Sunday</span>
+        <span class="stamp-m" id="stampDmy">18 October</span>
+      </div>
     </header>
 
     <main id="page">
-      <section id="carry" class="carry" hidden></section>
       <ul id="list" class="list"></ul>
       <p id="empty" class="empty" hidden></p>
       <div class="tail"></div>
     </main>
 
     <form id="composer" class="composer" autocomplete="off">
-      <!-- Where the line being typed will land, when it names a date. Its own
-           row above the input, so it never squeezes the composer. -->
-      <div class="hint" id="hint" aria-live="polite" hidden></div>
-      <div class="types" role="radiogroup" aria-label="Entry type">
-        <button type="button" class="type is-on" data-type="task" role="radio" aria-checked="true" aria-label="Task">
-          <i class="b b-task"></i>
-        </button>
-        <button type="button" class="type" data-type="note" role="radio" aria-checked="false" aria-label="Note">
-          <i class="b b-note"></i>
-        </button>
-        <button type="button" class="type" data-type="event" role="radio" aria-checked="false" aria-label="Event">
-          <i class="b b-event"></i>
-        </button>
+      <!-- On the Calendar an event needs a day, so the composer grows a date
+           field. It is the first child so it wraps onto its own row above the
+           input rather than squeezing it. -->
+      <div class="when" id="when" hidden>
+        <label for="whenDate">on</label>
+        <input type="date" id="whenDate" class="s-field when-date" />
       </div>
       <input
         id="input"
         type="text"
-        placeholder="what's on the page?"
+        placeholder="what needs doing?"
         enterkeyhint="done"
         autocapitalize="sentences"
         autocorrect="on"
       />
-      <button type="submit" class="send" id="send" aria-label="Add">
+      <button type="submit" class="send" aria-label="Add">
         <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
       </button>
     </form>
@@ -112,7 +98,7 @@
     <!-- A phone turned sideways: the app is portrait-shaped by design, and the
          orientation lock below only lands on installed/Android. This is the
          fallback for everyone else. -->
-    <div class="rotate" id="rotate">
+    <div class="rotate">
       <svg viewBox="0 0 24 24" aria-hidden="true">
         <rect x="7.5" y="2.5" width="9" height="19" rx="2.5" />
         <path d="M12 18.5h.01" />
