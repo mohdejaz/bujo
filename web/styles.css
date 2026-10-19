@@ -269,6 +269,15 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-transform: uppercase;
   color: var(--dim);
 }
+/* Closes off today's events at the head of the Journal from the undated work
+   below them. A rule rather than a heading: the date stamp above has already
+   said what they are. */
+.sep-rule {
+  list-style: none;
+  height: 1px;
+  margin: 14px 14px 10px;
+  background: var(--hair);
+}
 .sep-day { color: var(--ink-2); }
 .sep-day.is-today { color: var(--accent); }
 .sep-day .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }

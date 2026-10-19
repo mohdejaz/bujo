@@ -23,6 +23,10 @@ how old a line is. An **event** always carries a date, and that is what makes
 it an event; it goes on the Calendar. A date and no clock — an event is placed
 on a day, and the day heading it sits under says which.
 
+A line never moves between the two pages — changing what kind of thing it is
+would be writing a different line — though the Journal does *show* you today's
+events, at the top, where they are hard to miss.
+
 There is no free-standing note. **Every line carries its own notes** instead —
 open a line and write underneath it — so what you want to remember lives with
 the thing it is about rather than floating loose on the page. A line that
@@ -49,6 +53,12 @@ long-press the row, to open everything else.
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
 keeping; delete it when it was never worth writing.
+
+**Today, at the top.** Whatever is on the Calendar for today is printed at
+the head of the Journal, under the date stamp that names the day, with a
+hairline below it closing it off from the undated work. The event still lives
+on the Calendar — this is a read of it, not a second copy — so completing or
+striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The backlog.** Tasks you are not doing now but have not given up on. It sits
 folded at the foot of the Journal with a count; tap the heading to open it, and
