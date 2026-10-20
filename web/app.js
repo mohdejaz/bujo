@@ -440,9 +440,8 @@ const isLive = (e) => e.state === "open";
 const onJournal = (e) => e.type === "task";
 
 /* Tags in the order they were first written, across the whole notebook — not
-   alphabetical. That keeps a tag's lines in the same relative position on the
-   page instead of the groups reshuffling as new tags get typed, and gives the
-   Tags sheet a stable order too. */
+   alphabetical, so the Tags sheet keeps a stable order instead of reshuffling
+   as new tags get typed. */
 function tagOrder() {
   const order = [];
   const seen = new Set();
@@ -465,35 +464,20 @@ function tagCounts() {
     .map((t) => [t, n.get(t)]);
 }
 
-/* How a tag orders the page. Lines carrying the same tag sit together, groups
-   in the order their tags were first written, and untagged lines fall to the
-   end. This is a *sort*, not a set of sections: the only thing marking a group
-   is the chip each of its rows already wears. */
-const tagRank = () => {
-  const order = new Map(tagOrder().map((t, i) => [t, i]));
-  return (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
-};
-
-/* The Journal: every undated line in this notebook, minus the backlog, which
-   is its own folded section. Starred lines lift clear of their group into one
-   priority block at the top; inside a group the live lines lead and the
-   settled ones trail. */
-function journalEntries() {
-  const rank = tagRank();
-  return mine()
+/* The Journal: every undated task in this notebook, in three buckets — what
+   is in progress (open, on the page), what is set aside (the backlog), and
+   what is settled (done or struck out). Each bucket is newest first: on an
+   endless page the line you just wrote is the one you want under your thumb. */
+function journalBuckets() {
+  const tasks = mine()
     .filter(onJournal)
-    .filter((e) => !e.backlog)
     .filter((e) => !S.tag || e.tag === S.tag)
-    .filter((e) => !db.hideLogged || isLive(e))
-    .sort(
-      (a, b) =>
-        (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
-        rank(a) - rank(b) ||
-        (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) ||
-        // newest first: on an endless page the line you just wrote is the one
-        // you want under your thumb
-        b.created - a.created
-    );
+    .sort((a, b) => b.created - a.created);
+  return {
+    progress: tasks.filter((e) => isLive(e) && !e.backlog),
+    backlog: tasks.filter((e) => isLive(e) && e.backlog),
+    done: db.hideLogged ? [] : tasks.filter((e) => !isLive(e)),
+  };
 }
 
 /* What is on today, shown at the head of the Journal. An event still belongs
@@ -511,17 +495,6 @@ const todayEvents = () => {
         (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) ||
         b.created - a.created
     );
-};
-
-/* Tasks explicitly set aside. Grouped by tag like the page above it, so a
-   tag's work reads the same way wherever it is, then newest first inside a
-   group. */
-const backlogEntries = () => {
-  const rank = tagRank();
-  return mine()
-    .filter((e) => e.backlog && e.type === "task" && isLive(e))
-    .filter((e) => !S.tag || e.tag === S.tag)
-    .sort((a, b) => rank(a) - rank(b) || b.created - a.created);
 };
 
 /* The Calendar: events, newest day first. Descending throughout — the page
@@ -743,33 +716,44 @@ function renderJournal() {
   if (f) list.append(f);
 
   const today = todayEvents();
-  const rows = journalEntries();
-  const back = backlogEntries();
+  const { progress, backlog, done } = journalBuckets();
 
   /* Today's events lead the page, directly under the date stamp that names the
      day they fall on — so they read as that heading's content and need no
-     heading of their own. A hairline closes them off from the undated work
-     below; without it the two would run together into one list. */
+     heading of their own. The first bucket heading below closes them off. */
   today.forEach((e) => list.append(row(e)));
-  if (today.length && rows.length) list.append(el("li", "sep-rule"));
 
-  rows.forEach((e) => list.append(row(e)));
+  const heading = (label, n) => {
+    const h = el("li", "sep sep-bucket");
+    h.append(el("span", null, label), el("span", "sep-n", String(n)));
+    return h;
+  };
 
-  if (back.length) {
+  if (progress.length) {
+    list.append(heading("In Progress", progress.length));
+    progress.forEach((e) => list.append(row(e)));
+  }
+
+  if (backlog.length) {
     const h = el("li");
     const b = el("button", "sep-fold" + (S.backlogOpen ? " open" : ""), ICON.chev);
-    b.append(el("span", null, "Backlog"), el("span", "sep-n", String(back.length)));
+    b.append(el("span", null, "Backlog"), el("span", "sep-n", String(backlog.length)));
     b.onclick = () => {
       S.backlogOpen = !S.backlogOpen;
       render();
     };
     h.append(b);
     list.append(h);
-    if (S.backlogOpen) back.forEach((e) => list.append(row(e)));
+    if (S.backlogOpen) backlog.forEach((e) => list.append(row(e)));
+  }
+
+  if (done.length) {
+    list.append(heading("Done", done.length));
+    done.forEach((e) => list.append(row(e)));
   }
 
   const empty = $("#empty");
-  const bare = !rows.length && !back.length && !today.length;
+  const bare = !progress.length && !backlog.length && !done.length && !today.length;
   empty.hidden = !bare;
   if (bare) {
     empty.innerHTML = S.tag

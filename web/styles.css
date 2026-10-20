@@ -258,8 +258,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 0 12px;
 }
 
-/* A section heading in the list: a day on the Calendar, the Backlog fold on
-   the Journal, the active tag filter above either. */
+/* A section heading in the list: a day on the Calendar, a bucket (In
+   Progress, Done) or the Backlog fold on the Journal, the active tag filter above either. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -269,18 +269,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-transform: uppercase;
   color: var(--dim);
 }
-/* Closes off today's events at the head of the Journal from the undated work
-   below them. A rule rather than a heading: the date stamp above has already
-   said what they are. */
-.sep-rule {
-  list-style: none;
-  height: 1px;
-  margin: 14px 14px 10px;
-  background: var(--hair);
-}
 .sep-day { color: var(--ink-2); }
 .sep-day.is-today { color: var(--accent); }
-.sep-day .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
+.sep-day .sep-n,
+.sep-bucket .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
 
 /* A heading you can fold: the backlog and the logged pile both start closed,
    because neither is what you came to the page to read. */
