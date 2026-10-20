@@ -440,8 +440,9 @@ const isLive = (e) => e.state === "open";
 const onJournal = (e) => e.type === "task";
 
 /* Tags in the order they were first written, across the whole notebook — not
-   alphabetical, so the Tags sheet keeps a stable order instead of reshuffling
-   as new tags get typed. */
+   alphabetical. That keeps a tag's lines in the same relative position on the
+   page instead of the groups reshuffling as new tags get typed, and gives the
+   Tags sheet a stable order too. */
 function tagOrder() {
   const order = [];
   const seen = new Set();
@@ -464,12 +465,21 @@ function tagCounts() {
     .map((t) => [t, n.get(t)]);
 }
 
+/* How a tag orders the page. Lines carrying the same tag sit together, groups
+   in the order their tags were first written, and untagged lines fall to the
+   end. This is a *sort*, not a set of sections: the only thing marking a group
+   is the chip each of its rows already wears. */
+const tagRank = () => {
+  const order = new Map(tagOrder().map((t, i) => [t, i]));
+  return (e) => (e.tag && order.has(e.tag) ? order.get(e.tag) : Infinity);
+};
+
 /* The Journal: every undated line in this notebook, minus the backlog, which
-   is its own folded section. One flat list — a tag shows as the chip on its
-   row and nothing more, so the page stays in the order you wrote it instead of
-   being cut into a section per tag. Starred lines lift to the top, and the
-   settled ones trail the live ones. */
+   is its own folded section. Starred lines lift clear of their group into one
+   priority block at the top; inside a group the live lines lead and the
+   settled ones trail. */
 function journalEntries() {
+  const rank = tagRank();
   return mine()
     .filter(onJournal)
     .filter((e) => !e.backlog)
@@ -478,6 +488,7 @@ function journalEntries() {
     .sort(
       (a, b) =>
         (b.star ? 1 : 0) - (a.star ? 1 : 0) ||
+        rank(a) - rank(b) ||
         (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) ||
         // newest first: on an endless page the line you just wrote is the one
         // you want under your thumb
@@ -502,13 +513,16 @@ const todayEvents = () => {
     );
 };
 
-/* Tasks explicitly set aside, newest first: the backlog is a pile, not a
-   page. */
-const backlogEntries = () =>
-  mine()
+/* Tasks explicitly set aside. Grouped by tag like the page above it, so a
+   tag's work reads the same way wherever it is, then newest first inside a
+   group. */
+const backlogEntries = () => {
+  const rank = tagRank();
+  return mine()
     .filter((e) => e.backlog && e.type === "task" && isLive(e))
     .filter((e) => !S.tag || e.tag === S.tag)
-    .sort((a, b) => b.created - a.created);
+    .sort((a, b) => rank(a) - rank(b) || b.created - a.created);
+};
 
 /* The Calendar: events, newest day first. Descending throughout — the page
    reads back from the furthest date towards the oldest. */
