@@ -713,16 +713,13 @@ function renderHead() {
     b.classList.toggle("is-on", on);
     b.setAttribute("aria-selected", String(on));
   });
-  /* The Journal's lines carry no date, so the page prints today's — the one
-     thing a paper journal always has at the top. The Calendar's own headings
-     are its dates, so it needs no stamp. */
-  const stamp = $("#stamp");
-  stamp.hidden = isCal();
-  if (!isCal()) {
-    const d = new Date();
-    $("#stampDow").textContent = DOW[d.getDay()];
-    $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()]}`;
-  }
+  /* Today, on both pages — the one thing a paper journal always has at the
+     top. The Journal needs it because its lines carry no date of their own;
+     the Calendar needs it because a day heading only says "Today" when
+     something actually falls on today, and on a quiet week nothing would. */
+  const d = new Date();
+  $("#stampDow").textContent = DOW[d.getDay()];
+  $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()]}`;
 }
 
 /* A filter chip row, printed above the list whenever a tag is narrowing the
