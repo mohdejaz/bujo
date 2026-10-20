@@ -429,6 +429,7 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 const S = {
   tag: null, // page filter, set from the Tags sheet; never persisted
   backlogOpen: false,
+  doneOpen: true, // starts open, as Done always was; folding it is per session
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
 
@@ -734,23 +735,23 @@ function renderJournal() {
     progress.forEach((e) => list.append(row(e)));
   }
 
-  if (backlog.length) {
+  /* A bucket heading that folds its lines away. `key` names the S flag. */
+  const fold = (label, items, key) => {
     const h = el("li");
-    const b = el("button", "sep-fold" + (S.backlogOpen ? " open" : ""), ICON.chev);
-    b.append(el("span", null, "Backlog"), el("span", "sep-n", String(backlog.length)));
+    const b = el("button", "sep-fold" + (S[key] ? " open" : ""), ICON.chev);
+    b.append(el("span", null, label), el("span", "sep-n", String(items.length)));
+    b.setAttribute("aria-expanded", String(S[key]));
     b.onclick = () => {
-      S.backlogOpen = !S.backlogOpen;
+      S[key] = !S[key];
       render();
     };
     h.append(b);
     list.append(h);
-    if (S.backlogOpen) backlog.forEach((e) => list.append(row(e)));
-  }
+    if (S[key]) items.forEach((e) => list.append(row(e)));
+  };
 
-  if (done.length) {
-    list.append(heading("Done", done.length));
-    done.forEach((e) => list.append(row(e)));
-  }
+  if (backlog.length) fold("Backlog", backlog, "backlogOpen");
+  if (done.length) fold("Done", done, "doneOpen");
 
   const empty = $("#empty");
   const bare = !progress.length && !backlog.length && !done.length && !today.length;
