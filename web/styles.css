@@ -259,7 +259,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 
 /* A section heading in the list: a day on the Calendar, a bucket (In
-   Progress, Done) or the Backlog fold on the Journal, the active tag filter above either. */
+   Progress) or the Backlog and Done folds on the Journal, the active tag filter above either. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -274,8 +274,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sep-day .sep-n,
 .sep-bucket .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
 
-/* A heading you can fold: the backlog and the logged pile both start closed,
-   because neither is what you came to the page to read. */
+/* A heading you can fold: the backlog starts closed, because it is not what
+   you came to the page to read; Done starts open but can be put away. */
 .sep-fold {
   display: flex;
   align-items: center;
