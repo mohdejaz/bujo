@@ -343,6 +343,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .row.dragging .row-face { transition: none; }
 .row-face.snap { transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.25, 1); }
+/* a long press holds the row, so the text must not also start a selection */
+.row-face { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+
+/* held for a reorder: lifted off the page and carried under the finger, while
+   the rest of its group slides aside to show where it will land */
+.row.lifting { z-index: 2; overflow: visible; }
+.row.lifting .row-face {
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.16), 0 0 0 1px var(--hair-2);
+  transform: scale(1.02);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.row.shifting { transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.25, 1); }
 
 /* bullets — CSS shapes, no glyph fonts to fight with */
 .bul {
@@ -409,21 +421,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-align: left;
   position: relative;
 }
-/* When a line was written. Undated lines still have a day they came from, and
-   on an endless page that is the only thing telling you how old a line is.
-   inline-block so a struck line's rule stops at the words and does not run
-   back through the stamp, which is metadata rather than part of the sentence. */
-.row-when {
-  display: inline-block;
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--dim);
-  margin-right: 7px;
-}
-.row-when.is-today { color: var(--accent); }
-
 .row.is-done .row-text,
 .row.is-dropped .row-text {
   color: var(--dim);
