@@ -12,7 +12,7 @@
  * pages, because changing what kind of thing it is would be writing a
  * different line.
  *
- *   entry = { id, type, text, state, star, tag, notes, book, created }
+ *   entry = { id, type, text, state, star, tag, notes, book, created, pos }
  *   type  = task                   → Journal, undated
  *         | event                  → Calendar, carries the day it falls on
  *   state = open | done | dropped  (dropped = struck out, still on the record)
@@ -28,8 +28,11 @@
  *           free-standing note, because a note with nothing to hang off is
  *           just a task you have not decided about yet.
  *   book  = which notebook the entry is in, absent for "the first one".
- *   created = when it was written. On the Journal, where lines have no date of
- *           their own, this is what the row prints.
+ *   created = when it was written. Never printed on the row — a line stays
+ *           its words — only in the line's sheet and in search.
+ *   pos   = where a task sits on the page after it has been dragged, absent
+ *           until then. It shares a scale with `created` (see rankOf), so a
+ *           line written after a reorder still lands on top.
  */
 
 const KEY = "bujo.v2";
@@ -86,8 +89,7 @@ function dayLabel(s) {
   );
 }
 
-/* When a line was written, for the Journal's row stamp. Short, because it sits
-   inline ahead of the words. */
+/* When a line was written, short, for a search hit's metadata line. */
 function writtenLabel(ms) {
   if (!Number.isFinite(ms)) return "";
   const d = new Date(ms);
@@ -388,6 +390,7 @@ function adopt(raw, i, books) {
   if (tag) e.tag = tag;
   else delete e.tag;
   if (!(books && books.has(e.book))) delete e.book;
+  if (!Number.isFinite(raw.pos)) delete e.pos;
   return e;
 }
 
@@ -447,15 +450,21 @@ function tagCounts() {
     .map((t) => [t, n.get(t)]);
 }
 
+/* Where a task sits on the page: wherever it was dragged to, else when it was
+   written. One scale for both, so an untouched page is newest first — on an
+   endless page the line you just wrote is the one you want under your thumb —
+   and a fresh line still lands above anything that was dragged. */
+const rankOf = (e) => (Number.isFinite(e.pos) ? e.pos : e.created);
+
 /* The Journal: every undated task in this notebook, in three buckets — what
    is in progress (open, on the page), what is set aside (the backlog), and
-   what is settled (done or struck out). Each bucket is newest first: on an
-   endless page the line you just wrote is the one you want under your thumb. */
+   what is settled (done or struck out). Inside each bucket starred lines lead,
+   then the order you dragged them into. */
 function journalBuckets() {
   const tasks = mine()
     .filter(onJournal)
     .filter((e) => !S.tag || e.tag === S.tag)
-    .sort((a, b) => b.created - a.created);
+    .sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || rankOf(b) - rankOf(a));
   return {
     progress: tasks.filter((e) => isLive(e) && !e.backlog),
     backlog: tasks.filter((e) => isLive(e) && e.backlog),
@@ -602,6 +611,27 @@ function toggleBacklog(id) {
   if (!was) S.backlogOpen = true;
 }
 
+/* Drop a dragged line into a new place in its group. The group keeps the rank
+   values it already had and hands them out again in the new order — so only
+   the lines between the old and new place change, lines hidden by a tag
+   filter keep their relative spot, and no amount of dragging runs out of room
+   between two neighbours. */
+function reorder(ids, from, to) {
+  if (from === to) return;
+  const group = ids.map(byId).filter(Boolean);
+  if (group.length !== ids.length) return;
+  const slots = group.map(rankOf);
+  const [moved] = group.splice(from, 1);
+  group.splice(to, 0, moved);
+  buzz(8);
+  mutate(null, () =>
+    group.forEach((e, i) => {
+      if (slots[i] === e.created) delete e.pos;
+      else e.pos = slots[i];
+    })
+  );
+}
+
 function removeEntry(id) {
   mutate("Deleted", () => {
     db.entries = db.entries.filter((e) => e.id !== id);
@@ -706,6 +736,16 @@ function renderJournal() {
      heading of their own. The first bucket heading below closes them off. */
   today.forEach((e) => list.append(row(e)));
 
+  /* Every bucket row can be lifted and dragged — but only among the rows it
+     shares a bucket and a star with, because the sort would put it straight
+     back if it crossed either line. */
+  const put = (e, bucket) => {
+    const li = row(e);
+    li.dataset.group = bucket + (e.star ? ":star" : "");
+    liftable(li);
+    list.append(li);
+  };
+
   const heading = (label, n) => {
     const h = el("li", "sep sep-bucket");
     h.append(el("span", null, label), el("span", "sep-n", String(n)));
@@ -714,7 +754,7 @@ function renderJournal() {
 
   if (progress.length) {
     list.append(heading("In Progress", progress.length));
-    progress.forEach((e) => list.append(row(e)));
+    progress.forEach((e) => put(e, "progress"));
   }
 
   /* A bucket heading that folds its lines away. `key` names the S flag. */
@@ -729,7 +769,7 @@ function renderJournal() {
     };
     h.append(b);
     list.append(h);
-    if (S[key]) items.forEach((e) => list.append(row(e)));
+    if (S[key]) items.forEach((e) => put(e, key));
   };
 
   if (backlog.length) fold("Backlog", backlog, "backlogOpen");
@@ -793,16 +833,6 @@ function row(e) {
   face.append(bul);
 
   const txt = el("button", "row-text");
-  /* The stamp ahead of the words. An event needs none — the day heading it
-     sits under already places it — so this is the Journal's own: the day the
-     line was written. */
-  if (onJournal(e)) {
-    const w = writtenLabel(e.created);
-    if (w) {
-      const now = iso(new Date(e.created)) === TODAY();
-      txt.append(el("span", "row-when" + (now ? " is-today" : ""), w));
-    }
-  }
   if (e.tag) txt.append(el("span", "tag", safeHtml(e.tag)));
   txt.append(document.createTextNode(e.text));
   txt.onclick = () => openEntry(e.id);
@@ -874,6 +904,10 @@ function swipeable(li, face, e) {
     if (!active || ev.pointerId !== id) return;
     const mx = ev.clientX - x0;
     const my = ev.clientY - y0;
+    if (li.classList.contains("lifting")) {
+      active = false; // a long press picked the row up: this is a drag, not a swipe
+      return;
+    }
     if (!decided) {
       if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) {
         active = false; // vertical: let the page scroll
@@ -921,6 +955,151 @@ function swipeable(li, face, e) {
         ev.stopPropagation();
         ev.preventDefault();
         decided = false;
+      }
+    },
+    true
+  );
+}
+
+/* Hold a row still, then drag it up or down its group. The hold is what tells
+   a reorder apart from a scroll or a swipe: move before it lands and the row
+   never lifts. Once lifted the touch is the row's — the page is held still,
+   and scrolls itself only when the row is carried to an edge. */
+const LIFT_MS = 420;
+
+function liftable(li) {
+  const face = li.querySelector(".row-face");
+  const page = $("#page");
+  let timer = null,
+    pid = null,
+    x0 = 0,
+    y0 = 0,
+    y = 0,
+    scroll0 = 0,
+    lifted = false,
+    swallow = false,
+    raf = 0,
+    rows = [],
+    tops = [],
+    hs = [],
+    from = 0,
+    to = 0;
+
+  const cancel = () => {
+    clearTimeout(timer);
+    timer = null;
+  };
+
+  /* Where the lifted row would land, with the rest of its group slid out of
+     the way to show the gap. */
+  const layout = () => {
+    const dy = y - y0 + page.scrollTop - scroll0;
+    li.style.transform = `translateY(${dy}px)`;
+    const mid = tops[from] + dy + hs[from] / 2;
+    to = rows.filter((r, i) => i !== from && tops[i] + hs[i] / 2 < mid).length;
+    const order = rows.filter((r) => r !== li);
+    order.splice(to, 0, li);
+    let top = tops[0];
+    order.forEach((r) => {
+      const i = rows.indexOf(r);
+      if (r !== li) r.style.transform = `translateY(${top - tops[i]}px)`;
+      top += hs[i];
+    });
+  };
+
+  const edgeScroll = () => {
+    const box = page.getBoundingClientRect();
+    const near = 56;
+    const v =
+      y < box.top + near ? (y - box.top - near) / 4 : y > box.bottom - near ? (y - box.bottom + near) / 4 : 0;
+    if (v) {
+      page.scrollTop += v;
+      layout();
+    }
+    raf = requestAnimationFrame(edgeScroll);
+  };
+
+  const lift = () => {
+    timer = null;
+    lifted = true;
+    buzz(14);
+    rows = [...$("#list").querySelectorAll(`.row[data-group="${li.dataset.group}"]`)];
+    from = to = rows.indexOf(li);
+    /* row-to-row distance, gap included, so the slots tile exactly */
+    tops = rows.map((r) => r.offsetTop);
+    const gap = rows.length > 1 ? tops[1] - tops[0] - rows[0].offsetHeight : 0;
+    hs = rows.map((r) => r.offsetHeight + gap);
+    scroll0 = page.scrollTop;
+    rows.forEach((r) => r !== li && r.classList.add("shifting"));
+    li.classList.add("lifting");
+    try {
+      face.setPointerCapture(pid);
+    } catch {}
+    raf = requestAnimationFrame(edgeScroll);
+  };
+
+  const drop = () => {
+    cancelAnimationFrame(raf);
+    lifted = false;
+    swallow = true;
+    li.classList.remove("lifting");
+    if (to === from) {
+      rows.forEach((r) => {
+        r.classList.remove("shifting");
+        r.style.transform = "";
+      });
+      return;
+    }
+    /* Rows stay where the drag left them until the redraw. It waits a tick so
+       the click that follows pointerup still finds this row and is swallowed,
+       instead of landing on a freshly drawn one and opening it. */
+    const ids = rows.map((r) => r.dataset.id);
+    setTimeout(() => reorder(ids, from, to), 0);
+  };
+
+  face.addEventListener(
+    "pointerdown",
+    (ev) => {
+      if (ev.pointerType === "mouse" && ev.button !== 0) return;
+      pid = ev.pointerId;
+      x0 = ev.clientX;
+      y = y0 = ev.clientY;
+      swallow = false;
+      cancel();
+      timer = setTimeout(lift, LIFT_MS);
+    },
+    { passive: true }
+  );
+  face.addEventListener("pointermove", (ev) => {
+    if (ev.pointerId !== pid) return;
+    if (timer && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel();
+    if (!lifted) return;
+    ev.preventDefault();
+    y = ev.clientY;
+    layout();
+  });
+  face.addEventListener("pointerup", (ev) => {
+    if (ev.pointerId !== pid) return;
+    cancel();
+    if (lifted) drop();
+  });
+  face.addEventListener("pointercancel", () => {
+    cancel();
+    if (!lifted) return;
+    to = from; // the browser took the touch back: leave the line where it was
+    drop();
+  });
+  // while lifted, the finger carries the row, not the page
+  face.addEventListener("touchmove", (ev) => lifted && ev.preventDefault(), { passive: false });
+  face.addEventListener("contextmenu", (ev) => ev.preventDefault());
+  // a drag must not also open the line it dropped
+  face.addEventListener(
+    "click",
+    (ev) => {
+      if (swallow) {
+        ev.stopPropagation();
+        ev.preventDefault();
+        swallow = false;
       }
     },
     true
@@ -1066,6 +1245,11 @@ function openEntry(id) {
   if (!e) return;
   openSheet((b) => {
     b.append(el("div", "s-title", e.type === "event" ? "Event" : "Task"));
+    /* The row prints no date, so this is where a line says how old it is. */
+    if (Number.isFinite(e.created)) {
+      const w = iso(new Date(e.created));
+      b.append(el("div", "s-sub", `Written ${dayLabel(w)}`));
+    }
 
     const ta = el("textarea", "s-input");
     ta.rows = 2;

@@ -17,9 +17,9 @@ No build step, no dependencies, no account. The journal lives in
 ```
 
 Two kinds of line, and the page you are on decides which you are writing. A
-**task** never carries a date: it goes on the Journal, newest first, and each
-row prints the day it was written — that stamp is the only thing telling you
-how old a line is. An **event** always carries a date, and that is what makes
+**task** never carries a date: it goes on the Journal, newest first, until you
+drag it somewhere else. The row prints only its words; open it and the sheet
+says the day it was written. An **event** always carries a date, and that is what makes
 it an event; it goes on the Calendar. A date and no clock — an event is placed
 on a day, and the day heading it sits under says which.
 
@@ -47,8 +47,13 @@ sit newest-written first.
 
 **Gestures.** Tap a bullet to complete a line. Swipe a row **right** to
 complete it, **left** to set it aside — which for a live task means the
-backlog, and for anything else means striking it out. Tap the text, or
-long-press the row, to open everything else.
+backlog, and for anything else means striking it out. Tap the text to open
+everything else.
+
+**Reordering.** Hold a task still for a moment until it lifts, then drag it up
+or down. A line moves within its own bucket — In Progress, Backlog, Done — and
+among its own kind, starred or not, since stars always sit on top. A line you
+write afterwards still lands at the top.
 
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
@@ -72,7 +77,7 @@ in the order you wrote it, rather than being cut into a section per tag.
 **⋯ → Tags** lists them with counts, narrows the page to one, and renames a
 tag across the whole notebook at once.
 
-**Starring** lifts a line out of its group to the very top of the page.
+**Starring** lifts a line to the top of its bucket, above every unstarred one.
 
 **Notebooks.** Several journals in one app — work, private — with one open at a
 time, named in the header. A notebook is a *filter*, not a container:
