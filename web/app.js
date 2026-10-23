@@ -73,25 +73,14 @@ const parse = (s) => {
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 };
-const shift = (s, n) => {
-  const d = parse(s);
-  d.setDate(d.getDate() + n);
-  return iso(d);
-};
 const TODAY = () => iso(new Date());
 const isDate = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || "");
 const DOW = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 const MON = "January February March April May June July August September October November December".split(" ");
 
-function relative(s) {
-  const t = TODAY();
-  if (s === t) return "Today";
-  if (s === shift(t, 1)) return "Tomorrow";
-  if (s === shift(t, -1)) return "Yesterday";
-  return null;
-}
-
-/* "Sat 21 Nov", with the year only when it isn't this one. */
+/* "Sat 21 Nov", with the year only when it isn't this one. Every date in the
+   app reads this way — dd MMM, never "Today" or "Tomorrow", so a line means
+   the same thing whenever you read it back. */
 function dayLabel(s) {
   const d = parse(s);
   return (
@@ -100,17 +89,10 @@ function dayLabel(s) {
   );
 }
 
-/* How a day reads as a heading: a relative name when it has one, else the
-   full date. The Calendar leans on this for every group heading. */
-const dayHeading = (s) => relative(s) || dayLabel(s);
-
 /* When a line was written, short, for a search hit's metadata line. */
 function writtenLabel(ms) {
   if (!Number.isFinite(ms)) return "";
   const d = new Date(ms);
-  const s = iso(d);
-  const r = relative(s);
-  if (r) return r;
   return (
     `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}` +
     (d.getFullYear() === new Date().getFullYear() ? "" : ` ${d.getFullYear()}`)
@@ -717,13 +699,13 @@ function renderHead() {
     b.classList.toggle("is-on", on);
     b.setAttribute("aria-selected", String(on));
   });
-  /* Today, on both pages — the one thing a paper journal always has at the
-     top. The Journal needs it because its lines carry no date of their own;
-     the Calendar needs it because a day heading only says "Today" when
-     something actually falls on today, and on a quiet week nothing would. */
+  /* The current date, on both pages — the one thing a paper journal always has
+     at the top. The Journal needs it because its lines carry no date of their
+     own; the Calendar needs it because its headings name every day the same
+     way, so nothing on the page says which one is now. */
   const d = new Date();
   $("#stampDow").textContent = DOW[d.getDay()];
-  $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()]}`;
+  $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
 }
 
 /* A filter chip row, printed above the list whenever a tag is narrowing the
@@ -813,8 +795,7 @@ function renderCalendar() {
   const today = TODAY();
   days.forEach(([d, evs]) => {
     const h = el("li", "sep sep-day" + (d === today ? " is-today" : ""));
-    h.append(el("span", null, dayHeading(d)));
-    if (d !== today) h.append(el("span", "sep-n", dayLabel(d) === dayHeading(d) ? "" : dayLabel(d)));
+    h.append(el("span", null, dayLabel(d)));
     list.append(h);
     evs.forEach((e) => list.append(row(e)));
   });
@@ -1267,8 +1248,7 @@ function openEntry(id) {
     /* The row prints no date, so this is where a line says how old it is. */
     if (Number.isFinite(e.created)) {
       const w = iso(new Date(e.created));
-      const r = relative(w);
-      b.append(el("div", "s-sub", `Written ${r ? r.toLowerCase() + " · " : ""}${dayLabel(w)}`));
+      b.append(el("div", "s-sub", `Written ${dayLabel(w)}`));
     }
 
     const ta = el("textarea", "s-input");
@@ -1945,8 +1925,8 @@ document.addEventListener("keydown", (e) => {
   } else if (e.key === "f") openSearch();
 });
 
-// the page may have been open across midnight — the Journal's stamp and the
-// Calendar's "Today" both go stale, so redraw on return
+// the page may have been open across midnight — the date stamp and the
+// Calendar's marker for the current day both go stale, so redraw on return
 document.addEventListener("visibilitychange", () => {
   if (!document.hidden) render();
 });
