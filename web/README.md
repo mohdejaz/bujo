@@ -1,8 +1,9 @@
 # bujo
 
-A touch-first bullet journal in two pages. Tasks have no date and share one
-endless **Journal**; events have a date and live on the **Calendar**.
-Switching between the two is the only navigation there is.
+A touch-first bullet journal in three pages. Tasks have no date and share one
+endless **Journal**; events have a date and live on the **Calendar**; goals
+have a due date and live on **Goals**, counting the tasks that get them done.
+Switching between the three is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
@@ -12,6 +13,7 @@ No build step, no dependencies, no account. The journal lives in
 ```
   •  a task        something to do, whenever
   ○  an event      something that happens, on a day
+  ◇  a goal        somewhere to get to, by a day
   ×  done
   ≡  carries notes
 ```
@@ -76,6 +78,16 @@ A tag is a label on the row and nothing more: the page stays in one flat list
 in the order you wrote it, rather than being cut into a section per tag.
 **⋯ → Tags** lists them with counts, narrows the page to one, and renames a
 tag across the whole notebook at once.
+
+**Goals.** On the Goals tab, write what you want to reach and pick the day it
+is due *by*. Its sheet opens straight on the field for the first step. Each
+step is an ordinary task, so it also lands on the Journal — marked with a
+small flag — and is completed there like anything else. You can also add a
+task you have already written, or pick a goal from a task's own sheet. A
+goal's row shows its deadline and how many of its steps are done; past the
+deadline it turns orange. Finishing the last step asks whether the goal is
+achieved rather than deciding for you, since there may be steps you have not
+written yet. Deleting a goal deletes its steps with it; Undo brings back both.
 
 **Starring** lifts a line to the top of its bucket, above every unstarred one.
 
