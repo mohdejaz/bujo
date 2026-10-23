@@ -160,9 +160,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* ── the two pages ──────────────────────────────────────────────────── */
 
-/* Journal | Calendar. A segmented control rather than a bottom bar: the
-   composer already owns the bottom of the screen, and the switch belongs
-   next to the notebook it applies to. */
+/* Journal | Calendar | Goals. A segmented control rather than a bottom bar:
+   the composer already owns the bottom of the screen, and the switch belongs
+   next to the notebook it applies to. Icons, with the name spelled out only on
+   the page you are on. */
 .tabs {
   flex: none;
   display: flex;
@@ -172,7 +173,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   background: var(--hair-2);
 }
 .tab {
-  padding: 7px 13px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
   border-radius: 10px;
   font-size: 0.84375rem;
   font-weight: 600;
@@ -181,6 +185,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .tab:active { transform: scale(0.94); }
 .tab.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
+.tab svg { width: 1.125rem; height: 1.125rem; flex: none; }
+.tab span { display: none; }
+.tab.is-on span { display: inline; }
 
 .bookbtn {
   flex: 0 1 auto;
@@ -381,6 +388,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
+/* a goal: a diamond, open like an event's ring — somewhere to get to */
+.b-goal {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 2px;
+  border: 2px solid currentColor;
+  transform: rotate(45deg);
+}
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -436,6 +451,26 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 /* set aside, not finished: dim the line but leave it unstruck */
 .row.is-backlog .row-text { color: var(--ink-2); }
+
+/* under a goal's words: the day it is due by, its steps and a meter */
+.row-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 3px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--dim);
+}
+.row-meta.is-late { color: var(--accent); }
+.meter {
+  flex: 0 1 4.5rem;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--hair);
+  overflow: hidden;
+}
+.meter i { display: block; height: 100%; border-radius: inherit; background: var(--good); }
 
 .star {
   flex: none;
@@ -850,6 +885,13 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-n span { min-width: 0; }
 
 .lb { width: 1.375rem; display: grid; place-items: center; flex: none; align-self: center; }
+
+/* a goal's steps, in its sheet */
+.s-steps { margin-bottom: 14px; }
+.s-steps .sep { padding: 2px 6px 4px; }
+.s-steps .s-acts { margin: 0; }
+.s-step { margin: 6px 0 2px; font-size: max(16px, 0.9375rem); padding: 11px 14px; }
+.hit.is-settled .h-t { color: var(--dim); text-decoration: line-through; }
 
 /* ── toast ──────────────────────────────────────────────────────────── */
 

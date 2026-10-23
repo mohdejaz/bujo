@@ -24,15 +24,24 @@
 
     <header id="head">
       <div class="head-row">
-        <!-- The two places anything can live. Tasks are undated and sit on the
-             Journal; events carry a date and sit on the Calendar. Switching
-             is the only navigation the app has. -->
+        <!-- The three places anything can live. Tasks are undated and sit on
+             the Journal; events carry a date and sit on the Calendar; goals
+             carry a due date and sit on Goals. Switching is the only
+             navigation the app has. Each tab is an icon, and only the page
+             you are on spells out its name — three words never fit beside
+             the notebook on a phone. -->
         <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
-          <button class="tab is-on" id="tabJournal" data-view="journal" role="tab" aria-selected="true">
-            Journal
+          <button class="tab is-on" id="tabJournal" data-view="journal" role="tab" aria-selected="true" aria-label="Journal">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6h10M9.5 12h10M9.5 18h10M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg>
+            <span>Journal</span>
           </button>
-          <button class="tab" id="tabCalendar" data-view="calendar" role="tab" aria-selected="false">
-            Calendar
+          <button class="tab" id="tabCalendar" data-view="calendar" role="tab" aria-selected="false" aria-label="Calendar">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
+            <span>Calendar</span>
+          </button>
+          <button class="tab" id="tabGoals" data-view="goals" role="tab" aria-selected="false" aria-label="Goals">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 21V3.5M5.5 4h12l-3 4.25 3 4.25h-12" /></svg>
+            <span>Goals</span>
           </button>
         </nav>
 
@@ -67,11 +76,12 @@
     </main>
 
     <form id="composer" class="composer" autocomplete="off">
-      <!-- On the Calendar an event needs a day, so the composer grows a date
-           field. It is the first child so it wraps onto its own row above the
-           input rather than squeezing it. -->
+      <!-- On the Calendar an event needs a day, and on Goals a goal needs the
+           day it is due by, so the composer grows a date field. It is the
+           first child so it wraps onto its own row above the input rather than
+           squeezing it. -->
       <div class="when" id="when" hidden>
-        <label for="whenDate">on</label>
+        <label for="whenDate" id="whenLabel">on</label>
         <input type="date" id="whenDate" class="s-field when-date" />
       </div>
       <input

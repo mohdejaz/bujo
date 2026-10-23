@@ -1,4 +1,4 @@
-/* bujo — a pocket bullet journal, in two pages.
+/* bujo — a pocket bullet journal, in three pages.
  *
  * One file, no build, no dependencies. The whole journal is a flat array of
  * entries in localStorage; the notebook narrows it, and then the *type* of an
@@ -6,6 +6,7 @@
  *
  *   Journal   tasks. No date — one endless page per notebook.
  *   Calendar  events. Every event has a date, grouped by day.
+ *   Goals     goals. Each is due by a day and counts the tasks that get it done.
  *
  * That split is the whole model: a task is something to do whenever, an event
  * is something that happens on a day. A line never moves between the two
@@ -15,6 +16,12 @@
  *   entry = { id, type, text, state, star, tag, notes, book, created, pos }
  *   type  = task                   → Journal, undated
  *         | event                  → Calendar, carries the day it falls on
+ *         | goal                   → Goals, carries the day it is due by
+ *   due   = a goal's deadline. Not `date`: an event falls *on* its day, a goal
+ *           only has to be reached *by* it — and the Calendar reads `date`.
+ *   goal  = on a task, the id of the goal it is a step towards, in the same
+ *           notebook; absent when none. The step is still an ordinary task —
+ *           it lives on the Journal like any other, and the goal only counts it.
  *   state = open | done | dropped  (dropped = struck out, still on the record)
  *   backlog = true on a task set aside; absent means it is on the page
  *   tag   = one 3-5 char label, lowercase, absent when none. One per entry on
@@ -177,11 +184,14 @@ const WELCOME = [
   { type: "task", text: "Swipe a line right to finish, left to set it aside", star: true },
   { type: "task", text: "Tap the text for notes, a tag and the rest", star: false },
   { type: "event", text: "Events live on the Calendar" },
+  { type: "goal", text: "Goals live on their own page, with a due date" },
+  { type: "task", text: "A step towards a goal is a task like any other", goal: true },
 ];
 
 function fresh() {
   const now = Date.now();
   const first = newBook("journal");
+  const goalId = uid();
   return {
     v: 2,
     theme: "auto",
@@ -200,6 +210,11 @@ function fresh() {
         created: now + i,
       };
       if (w.type === "event") e.date = TODAY();
+      if (w.type === "goal") {
+        e.id = goalId;
+        e.due = iso(new Date(now + 14 * 864e5));
+      }
+      if (w.goal) e.goal = goalId;
       return e;
     }),
   };
@@ -354,7 +369,10 @@ function migrateV1(old) {
    build loads. Unknown keys are kept — a file from a *newer* build is still
    someone's data, and dropping fields we don't recognise would quietly destroy
    it on the next export. */
-const TYPES = new Set(["task", "event"]);
+const TYPES = new Set(["task", "event", "goal"]);
+/* The pages, in the order the tabs show them. Swipes and arrow keys step
+   through this list, so it is also the order you travel in. */
+const VIEWS = ["journal", "calendar", "goals"];
 const STATES = new Set(["open", "done", "dropped"]);
 
 function adopt(raw, i, books) {
@@ -377,6 +395,12 @@ function adopt(raw, i, books) {
     e.date = isDate(raw.date) ? raw.date : TODAY();
     delete e.time; // an event is placed by its day, never by a clock
     delete e.backlog;
+  } else if (e.type === "goal") {
+    // the same rescue as an event: a goal with no usable deadline is due today
+    e.due = isDate(raw.due) ? raw.due : TODAY();
+    delete e.date;
+    delete e.time;
+    delete e.backlog;
   } else {
     // only a task can be set aside, and only while it is still open
     delete e.date;
@@ -391,18 +415,32 @@ function adopt(raw, i, books) {
   else delete e.tag;
   if (!(books && books.has(e.book))) delete e.book;
   if (!Number.isFinite(raw.pos)) delete e.pos;
+  if (e.type !== "goal") delete e.due;
+  if (e.type !== "task" || typeof raw.goal !== "string") delete e.goal;
   return e;
+}
+
+/* A step only counts towards a goal that exists, in the step's own notebook.
+   Checked once every entry is adopted, since a goal can sit after its steps in
+   the array. `first` is the notebook an entry with no `book` belongs to. */
+function linkGoals(entries, first) {
+  const home = (e) => e.book || first;
+  const goals = new Map(entries.filter((e) => e.type === "goal").map((g) => [g.id, home(g)]));
+  entries.forEach((e) => {
+    if (e.goal && goals.get(e.goal) !== home(e)) delete e.goal;
+  });
 }
 
 function normalise(raw) {
   withBooks(raw);
   const books = new Set(raw.books.map((b) => b.id));
   raw.entries = raw.entries.map((e, i) => adopt(e, i, books)).filter(Boolean);
+  linkGoals(raw.entries, raw.books[0].id);
   raw.v = 2;
   if (!["auto", "light", "dark"].includes(raw.theme)) raw.theme = "auto";
   if (!Number.isFinite(raw.text)) raw.text = 1;
   raw.hideLogged = !!raw.hideLogged;
-  if (raw.view !== "calendar") raw.view = "journal";
+  if (!VIEWS.includes(raw.view)) raw.view = "journal";
   return raw;
 }
 
@@ -415,10 +453,12 @@ const S = {
   tag: null, // page filter, set from the Tags sheet; never persisted
   backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
+  goalsDoneOpen: false, // finished goals are the record, not the work — folded
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
 
 const isCal = () => db.view === "calendar";
+const isGoals = () => db.view === "goals";
 
 /* ── selecting what a page shows ───────────────────────────────────── */
 
@@ -514,12 +554,51 @@ function calendarDays() {
     ]);
 }
 
+/* A goal's steps: every task linked to it. A struck-out step stays listed in
+   the goal's sheet but drops out of the count — a step you decided against is
+   not one the goal is still waiting on. */
+const stepsOf = (g) => db.entries.filter((e) => e.type === "task" && e.goal === g.id);
+function progressOf(g) {
+  const steps = stepsOf(g).filter((e) => e.state !== "dropped");
+  return { done: steps.filter((e) => e.state === "done").length, total: steps.length };
+}
+
+const byDue = (a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
+
+/* The Goals page: open goals with the nearest deadline first, starred ones on
+   top; settled goals — achieved or dropped — after, latest deadline first. */
+function goalBuckets() {
+  const goals = mine()
+    .filter((e) => e.type === "goal")
+    .filter((e) => !S.tag || e.tag === S.tag);
+  return {
+    open: goals
+      .filter(isLive)
+      .sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || byDue(a, b) || b.created - a.created),
+    done: db.hideLogged ? [] : goals.filter((e) => !isLive(e)).sort((a, b) => byDue(b, a)),
+  };
+}
+
+/* The goals a task could count towards: the open ones in its notebook, plus
+   the one it already belongs to even if that is settled. */
+const goalsFor = (t) =>
+  db.entries
+    .filter((g) => g.type === "goal" && bookOf(g) === bookOf(t) && (isLive(g) || g.id === t.goal))
+    .sort(byDue);
+
+/* The tasks a goal could take on as steps: open, in its notebook, and not
+   already a step towards something else. */
+const pickable = (g) =>
+  db.entries.filter((t) => t.type === "task" && isLive(t) && !t.goal && bookOf(t) === bookOf(g));
+
 const byId = (id) => db.entries.find((e) => e.id === id);
 
 /* ── mutation + undo ───────────────────────────────────────────────── */
 
 let undoStack = null;
 let toastTimer = null;
+/* What the toast's button does when it is not Undo: { label, fn }. */
+let toastAct = null;
 
 /* Everything Undo has to be able to put back. The notebook list is in here as
    well as the entries: deleting a notebook is a labelled mutation, and an Undo
@@ -537,9 +616,11 @@ function mutate(label, fn) {
   render();
 }
 
-function toast(msg) {
+function toast(msg, act = null) {
   const t = $("#toast");
   $("#toastMsg").textContent = msg;
+  toastAct = act;
+  $("#toastUndo").textContent = act ? act.label : "Undo";
   t.hidden = false;
   t.classList.remove("closing");
   clearTimeout(toastTimer);
@@ -555,6 +636,13 @@ function hideToast() {
   }, 190);
 }
 $("#toastUndo").onclick = () => {
+  if (toastAct) {
+    const fn = toastAct.fn;
+    toastAct = null;
+    hideToast();
+    fn();
+    return;
+  }
   if (!undoStack) return;
   const was = JSON.parse(undoStack);
   db.entries = was.entries;
@@ -579,6 +667,13 @@ function toggleDone(id) {
     // finishing a task is also the end of its time in the backlog
     if (e.state === "done") delete e.backlog;
   });
+  /* The last step of a goal just closed. Ask rather than decide: the goal may
+     still need steps nobody has written down yet. */
+  const g = e.state === "done" && e.goal && byId(e.goal);
+  if (g && isLive(g)) {
+    const p = progressOf(g);
+    if (p.done === p.total) toast("Every step is done", { label: "Achieve goal", fn: () => toggleDone(g.id) });
+  }
 }
 
 /* Struck out: kept on the page, kept in the record, no longer wanted. */
@@ -632,9 +727,12 @@ function reorder(ids, from, to) {
   );
 }
 
+/* A goal goes with its steps: they were written for it, and Undo brings the
+   whole set back at once. */
 function removeEntry(id) {
-  mutate("Deleted", () => {
-    db.entries = db.entries.filter((e) => e.id !== id);
+  const n = db.entries.filter((e) => e.goal === id).length;
+  mutate(n ? `Deleted with ${n} ${n === 1 ? "step" : "steps"}` : "Deleted", () => {
+    db.entries = db.entries.filter((e) => e.id !== id && e.goal !== id);
   });
 }
 
@@ -665,6 +763,8 @@ const ICON = {
   /* the backlog: a tray to set something down in */
   tray: '<svg viewBox="0 0 24 24"><path d="M3 13.5h4l1.5 2.5h7l1.5-2.5h4"/><path d="M3 13.5L6 5h12l3 8.5V19H3z"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  /* a pennant on a pole: somewhere you are getting to */
+  goal: '<svg viewBox="0 0 24 24"><path d="M5.5 21V3.5M5.5 4h12l-3 4.25 3 4.25h-12"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -688,6 +788,7 @@ function render() {
   renderHead();
   renderComposer();
   if (isCal()) renderCalendar();
+  else if (isGoals()) renderGoals();
   else renderJournal();
   S.anim.clear();
 }
@@ -722,6 +823,26 @@ function filterRow() {
   return li;
 }
 
+function bucketHeading(label, n) {
+  const h = el("li", "sep sep-bucket");
+  h.append(el("span", null, label), el("span", "sep-n", String(n)));
+  return h;
+}
+
+/* A bucket heading that folds its lines away. `key` names the S flag. */
+function foldHeading(label, n, key) {
+  const h = el("li");
+  const b = el("button", "sep-fold" + (S[key] ? " open" : ""), ICON.chev);
+  b.append(el("span", null, label), el("span", "sep-n", String(n)));
+  b.setAttribute("aria-expanded", String(S[key]));
+  b.onclick = () => {
+    S[key] = !S[key];
+    render();
+  };
+  h.append(b);
+  return h;
+}
+
 function renderJournal() {
   const list = $("#list");
   list.textContent = "";
@@ -746,29 +867,13 @@ function renderJournal() {
     list.append(li);
   };
 
-  const heading = (label, n) => {
-    const h = el("li", "sep sep-bucket");
-    h.append(el("span", null, label), el("span", "sep-n", String(n)));
-    return h;
-  };
-
   if (progress.length) {
-    list.append(heading("In Progress", progress.length));
+    list.append(bucketHeading("In Progress", progress.length));
     progress.forEach((e) => put(e, "progress"));
   }
 
-  /* A bucket heading that folds its lines away. `key` names the S flag. */
   const fold = (label, items, key) => {
-    const h = el("li");
-    const b = el("button", "sep-fold" + (S[key] ? " open" : ""), ICON.chev);
-    b.append(el("span", null, label), el("span", "sep-n", String(items.length)));
-    b.setAttribute("aria-expanded", String(S[key]));
-    b.onclick = () => {
-      S[key] = !S[key];
-      render();
-    };
-    h.append(b);
-    list.append(h);
+    list.append(foldHeading(label, items.length, key));
     if (S[key]) items.forEach((e) => put(e, key));
   };
 
@@ -809,6 +914,50 @@ function renderCalendar() {
   }
 }
 
+function renderGoals() {
+  const list = $("#list");
+  list.textContent = "";
+  const f = filterRow();
+  if (f) list.append(f);
+
+  const { open, done } = goalBuckets();
+  if (open.length) {
+    list.append(bucketHeading("In Progress", open.length));
+    open.forEach((g) => list.append(row(g)));
+  }
+  if (done.length) {
+    list.append(foldHeading("Done", done.length, "goalsDoneOpen"));
+    if (S.goalsDoneOpen) done.forEach((g) => list.append(row(g)));
+  }
+
+  const empty = $("#empty");
+  const bare = !open.length && !done.length;
+  empty.hidden = !bare;
+  if (bare) {
+    empty.innerHTML = S.tag
+      ? `<b>No goals tagged #${safeHtml(S.tag)}</b>Clear the filter to see your goals.`
+      : "<b>No goals yet</b>Write one below with the day it is due by, then add the steps that get you there.";
+  }
+}
+
+/* Under a goal's words: when it is due and how far along it is. The one row
+   that prints a date, because a deadline is the whole point of a goal. */
+function goalMeta(g) {
+  const { done, total } = progressOf(g);
+  const late = isLive(g) && g.due < TODAY();
+  const m = el("span", "row-meta" + (late ? " is-late" : ""));
+  m.append(el("span", null, `by ${dayLabel(g.due)}`));
+  m.append(el("span", null, total ? `${done}/${total} steps` : "no steps yet"));
+  if (total) {
+    const bar = el("span", "meter");
+    const fill = el("i");
+    fill.style.width = `${(done / total) * 100}%`;
+    bar.append(fill);
+    m.append(bar);
+  }
+  return m;
+}
+
 /* One line. The face is what you see; the layer underneath is what a swipe
    reveals. Everything about the row is derived from the entry, so a re-render
    after any mutation redraws it correctly without special cases. */
@@ -835,12 +984,18 @@ function row(e) {
   const txt = el("button", "row-text");
   if (e.tag) txt.append(el("span", "tag", safeHtml(e.tag)));
   txt.append(document.createTextNode(e.text));
+  if (e.type === "goal") txt.append(goalMeta(e));
   txt.onclick = () => openEntry(e.id);
   face.append(txt);
 
   if (e.notes) {
     const m = el("span", "notemark", ICON.notes);
     m.setAttribute("aria-label", "Has notes");
+    face.append(m);
+  }
+  if (e.goal && byId(e.goal)) {
+    const m = el("span", "notemark goalmark", ICON.goal);
+    m.setAttribute("aria-label", "A step towards a goal");
     face.append(m);
   }
   if (e.star) {
@@ -1134,12 +1289,18 @@ const composer = $("#composer");
 
 /* There is nothing to pick any more: the page you are on decides what you are
    writing. The Journal writes a task, the Calendar writes an event and asks
-   for the day it falls on. */
+   for the day it falls on, and Goals writes a goal and asks for the day it is
+   due by. */
 function renderComposer() {
-  const cal = isCal();
-  $("#when").hidden = !cal;
-  if (cal && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
-  input.placeholder = cal ? "what happens that day?" : "what needs doing?";
+  const dated = isCal() || isGoals();
+  $("#when").hidden = !dated;
+  $("#whenLabel").textContent = isGoals() ? "by" : "on";
+  if (dated && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
+  input.placeholder = isCal()
+    ? "what happens that day?"
+    : isGoals()
+      ? "what do you want to reach?"
+      : "what needs doing?";
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
 
@@ -1169,9 +1330,10 @@ composer.addEventListener("submit", (ev) => {
   const { tag, text } = parseTag(raw);
   if (!text) return;
 
+  const type = isCal() ? "event" : isGoals() ? "goal" : "task";
   const e = {
     id: uid(),
-    type: isCal() ? "event" : "task",
+    type,
     text,
     state: "open",
     star: false,
@@ -1179,9 +1341,9 @@ composer.addEventListener("submit", (ev) => {
   };
   if (tag) e.tag = tag;
   if (db.book !== db.books[0].id) e.book = db.book;
-  if (isCal()) {
-    e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
-  }
+  const day = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
+  if (type === "event") e.date = day;
+  if (type === "goal") e.due = day;
 
   input.value = "";
   composer.classList.remove("armed");
@@ -1192,7 +1354,13 @@ composer.addEventListener("submit", (ev) => {
   buzz(7);
   mutate(null, () => db.entries.push(e));
   // keep the page on the line you just wrote
-  $("#page").scrollTop = isCal() ? $("#page").scrollTop : 0;
+  $("#page").scrollTop = type === "task" ? 0 : $("#page").scrollTop;
+  /* A goal is only words until it has a step, so its sheet opens straight on
+     the field for the first one. */
+  if (type === "goal") {
+    input.blur();
+    openEntry(e.id, true);
+  }
 });
 
 /* ── sheets ────────────────────────────────────────────────────────── */
@@ -1209,11 +1377,17 @@ function openSheet(build) {
   build(sheetBody);
 }
 
-function closeSheet() {
-  if (sheet.hidden) return;
+/* Run the open sheet's pending commit now — for a sheet about to be replaced
+   by another, so what was typed into it is not lost on the way. */
+function commitSheet() {
   const fn = onSheetClose;
   onSheetClose = null;
   if (fn) fn();
+}
+
+function closeSheet() {
+  if (sheet.hidden) return;
+  commitSheet();
   sheet.classList.add("closing");
   setTimeout(() => {
     sheet.hidden = true;
@@ -1240,11 +1414,11 @@ function actRow(icon, label, fn, opts = {}) {
 /* Everything you can do to one line, in one place. The text and the note are
    committed on close rather than per keystroke, so a half-typed word never
    lands in storage and the list does not reflow under the keyboard. */
-function openEntry(id) {
+function openEntry(id, focusStep = false) {
   const e = byId(id);
   if (!e) return;
   openSheet((b) => {
-    b.append(el("div", "s-title", e.type === "event" ? "Event" : "Task"));
+    b.append(el("div", "s-title", { task: "Task", event: "Event", goal: "Goal" }[e.type]));
     /* The row prints no date, so this is where a line says how old it is. */
     if (Number.isFinite(e.created)) {
       const w = iso(new Date(e.created));
@@ -1267,6 +1441,8 @@ function openEntry(id) {
     note.addEventListener("input", grow);
     b.append(note);
     setTimeout(grow, 0);
+
+    if (e.type === "goal") b.append(goalSteps(e, focusStep));
 
     /* Committed on close so the row is written once, with both fields. */
     onSheetClose = () => {
@@ -1321,7 +1497,29 @@ function openEntry(id) {
       };
       dr.append(df);
       acts.append(dr);
+    }
 
+    if (e.type === "goal") {
+      const dr = el("div", "s-act", ICON.cal);
+      dr.append(el("span", null, "Due by"));
+      const df = el("input", "s-field");
+      df.type = "date";
+      df.value = e.due;
+      df.onchange = () => {
+        if (isDate(df.value)) mutate(null, () => (e.due = df.value));
+      };
+      dr.append(df);
+      acts.append(dr);
+    }
+
+    if (e.type === "task" && goalsFor(e).length) {
+      const g = e.goal && byId(e.goal);
+      acts.append(
+        actRow(ICON.goal, g ? g.text : "Towards a goal", () => {
+          commitSheet();
+          pickGoal(id);
+        }, { on: !!g })
+      );
     }
 
     acts.append(
@@ -1334,7 +1532,7 @@ function openEntry(id) {
     acts.append(
       e.state === "done"
         ? actRow(ICON.undo, "Reopen", () => { toggleDone(id); closeSheet(); })
-        : actRow(ICON.check, "Mark done", () => { toggleDone(id); closeSheet(); })
+        : actRow(ICON.check, e.type === "goal" ? "Mark achieved" : "Mark done", () => { toggleDone(id); closeSheet(); })
     );
 
     if (canBacklog(e)) {
@@ -1360,8 +1558,14 @@ function openEntry(id) {
           acts.append(
             actRow(ICON.move, bk.name, () => {
               mutate(`Moved to ${bk.name}`, () => {
-                if (bk.id === db.books[0].id) delete e.book;
-                else e.book = bk.id;
+                const put = (x) => {
+                  if (bk.id === db.books[0].id) delete x.book;
+                  else x.book = bk.id;
+                };
+                // a goal takes its steps along; a step moved alone leaves its goal behind
+                if (e.type === "goal") stepsOf(e).forEach(put);
+                delete e.goal;
+                put(e);
               });
               closeSheet();
             })
@@ -1370,13 +1574,128 @@ function openEntry(id) {
     }
 
     acts.append(
-      actRow(ICON.trash, "Delete", () => {
+      actRow(ICON.trash, e.type === "goal" && stepsOf(e).length ? "Delete with its steps" : "Delete", () => {
         onSheetClose = null; // nothing to commit to a line that is going away
         removeEntry(id);
         closeSheet();
       }, { danger: true })
     );
 
+    b.append(acts);
+  });
+}
+
+/* ── goals ─────────────────────────────────────────────────────────── */
+
+/* A goal's steps, in its sheet: each a tap away from its own sheet, then a
+   field for the next one. A new step is an ordinary task, so it also lands in
+   the Journal's In Progress with everything else. */
+function goalSteps(g, focus) {
+  const box = el("div", "s-steps");
+  const { done, total } = progressOf(g);
+  box.append(el("div", "sep", total ? `Steps · ${done}/${total}` : "Steps"));
+
+  const list = el("div", "s-acts");
+  stepsOf(g)
+    .sort((a, b) => (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) || rankOf(b) - rankOf(a))
+    .forEach((t) => {
+      const r = el("button", "hit" + (isLive(t) ? "" : " is-settled"));
+      r.append(bwrap(bulletClass(t)), el("div", "h-t", safeHtml(t.text)));
+      r.onclick = () => {
+        commitSheet();
+        openEntry(t.id);
+      };
+      list.append(r);
+    });
+  box.append(list);
+
+  const add = el("input", "s-input s-step");
+  add.placeholder = total ? "add a step" : "the first step towards it";
+  add.enterKeyHint = "done";
+  add.onkeydown = (ev) => {
+    if (ev.key !== "Enter") return;
+    ev.preventDefault();
+    if (!add.value.trim()) return;
+    commitSheet();
+    addStep(g, add.value);
+    openEntry(g.id, true);
+  };
+  box.append(add);
+  if (focus) setTimeout(() => add.focus(), 320);
+
+  if (pickable(g).length) {
+    box.append(
+      actRow(ICON.plus, "Add a task already written", () => {
+        commitSheet();
+        pickSteps(g.id);
+      })
+    );
+  }
+  return box;
+}
+
+function addStep(g, raw) {
+  const { tag, text } = parseTag(raw);
+  if (!text) return;
+  const t = { id: uid(), type: "task", text, state: "open", star: false, created: Date.now(), goal: g.id };
+  if (tag) t.tag = tag;
+  if (g.book) t.book = g.book;
+  S.anim.add(t.id);
+  buzz(7);
+  mutate(null, () => db.entries.push(t));
+}
+
+/* Open tasks with no goal yet, to adopt as steps of this one. */
+function pickSteps(gid) {
+  const g = byId(gid);
+  if (!g) return;
+  openSheet((b) => {
+    b.append(el("div", "s-title", "Add a task"));
+    b.append(el("div", "s-sub", `as a step towards ${g.text}`));
+    const acts = el("div", "s-acts");
+    pickable(g)
+      .sort((a, c) => rankOf(c) - rankOf(a))
+      .forEach((t) => {
+        const r = el("button", "hit");
+        r.append(bwrap(bulletClass(t)), el("div", "h-t", safeHtml(t.text)));
+        r.onclick = () => {
+          mutate(null, () => (t.goal = g.id));
+          openEntry(g.id);
+        };
+        acts.append(r);
+      });
+    acts.append(actRow(ICON.back, "Back to the goal", () => openEntry(g.id)));
+    b.append(acts);
+  });
+}
+
+/* Which goal a task is a step towards, picked from its own sheet. */
+function pickGoal(id) {
+  const t = byId(id);
+  if (!t) return;
+  const cur = t.goal && byId(t.goal);
+  openSheet((b) => {
+    b.append(el("div", "s-title", "Towards a goal"));
+    b.append(el("div", "s-sub", t.text));
+    const acts = el("div", "s-acts");
+    goalsFor(t).forEach((g) =>
+      acts.append(
+        actRow(ICON.goal, g.text, () => {
+          mutate(null, () => (t.goal = g.id));
+          openEntry(id);
+        }, { on: g.id === t.goal, k: `by ${dayLabel(g.due)}` })
+      )
+    );
+    if (cur) {
+      acts.append(actRow(ICON.eye, "Open the goal", () => openEntry(cur.id)));
+      acts.append(
+        actRow(ICON.strike, "Not towards a goal", () => {
+          mutate(null, () => delete t.goal);
+          openEntry(id);
+        })
+      );
+    }
+    acts.append(actRow(ICON.back, "Back to the task", () => openEntry(id)));
     b.append(acts);
   });
 }
@@ -1704,7 +2023,11 @@ function openSearch() {
         const line = el("div", null, mark(e.text, term));
         body.append(line);
         const where = [
-          e.type === "event" ? dayLabel(e.date) : writtenLabel(e.created),
+          e.type === "event"
+            ? dayLabel(e.date)
+            : e.type === "goal"
+              ? `by ${dayLabel(e.due)}`
+              : writtenLabel(e.created),
           bookOf(e) !== db.book ? bookName(bookOf(e)) : null,
           e.backlog ? "backlog" : null,
           e.tag ? "#" + e.tag : null,
@@ -1719,12 +2042,13 @@ function openSearch() {
         }
         hit.append(body);
         hit.onclick = () => {
-          const want = e.type === "event" ? "calendar" : "journal";
+          const want = { event: "calendar", goal: "goals" }[e.type] || "journal";
           mutate(null, () => {
             db.view = want;
             db.book = bookOf(e);
             S.tag = null;
             if (e.backlog) S.backlogOpen = true;
+            if (e.type === "goal" && !isLive(e)) S.goalsDoneOpen = true;
           });
           openEntry(e.id);
         };
@@ -1866,11 +2190,12 @@ function applyTheme() {
 
 /* ── wiring ────────────────────────────────────────────────────────── */
 
-$("#tabs").onclick = (ev) => {
-  const b = ev.target.closest(".tab");
-  if (!b || b.dataset.view === db.view) return;
-  const back = b.dataset.view === "journal";
-  db.view = b.dataset.view;
+/* Every way of changing page comes through here — the tabs, the header swipe
+   and the arrow keys — so the slide always runs the way the tabs are laid out. */
+function goTo(view) {
+  if (!VIEWS.includes(view) || view === db.view) return;
+  const back = VIEWS.indexOf(view) < VIEWS.indexOf(db.view);
+  db.view = view;
   save();
   buzz(6);
   render();
@@ -1879,6 +2204,12 @@ $("#tabs").onclick = (ev) => {
   void list.offsetWidth; // restart the animation
   list.classList.add(back ? "slide-r" : "slide-l");
   $("#page").scrollTop = 0;
+}
+const stepView = (d) => goTo(VIEWS[VIEWS.indexOf(db.view) + d]);
+
+$("#tabs").onclick = (ev) => {
+  const b = ev.target.closest(".tab");
+  if (b) goTo(b.dataset.view);
 };
 
 $("#bookBtn").onclick = openBooks;
@@ -1891,7 +2222,7 @@ $("#page").addEventListener(
   { passive: true }
 );
 
-/* The header swipes between the two pages, the same gesture the tabs name. */
+/* The header swipes between the pages, one step at a time, in tab order. */
 {
   const head = $("#head");
   let x0 = null;
@@ -1903,9 +2234,7 @@ $("#page").addEventListener(
       const dx = e.clientX - x0;
       x0 = null;
       if (Math.abs(dx) < 50) return;
-      const want = dx < 0 ? "calendar" : "journal";
-      if (want === db.view) return;
-      $(dx < 0 ? "#tabCalendar" : "#tabJournal").click();
+      stepView(dx < 0 ? 1 : -1);
     },
     { passive: true }
   );
@@ -1917,8 +2246,8 @@ document.addEventListener("keydown", (e) => {
     return;
   }
   if (e.key === "Escape") closeSheet();
-  else if (e.key === "ArrowLeft") $("#tabJournal").click();
-  else if (e.key === "ArrowRight") $("#tabCalendar").click();
+  else if (e.key === "ArrowLeft") stepView(-1);
+  else if (e.key === "ArrowRight") stepView(1);
   else if (e.key === "/") {
     e.preventDefault();
     input.focus();
