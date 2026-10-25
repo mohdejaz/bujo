@@ -380,6 +380,9 @@ const TYPES = new Set(["task", "event", "goal"]);
    because it is a read across the other three rather than a home for a line:
    nothing is ever written only to it. */
 const VIEWS = ["journal", "calendar", "goals", "tags"];
+/* What each page is called, for the toast that names it on arrival — the tabs
+   themselves are icons only. */
+const VIEW_NAME = { journal: "Journal", calendar: "Calendar", goals: "Goals", tags: "Tags" };
 const STATES = new Set(["open", "done", "dropped"]);
 
 function adopt(raw, i, books) {
@@ -660,16 +663,24 @@ function mutate(label, fn) {
   render();
 }
 
-function toast(msg, act = null) {
+function toast(msg, act = null, ms = 4200) {
   const t = $("#toast");
   $("#toastMsg").textContent = msg;
-  toastAct = act;
-  $("#toastUndo").textContent = act ? act.label : "Undo";
+  toastAct = act || null;
+  const u = $("#toastUndo");
+  /* `act === false` means a bare note: nothing to undo, nothing to press. */
+  u.hidden = act === false;
+  t.classList.toggle("bare", act === false);
+  if (act) u.textContent = act.label;
+  else if (act === null) u.textContent = "Undo";
   t.hidden = false;
   t.classList.remove("closing");
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(hideToast, 4200);
+  toastTimer = setTimeout(hideToast, ms);
 }
+/* A toast that only says a thing happened. Shorter than an undoable one: there
+   is no button to reach for, so it only has to be read. */
+const note = (msg) => toast(msg, false, 1500);
 function hideToast() {
   const t = $("#toast");
   if (t.hidden) return;
@@ -2349,6 +2360,9 @@ function goTo(view) {
   save();
   buzz(6);
   render();
+  /* The tabs are icons, so the page says its own name on arrival and then
+     gets out of the way — the header keeps the width instead. */
+  note(VIEW_NAME[view]);
   const list = $("#list");
   list.classList.remove("slide-l", "slide-r");
   void list.offsetWidth; // restart the animation

@@ -162,9 +162,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* Journal | Calendar | Goals | Tags. A segmented control rather than a bottom
    bar: the composer already owns the bottom of the screen, and the switch
-   belongs next to the notebook it applies to. Icons, with the name spelled out
-   only on the page you are on — four names at once would not fit a phone, and
-   the notebook button beside them gives up its width first. */
+   belongs next to the notebook it applies to. Icons only — even one name
+   spelled out took width from the notebook button beside them, and the toast
+   on arrival says which page you landed on better than a label you have to
+   read sideways. */
 .tabs {
   flex: none;
   display: flex;
@@ -176,19 +177,15 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 7px 10px;
+  justify-content: center;
+  padding: 7px 11px;
   border-radius: 10px;
-  font-size: 0.84375rem;
-  font-weight: 600;
   color: var(--dim);
   transition: background 0.16s, color 0.16s, transform 0.12s;
 }
 .tab:active { transform: scale(0.94); }
 .tab.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
-.tab svg { width: 1.125rem; height: 1.125rem; flex: none; }
-.tab span { display: none; }
-.tab.is-on span { display: inline; }
+.tab svg { width: 1.1875rem; height: 1.1875rem; flex: none; }
 
 .bookbtn {
   flex: 0 1 auto;
@@ -991,6 +988,10 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 #toastMsg { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* a sheet owns the bottom of the screen, so the toast moves to the top */
 body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
+/* Nothing to undo — a bare note, so the button comes off and the right edge
+   gets the padding the button was holding. */
+.toast.bare { padding-right: 17px; }
+#toastUndo[hidden] { display: none; }
 #toastUndo {
   font-weight: 700;
   color: var(--accent);
