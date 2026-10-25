@@ -463,11 +463,11 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 /* ── view state ────────────────────────────────────────────────────── */
 
 const S = {
-  /* The tag in hand. One piece of state doing one job in two places: on the
-     Tags page it is the group you are reading, and on the other three it
-     narrows the page to that group. Picking a tag and then stepping to the
-     Journal shows that tag's tasks, which is the whole point of picking one.
-     Never persisted — a filter you did not set this session is a trap. */
+  /* The group being read on the Tags page, and nothing more. The other three
+     pages never narrow to it: they are the whole notebook by kind, and a tag
+     picked on one page silently hiding lines on another is a page lying about
+     what it holds. So changing page puts the tag down — see goTo. Never
+     persisted either: a filter you did not set this session is a trap. */
   tag: null,
   backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
@@ -532,6 +532,8 @@ const byDeadline = (a, b) =>
    record rather than the work, so a deadline no longer sorts it — it stays in
    the order you put it in. */
 function journalBuckets() {
+  /* The tag narrows it only because the Tags page reads a group's tasks
+     through this same function; on the Journal no tag is ever in hand. */
   const tasks = mine()
     .filter(onJournal)
     .filter((e) => !S.tag || e.tag === S.tag);
@@ -556,7 +558,6 @@ const todayEvents = () => {
   const t = TODAY();
   return mine()
     .filter((e) => e.type === "event" && e.date === t)
-    .filter((e) => !S.tag || e.tag === S.tag)
     .filter((e) => !db.hideLogged || isLive(e))
     .sort(
       (a, b) =>
@@ -571,7 +572,6 @@ const todayEvents = () => {
 function calendarDays() {
   const evs = mine()
     .filter((e) => e.type === "event")
-    .filter((e) => !S.tag || e.tag === S.tag)
     .filter((e) => !db.hideLogged || isLive(e));
   const days = new Map();
   evs.forEach((e) => {
@@ -617,7 +617,7 @@ const byDue = (a, b) => (a.due < b.due ? -1 : a.due > b.due ? 1 : 0);
 function goalBuckets() {
   const goals = mine()
     .filter((e) => e.type === "goal")
-    .filter((e) => !S.tag || e.tag === S.tag);
+    .filter((e) => !S.tag || e.tag === S.tag); // as in journalBuckets: for the Tags page
   return {
     open: goals
       .filter(isLive)
@@ -865,12 +865,11 @@ function renderHead() {
   $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
 }
 
-/* A filter chip row, printed above the list whenever a tag is narrowing the
-   page — a filter you cannot see is a bug report waiting to happen. On the
-   Tags page the same chip is the way back to the list of tags, because
-   putting the tag down is exactly what leaving the group means. */
+/* The chip over a tag's lines, naming the group you are reading and standing
+   as the way back to the list of tags — putting the tag down is exactly what
+   leaving the group means. Only the Tags page prints it, because only the
+   Tags page narrows to a tag. */
 function filterRow() {
-  if (!S.tag) return null;
   const li = el("li", "sep");
   const b = el("button", "pill", `#${S.tag} ✕`);
   b.onclick = () => {
@@ -905,8 +904,6 @@ function foldHeading(label, n, key) {
 function renderJournal() {
   const list = $("#list");
   list.textContent = "";
-  const f = filterRow();
-  if (f) list.append(f);
 
   const today = todayEvents();
   const { progress, backlog, done } = journalBuckets();
@@ -946,17 +943,14 @@ function renderJournal() {
   const bare = !progress.length && !backlog.length && !done.length && !today.length;
   empty.hidden = !bare;
   if (bare) {
-    empty.innerHTML = S.tag
-      ? `<b>Nothing tagged #${safeHtml(S.tag)}</b>Clear the filter to see the page.`
-      : "<b>An empty page</b>Write a task below. It needs no date — that is what the Calendar is for.";
+    empty.innerHTML =
+      "<b>An empty page</b>Write a task below. It needs no date — that is what the Calendar is for.";
   }
 }
 
 function renderCalendar() {
   const list = $("#list");
   list.textContent = "";
-  const f = filterRow();
-  if (f) list.append(f);
 
   const days = calendarDays();
   const today = TODAY();
@@ -970,17 +964,14 @@ function renderCalendar() {
   const empty = $("#empty");
   empty.hidden = days.length > 0;
   if (!days.length) {
-    empty.innerHTML = S.tag
-      ? `<b>No events tagged #${safeHtml(S.tag)}</b>Clear the filter to see the calendar.`
-      : "<b>Nothing on the calendar</b>Pick a day below and write what happens on it.";
+    empty.innerHTML =
+      "<b>Nothing on the calendar</b>Pick a day below and write what happens on it.";
   }
 }
 
 function renderGoals() {
   const list = $("#list");
   list.textContent = "";
-  const f = filterRow();
-  if (f) list.append(f);
 
   const { open, done } = goalBuckets();
   if (open.length) {
@@ -996,9 +987,8 @@ function renderGoals() {
   const bare = !open.length && !done.length;
   empty.hidden = !bare;
   if (bare) {
-    empty.innerHTML = S.tag
-      ? `<b>No goals tagged #${safeHtml(S.tag)}</b>Clear the filter to see your goals.`
-      : "<b>No goals yet</b>Write one below with the day it is due by, then add the steps that get you there.";
+    empty.innerHTML =
+      "<b>No goals yet</b>Write one below with the day it is due by, then add the steps that get you there.";
   }
 }
 
@@ -1531,8 +1521,8 @@ composer.addEventListener("submit", (ev) => {
 
   input.value = "";
   composer.classList.remove("armed");
-  /* A line written while a tag filter is on would otherwise land somewhere you
-     cannot see. Adopt the filter's tag instead of fighting it. */
+  /* A line written on a tag's page joins that group — otherwise it would land
+     on the Journal with nothing tying it to the page you wrote it from. */
   if (S.tag && !e.tag) e.tag = S.tag;
   S.anim.add(e.id);
   buzz(7);
@@ -2357,6 +2347,9 @@ function goTo(view) {
   if (!VIEWS.includes(view) || view === db.view) return;
   const back = VIEWS.indexOf(view) < VIEWS.indexOf(db.view);
   db.view = view;
+  /* The tag belongs to the Tags page, so it does not travel. Leaving that page
+     puts the group down and the Journal is the whole notebook again. */
+  S.tag = null;
   save();
   buzz(6);
   render();
