@@ -160,10 +160,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* ── the two pages ──────────────────────────────────────────────────── */
 
-/* Journal | Calendar | Goals. A segmented control rather than a bottom bar:
-   the composer already owns the bottom of the screen, and the switch belongs
-   next to the notebook it applies to. Icons, with the name spelled out only on
-   the page you are on. */
+/* Journal | Calendar | Goals | Tags. A segmented control rather than a bottom
+   bar: the composer already owns the bottom of the screen, and the switch
+   belongs next to the notebook it applies to. Icons, with the name spelled out
+   only on the page you are on — four names at once would not fit a phone, and
+   the notebook button beside them gives up its width first. */
 .tabs {
   flex: none;
   display: flex;
@@ -463,6 +464,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
 }
 .row-meta.is-late { color: var(--accent); }
+/* an event that falls today, on a page with no day headings to mark it */
+.row-meta.is-today { color: var(--accent); }
 .meter {
   flex: 0 1 4.5rem;
   height: 4px;
@@ -506,6 +509,63 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 /* a struck or finished line shouldn't shout its group */
 .row.is-done .tag, .row.is-dropped .tag { opacity: 0.4; }
 .row-text:active .tag { opacity: 0.6; }
+
+/* ── the Tags page's index ──────────────────────────────────────────── */
+
+/* One tag, as a row the width of the list: the chip, how many lines carry it,
+   and a pencil. Shaped like the notebook rows in the sheets, because it is the
+   same move — pick one of a short list, or rename it in place. */
+.taglink {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.taglink + .taglink { margin-top: 2px; }
+.taglink-pick {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0.72rem 12px;
+  background: var(--paper);
+  border-radius: 14px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.taglink-pick:active { background: var(--hair-2); }
+.taglink-pick .tag {
+  flex: none;
+  margin-right: 0;
+  font-size: 0.8125rem;
+  padding: 3px 8px 4px;
+}
+.taglink-n {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--dim);
+}
+.taglink-go {
+  flex: none;
+  display: grid;
+  place-items: center;
+  color: var(--hair);
+}
+.taglink-go svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
+.taglink-edit {
+  flex: none;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border-radius: 12px;
+  color: var(--dim);
+  transition: background 0.15s, color 0.15s;
+}
+.taglink-edit:active { background: var(--hair-2); color: var(--ink-2); }
+.taglink-edit svg { width: 1.125rem; height: 1.125rem; }
 
 /* the picker in the entry sheet */
 .s-tags {

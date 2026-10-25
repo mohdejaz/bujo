@@ -1,10 +1,10 @@
 # bujo
 
-A touch-first bullet journal in three pages. Tasks share one endless
+A touch-first bullet journal in four pages. Tasks share one endless
 **Journal** and may carry a due date; events have a date and live on the
 **Calendar**; goals have a due date and live on **Goals**, counting the tasks
-that get them done.
-Switching between the three is the only navigation there is.
+that get them done; **Tags** reads across all three, one group at a time.
+Switching between the four is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
@@ -40,7 +40,9 @@ happens on a day. A line never moves between the pages — changing what kind of
 thing it is would be writing a different line — though the Journal does *show*
 you today's events, at the top, where they are hard to miss, and a goal's
 steps are ordinary tasks living on the Journal rather than a fourth kind of
-line.
+line. Tags is the fourth *page* but not a fourth home: nothing is ever written
+only to it, and a line on it is the same line the Journal or the Calendar
+holds.
 
 There is no free-standing note. **Every line carries its own notes** instead —
 open a line and write underneath it — so what you want to remember lives with
@@ -98,10 +100,20 @@ task has no backlog to go to.
 
 **Tags.** Write `#home buy a doorstop` and the line carries a `#home` chip —
 three to five lowercase letters, one tag per line, so a chip can never wrap.
-A tag is a label on the row and nothing more: the page stays in one flat list
-in the order you wrote it, rather than being cut into a section per tag.
-**⋯ → Tags** lists them with counts, narrows the page to one, and renames a
-tag across the whole notebook at once.
+On the three kind-pages a tag is only a label on the row: those pages stay one
+flat list in the order you wrote it, rather than being cut into a section per
+tag. Reading a group whole is what the **Tags** page is for. It opens on every
+tag in the notebook with a count each, in the order they were first written;
+tap one and you get everything carrying it — tasks, then the backlog, then
+events, goals, and one Done fold at the foot — which makes it the only page
+that mixes the three kinds of line, because a group is a group whatever its
+lines happen to be. The pencil beside a tag renames it across the whole
+notebook at once.
+
+A tag picked there stays in hand: step to the Journal, Calendar or Goals and
+that page is narrowed to the group, with a chip above the list to put it back
+down. Writing a line while a tag is in hand gives it that tag — otherwise it
+would land somewhere you cannot see.
 
 **Goals.** On the Goals tab, write what you want to reach and pick the day it
 is due *by*. Its sheet opens straight on the field for the first step. Each

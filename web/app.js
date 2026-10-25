@@ -1,4 +1,4 @@
-/* bujo — a pocket bullet journal, in three pages.
+/* bujo — a pocket bullet journal, in four pages.
  *
  * One file, no build, no dependencies. The whole journal is a flat array of
  * entries in localStorage; the notebook narrows it, and then the *type* of an
@@ -7,6 +7,8 @@
  *   Journal   tasks. One endless page per notebook; a due date is optional.
  *   Calendar  events. Every event has a date, grouped by day.
  *   Goals     goals. Each is due by a day and counts the tasks that get it done.
+ *   Tags      the one page that cuts across the other three: pick a tag and
+ *             read everything carrying it, whatever kind of line it is.
  *
  * That split is the whole model: a task is something to do whenever, an event
  * is something that happens on a day. A line never moves between the two
@@ -28,8 +30,9 @@
  *   backlog = true on a task set aside; absent means it is on the page
  *   tag   = one 3-5 char label, lowercase, absent when none. One per entry on
  *           purpose: a line belongs to exactly one group, and one chip can
- *           never wrap a phone line. It is a label on the row and nothing
- *           more — the page is one flat list, not a section per tag.
+ *           never wrap a phone line. On the three kind-pages it is only a
+ *           label on the row — those pages stay one flat list, not a section
+ *           per tag — and the Tags page is where a group is read whole.
  *   notes = long-form scratch hung off any entry, absent when empty — the
  *           questions and the detail behind a line. Never rendered in the
  *           list — a line stays one line — only marked with a glyph. This is
@@ -373,8 +376,10 @@ function migrateV1(old) {
    it on the next export. */
 const TYPES = new Set(["task", "event", "goal"]);
 /* The pages, in the order the tabs show them. Swipes and arrow keys step
-   through this list, so it is also the order you travel in. */
-const VIEWS = ["journal", "calendar", "goals"];
+   through this list, so it is also the order you travel in. Tags comes last
+   because it is a read across the other three rather than a home for a line:
+   nothing is ever written only to it. */
+const VIEWS = ["journal", "calendar", "goals", "tags"];
 const STATES = new Set(["open", "done", "dropped"]);
 
 function adopt(raw, i, books) {
@@ -455,7 +460,12 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 /* ── view state ────────────────────────────────────────────────────── */
 
 const S = {
-  tag: null, // page filter, set from the Tags sheet; never persisted
+  /* The tag in hand. One piece of state doing one job in two places: on the
+     Tags page it is the group you are reading, and on the other three it
+     narrows the page to that group. Picking a tag and then stepping to the
+     Journal shows that tag's tasks, which is the whole point of picking one.
+     Never persisted — a filter you did not set this session is a trap. */
+  tag: null,
   backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
   goalsDoneOpen: false, // finished goals are the record, not the work — folded
@@ -464,6 +474,7 @@ const S = {
 
 const isCal = () => db.view === "calendar";
 const isGoals = () => db.view === "goals";
+const isTags = () => db.view === "tags";
 
 /* ── selecting what a page shows ───────────────────────────────────── */
 
@@ -575,6 +586,16 @@ function calendarDays() {
           b.created - a.created
       ),
     ]);
+}
+
+/* Every event carrying the tag in hand, furthest day first — the Calendar's
+   own order, with the day printed on each row instead of over a group of
+   them, because on the Tags page one day rarely holds two lines. */
+function tagEvents() {
+  return mine()
+    .filter((e) => e.type === "event" && e.tag === S.tag)
+    .filter((e) => !db.hideLogged || isLive(e))
+    .sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 }
 
 /* A goal's steps: every task linked to it. A struck-out step stays listed in
@@ -812,6 +833,7 @@ function render() {
   renderComposer();
   if (isCal()) renderCalendar();
   else if (isGoals()) renderGoals();
+  else if (isTags()) renderTags();
   else renderJournal();
   S.anim.clear();
 }
@@ -833,7 +855,9 @@ function renderHead() {
 }
 
 /* A filter chip row, printed above the list whenever a tag is narrowing the
-   page — a filter you cannot see is a bug report waiting to happen. */
+   page — a filter you cannot see is a bug report waiting to happen. On the
+   Tags page the same chip is the way back to the list of tags, because
+   putting the tag down is exactly what leaving the group means. */
 function filterRow() {
   if (!S.tag) return null;
   const li = el("li", "sep");
@@ -841,6 +865,7 @@ function filterRow() {
   b.onclick = () => {
     S.tag = null;
     render();
+    $("#page").scrollTop = 0;
   };
   li.append(b);
   return li;
@@ -966,6 +991,95 @@ function renderGoals() {
   }
 }
 
+/* ── the Tags page ──────────────────────────────────────────────────── */
+
+/* One tag on the index: the chip, how many lines carry it, and a pencil.
+   Renaming rewrites every line in this notebook carrying the old word — a tag
+   is a group, so renaming it has to move the whole group at once. */
+function tagLink(t, n) {
+  const li = el("li", "taglink");
+  const pick = el("button", "taglink-pick");
+  pick.append(
+    el("span", "tag", safeHtml(t)),
+    el("span", "taglink-n", `${n} ${n === 1 ? "line" : "lines"}`),
+    el("span", "taglink-go", ICON.chev)
+  );
+  pick.onclick = () => {
+    S.tag = t;
+    buzz(6);
+    render();
+    $("#page").scrollTop = 0;
+  };
+  const edit = el("button", "taglink-edit", ICON.pencil);
+  edit.setAttribute("aria-label", "Rename #" + t);
+  edit.onclick = () => {
+    const next = cleanTag(prompt(`Rename #${t} to`, t));
+    if (!next || next === t) return;
+    mutate(`#${t} is now #${next}`, () => {
+      mine().forEach((e) => e.tag === t && (e.tag = next));
+      if (S.tag === t) S.tag = next;
+    });
+  };
+  li.append(pick, edit);
+  return li;
+}
+
+/* Two pages in one, and which you get is whether a tag is in hand. With none,
+   every tag in the notebook in the order they were first written. With one,
+   everything carrying it — tasks, events and goals together, which is the
+   only page in the app that mixes the three kinds, because a group is a group
+   whatever its lines happen to be. */
+function renderTags() {
+  const list = $("#list");
+  list.textContent = "";
+  const empty = $("#empty");
+
+  if (!S.tag) {
+    const counts = tagCounts();
+    counts.forEach(([t, n]) => list.append(tagLink(t, n)));
+    empty.hidden = counts.length > 0;
+    if (!counts.length) {
+      empty.innerHTML =
+        "<b>No tags yet</b>Start a line with #work — three to five letters — and it becomes a group.";
+    }
+    return;
+  }
+
+  list.append(filterRow());
+
+  const { progress, backlog, done } = journalBuckets();
+  const events = tagEvents();
+  const goals = goalBuckets();
+  /* One Done fold at the foot holding everything settled, tasks and goals
+     alike. Split per kind it would be two near-empty folds saying the same
+     thing: this is the record, not the work. */
+  const settled = [...done, ...goals.done];
+
+  const section = (label, items, opts) => {
+    if (!items.length) return;
+    list.append(bucketHeading(label, items.length));
+    items.forEach((e) => list.append(row(e, opts)));
+  };
+
+  section("Tasks", progress);
+  if (backlog.length) {
+    list.append(foldHeading("Backlog", backlog.length, "backlogOpen"));
+    if (S.backlogOpen) backlog.forEach((e) => list.append(row(e)));
+  }
+  section("Events", events, { day: true });
+  section("Goals", goals.open);
+  if (settled.length) {
+    list.append(foldHeading("Done", settled.length, "doneOpen"));
+    if (S.doneOpen) settled.forEach((e) => list.append(row(e, { day: true })));
+  }
+
+  const bare = !progress.length && !backlog.length && !events.length && !goals.open.length && !settled.length;
+  empty.hidden = !bare;
+  if (bare) {
+    empty.innerHTML = `<b>Nothing tagged #${safeHtml(S.tag)}</b>Write a line below and it joins the group.`;
+  }
+}
+
 /* Under a goal's words: when it is due and how far along it is. The one row
    that prints a date, because a deadline is the whole point of a goal. */
 function goalMeta(g) {
@@ -993,10 +1107,21 @@ function dueMeta(e) {
   return m;
 }
 
+/* An event's day, for the pages that list events without a day heading over
+   them. "on", not "by": an event falls on its day. */
+function dayMeta(e) {
+  const m = el("span", "row-meta" + (isLive(e) && e.date === TODAY() ? " is-today" : ""));
+  m.append(el("span", null, `on ${dayLabel(e.date)}`));
+  return m;
+}
+
 /* One line. The face is what you see; the layer underneath is what a swipe
    reveals. Everything about the row is derived from the entry, so a re-render
-   after any mutation redraws it correctly without special cases. */
-function row(e) {
+   after any mutation redraws it correctly without special cases.
+
+   `opts.day` prints an event's date under its words, for a page that lists
+   events without a day heading over them. */
+function row(e, opts = {}) {
   const li = el("li", "row type-" + e.type);
   li.dataset.id = e.id;
   if (e.state === "done") li.classList.add("is-done");
@@ -1017,10 +1142,16 @@ function row(e) {
   face.append(bul);
 
   const txt = el("button", "row-text");
-  if (e.tag) txt.append(el("span", "tag", safeHtml(e.tag)));
+  /* The chip is a label saying which group the line is in. On the Tags page
+     every line on screen is in the same group and the chip above them all
+     says which — repeating it on every row would be the page talking to
+     itself. */
+  if (e.tag && e.tag !== (isTags() ? S.tag : null)) txt.append(el("span", "tag", safeHtml(e.tag)));
   txt.append(document.createTextNode(e.text));
   if (e.type === "goal") txt.append(goalMeta(e));
-  else if (e.due) txt.append(dueMeta(e));
+  else if (e.type === "event") {
+    if (opts.day) txt.append(dayMeta(e));
+  } else if (e.due) txt.append(dueMeta(e));
   txt.onclick = () => openEntry(e.id);
   face.append(txt);
 
@@ -1326,7 +1457,9 @@ const composer = $("#composer");
 /* There is nothing to pick any more: the page you are on decides what you are
    writing. The Journal writes a task, the Calendar writes an event and asks
    for the day it falls on, and Goals writes a goal and asks for the day it is
-   due by. */
+   due by. Tags writes a task too — it is a read across the other pages, so a
+   line written there is an ordinary task that joins the group in hand and
+   lands on the Journal like any other. */
 function renderComposer() {
   const dated = isCal() || isGoals();
   $("#when").hidden = !dated;
@@ -1336,7 +1469,11 @@ function renderComposer() {
     ? "what happens that day?"
     : isGoals()
       ? "what do you want to reach?"
-      : "what needs doing?";
+      : isTags()
+        ? S.tag
+          ? `what needs doing, in #${S.tag}?`
+          : "start a line with #tag"
+        : "what needs doing?";
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
 
@@ -1390,7 +1527,7 @@ composer.addEventListener("submit", (ev) => {
   buzz(7);
   mutate(null, () => db.entries.push(e));
   // keep the page on the line you just wrote
-  $("#page").scrollTop = type === "task" ? 0 : $("#page").scrollTop;
+  if (type === "task") $("#page").scrollTop = 0;
   /* A goal is only words until it has a step, so its sheet opens straight on
      the field for the first one. */
   if (type === "goal") {
@@ -1850,7 +1987,15 @@ function openMenu() {
 
     acts.append(
       actRow(ICON.books, "Notebooks", openBooks, { k: curBook().name }),
-      actRow(ICON.tag, "Tags", openTags, { k: String(tagCounts().length) }),
+      actRow(
+        ICON.tag,
+        "Tags",
+        () => {
+          closeSheet();
+          goTo("tags");
+        },
+        { k: String(tagCounts().length) }
+      ),
       actRow(ICON.search, "Search", () => openSearch()),
       actRow(ICON.down, "Export journal", exportJson),
       actRow(ICON.up, "Import journal", importJson)
@@ -1989,63 +2134,6 @@ function openBook(id) {
 
     acts.append(actRow(ICON.books, "All notebooks", openBooks));
     b.append(acts);
-  });
-}
-
-/* ── tags ──────────────────────────────────────────────────────────── */
-
-/* Tags are a filter over the page you are on, and a rename here rewrites every
-   line in this notebook carrying the old word — a tag is a group, so renaming
-   it has to move the whole group at once. */
-function openTags() {
-  openSheet((b) => {
-    b.append(el("div", "s-title", "Tags"));
-    const counts = tagCounts();
-    if (!counts.length) {
-      b.append(
-        el(
-          "div",
-          "s-sub",
-          "None yet. Start a line with #work — three to five letters — and it becomes a group."
-        )
-      );
-      return;
-    }
-    const acts = el("div", "s-acts");
-    if (S.tag) {
-      acts.append(
-        actRow(ICON.eye, "Show everything", () => {
-          S.tag = null;
-          render();
-          closeSheet();
-        })
-      );
-    }
-    counts.forEach(([t, n]) => {
-      const rowEl = el("div", "s-book " + (S.tag === t ? "on" : ""));
-      const pick = el("button", "s-book-pick");
-      pick.append(el("span", "s-book-dot"), el("span", "s-book-name", "#" + t), el("span", "k", String(n)));
-      pick.onclick = () => {
-        S.tag = S.tag === t ? null : t;
-        render();
-        closeSheet();
-      };
-      const edit = el("button", "s-book-edit", ICON.pencil);
-      edit.setAttribute("aria-label", "Rename #" + t);
-      edit.onclick = () => {
-        const next = cleanTag(prompt(`Rename #${t} to`, t));
-        if (!next || next === t) return;
-        mutate(`#${t} is now #${next}`, () => {
-          mine().forEach((e) => e.tag === t && (e.tag = next));
-          if (S.tag === t) S.tag = next;
-        });
-        openTags();
-      };
-      rowEl.append(pick, edit);
-      acts.append(rowEl);
-    });
-    b.append(acts);
-    b.append(el("div", "s-sub s-shelf-note", "Tap a tag to narrow the page to it."));
   });
 }
 
