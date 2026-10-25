@@ -9,6 +9,13 @@ Switching between the three is the only navigation there is.
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
 
+| Journal | Calendar | Goals | A line, opened |
+| :-: | :-: | :-: | :-: |
+| ![The Journal: today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![Goals: each with its deadline and how many of its steps are done](../docs/screens/goals.png) | ![A task's sheet: its words, its notes, its tag, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+
+All four are the light theme — paper; there is a dark one too, the same page
+at night. The screenshots are taken from a seeded journal, not a real one.
+
 ## What it is
 
 ```
@@ -19,16 +26,21 @@ No build step, no dependencies, no account. The journal lives in
   ≡  carries notes
 ```
 
-Two kinds of line, and the page you are on decides which you are writing. A
+Three kinds of line, and the page you are on decides which you are writing. A
 **task** goes on the Journal, newest first, until you drag it somewhere else
-or give it a day it is wanted by. The row prints only its words, and the day
-it was written is in its sheet. An **event** always carries a date, and that is what makes
-it an event; it goes on the Calendar. A date and no clock — an event is placed
-on a day, and the day heading it sits under says which.
+or give it a day it is wanted by. The row prints only its words and that day,
+if it has one; the day the line was written is in its sheet. An **event**
+always carries a date, and that is what makes it an event; it goes on the
+Calendar. A date and no clock — an event is placed on a day, and the day
+heading it sits under says which. A **goal** carries a deadline and the tasks
+that get it done, and goes on Goals.
 
-A line never moves between the two pages — changing what kind of thing it is
-would be writing a different line — though the Journal does *show* you today's
-events, at the top, where they are hard to miss.
+A task is something to do whenever, or by a day; an event is something that
+happens on a day. A line never moves between the pages — changing what kind of
+thing it is would be writing a different line — though the Journal does *show*
+you today's events, at the top, where they are hard to miss, and a goal's
+steps are ordinary tasks living on the Journal rather than a fourth kind of
+line.
 
 There is no free-standing note. **Every line carries its own notes** instead —
 open a line and write underneath it — so what you want to remember lives with
@@ -132,19 +144,26 @@ back — that's also how you move between phone and desktop.
   "book": "b1",
   "entries": [
     { "id": "k3f9a1", "type": "task", "text": "Book the flights",
-      "state": "open", "star": true, "tag": "trip",
+      "state": "open", "star": true, "tag": "trip", "due": "2026-10-27",
       "notes": "Check the consulate hours first", "created": 1756000000000 },
     { "id": "k3f9a2", "type": "event", "text": "Flight to Dubai",
       "date": "2026-11-02", "state": "open", "star": false,
-      "created": 1756000000001 }
+      "created": 1756000000001 },
+    { "id": "k3f9a3", "type": "goal", "text": "Run a half marathon",
+      "due": "2026-12-13", "state": "open", "star": false,
+      "created": 1756000000002 }
   ]}
 ```
 
-`state` is `open`, `done` or `dropped`. `type` is `task` or `event` — nothing
-else. `date` appears on events and only on events; there is no time of day.
+`state` is `open`, `done` or `dropped`. `type` is `task`, `event` or `goal` —
+nothing else. `date` appears on events and only on events; there is no time of
+day. `due` is a deadline rather than a day something falls on: always on a
+goal, optional on a task, absent when the task has none. `goal` on a task is
+the id of the goal it is a step towards, in the same notebook.
 `backlog: true` marks a task set aside. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
-migration.
+migration — and a field the app does not recognise is kept as it was, so an
+export from a newer version survives a trip through an older one.
 
 ## Coming from the dated journal
 
