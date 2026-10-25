@@ -1799,7 +1799,10 @@ function goalSteps(g, focus) {
   stepsOf(g)
     .sort((a, b) => (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) || rankOf(b) - rankOf(a))
     .forEach((t) => {
-      const r = el("button", "hit" + (isLive(t) ? "" : " is-settled"));
+      const r = el(
+        "button",
+        "hit" + (isLive(t) ? "" : " is-settled") + (t.state === "dropped" ? " is-dropped" : ""),
+      );
       r.append(bwrap(bulletClass(t)), el("div", "h-t", safeHtml(t.text)));
       r.onclick = () => {
         commitSheet();

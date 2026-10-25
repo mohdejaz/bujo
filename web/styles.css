@@ -437,14 +437,15 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-align: left;
   position: relative;
 }
-.row.is-done .row-text,
+/* done: the ticked bullet says it, so the words stay readable — only a line
+   struck out keeps a line through it */
+.row.is-done .row-text { color: var(--dim); }
 .row.is-dropped .row-text {
   color: var(--dim);
   text-decoration: line-through;
   text-decoration-thickness: 1.5px;
   text-decoration-color: currentColor;
 }
-.row.anim.is-done .row-text,
 .row.anim.is-dropped .row-text { animation: cross 0.3s 0.08s ease-out both; }
 @keyframes cross {
   from { text-decoration-color: transparent; }
@@ -961,7 +962,8 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-steps .sep { padding: 2px 6px 4px; }
 .s-steps .s-acts { margin: 0; }
 .s-step { margin: 6px 0 2px; font-size: max(16px, 0.9375rem); padding: 11px 14px; }
-.hit.is-settled .h-t { color: var(--dim); text-decoration: line-through; }
+.hit.is-settled .h-t { color: var(--dim); }
+.hit.is-dropped .h-t { text-decoration: line-through; }
 
 /* ── toast ──────────────────────────────────────────────────────────── */
 
