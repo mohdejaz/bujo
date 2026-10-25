@@ -1,8 +1,9 @@
 # bujo
 
-A touch-first bullet journal in three pages. Tasks have no date and share one
-endless **Journal**; events have a date and live on the **Calendar**; goals
-have a due date and live on **Goals**, counting the tasks that get them done.
+A touch-first bullet journal in three pages. Tasks share one endless
+**Journal** and may carry a due date; events have a date and live on the
+**Calendar**; goals have a due date and live on **Goals**, counting the tasks
+that get them done.
 Switching between the three is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
@@ -11,7 +12,7 @@ No build step, no dependencies, no account. The journal lives in
 ## What it is
 
 ```
-  •  a task        something to do, whenever
+  •  a task        something to do, whenever — or by a day
   ○  an event      something that happens, on a day
   ◇  a goal        somewhere to get to, by a day
   ×  done
@@ -19,9 +20,9 @@ No build step, no dependencies, no account. The journal lives in
 ```
 
 Two kinds of line, and the page you are on decides which you are writing. A
-**task** never carries a date: it goes on the Journal, newest first, until you
-drag it somewhere else. The row prints only its words; open it and the sheet
-says the day it was written. An **event** always carries a date, and that is what makes
+**task** goes on the Journal, newest first, until you drag it somewhere else
+or give it a day it is wanted by. The row prints only its words, and the day
+it was written is in its sheet. An **event** always carries a date, and that is what makes
 it an event; it goes on the Calendar. A date and no clock — an event is placed
 on a day, and the day heading it sits under says which.
 
@@ -52,10 +53,21 @@ complete it, **left** to set it aside — which for a live task means the
 backlog, and for anything else means striking it out. Tap the text to open
 everything else.
 
+**Due dates.** A task does not need one — most are just things to do — but
+open a line and you can give it a day it is wanted **by**, and take it off
+again with *Clear*. The row then prints that day under its words, in orange
+once it is past. In Progress and the Backlog read by deadline — anything
+overdue at the top, then the soonest day, then the rest, with every undated
+task below the dated ones. A date is the one order on the page you do not set
+by hand: a line climbs as its day comes. Done is the record rather than the
+work, so a deadline no longer sorts it.
+
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
 or down. A line moves within its own bucket — In Progress, Backlog, Done — and
-among its own kind, starred or not, since stars always sit on top. A line you
-write afterwards still lands at the top.
+among its own kind, starred or not, since stars always sit on top. Where the
+deadline sorts the bucket it is one more such line, so a dated task drags
+among the tasks due the same day. A line you write afterwards still lands at
+the top.
 
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
