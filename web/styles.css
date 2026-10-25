@@ -842,6 +842,16 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   min-height: 34px;
 }
 .s-field::-webkit-date-and-time-value { text-align: right; }
+/* Takes a deadline back off a task. Sits beside the field rather than inside
+   it, because every date picker hides its own clear somewhere different. */
+.s-clear {
+  margin-left: 8px;
+  padding: 7px 10px;
+  border-radius: 13px;
+  color: var(--dim);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
 .s-field::-webkit-calendar-picker-indicator { opacity: 0.55; }
 
 /* ── search ─────────────────────────────────────────────────────────── */

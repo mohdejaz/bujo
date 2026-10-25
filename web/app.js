@@ -4,7 +4,7 @@
  * entries in localStorage; the notebook narrows it, and then the *type* of an
  * entry decides which page it belongs to. Nothing else filters anything.
  *
- *   Journal   tasks. No date — one endless page per notebook.
+ *   Journal   tasks. One endless page per notebook; a due date is optional.
  *   Calendar  events. Every event has a date, grouped by day.
  *   Goals     goals. Each is due by a day and counts the tasks that get it done.
  *
@@ -14,11 +14,13 @@
  * different line.
  *
  *   entry = { id, type, text, state, star, tag, notes, book, created, pos }
- *   type  = task                   → Journal, undated
+ *   type  = task                   → Journal, may carry a day it is due by
  *         | event                  → Calendar, carries the day it falls on
  *         | goal                   → Goals, carries the day it is due by
- *   due   = a goal's deadline. Not `date`: an event falls *on* its day, a goal
- *           only has to be reached *by* it — and the Calendar reads `date`.
+ *   due   = a deadline: always on a goal, optional on a task. Not `date`: an
+ *           event falls *on* its day, a task or goal only has to be reached
+ *           *by* it — and the Calendar reads `date`. A task with no due date
+ *           is not late and never will be, so it sorts below the dated ones.
  *   goal  = on a task, the id of the goal it is a step towards, in the same
  *           notebook; absent when none. The step is still an ordinary task —
  *           it lives on the Journal like any other, and the goal only counts it.
@@ -402,6 +404,9 @@ function adopt(raw, i, books) {
     delete e.time;
     delete e.backlog;
   } else {
+    // a task's deadline is optional — most tasks are just things to do
+    if (isDate(raw.due)) e.due = raw.due;
+    else delete e.due;
     // only a task can be set aside, and only while it is still open
     delete e.date;
     delete e.time;
@@ -415,7 +420,7 @@ function adopt(raw, i, books) {
   else delete e.tag;
   if (!(books && books.has(e.book))) delete e.book;
   if (!Number.isFinite(raw.pos)) delete e.pos;
-  if (e.type !== "goal") delete e.due;
+  if (e.type === "event") delete e.due;
   if (e.type !== "task" || typeof raw.goal !== "string") delete e.goal;
   return e;
 }
@@ -496,19 +501,37 @@ function tagCounts() {
    and a fresh line still lands above anything that was dragged. */
 const rankOf = (e) => (Number.isFinite(e.pos) ? e.pos : e.created);
 
-/* The Journal: every undated task in this notebook, in three buckets — what
-   is in progress (open, on the page), what is set aside (the backlog), and
-   what is settled (done or struck out). Inside each bucket starred lines lead,
-   then the order you dragged them into. */
+/* Deadlines, soonest day first and the overdue above all of them, with every
+   undated task after. A date is the one order on this page you do not set by
+   hand: the whole point of writing one is that the line climbs as the day
+   comes, so it sorts the way the days arrive. A task with no due date is never
+   late, so it waits below the ones that can be. Written out rather than
+   reusing byDue because it has to cope with a missing date on either side. */
+const byDeadline = (a, b) =>
+  (a.due ? 0 : 1) - (b.due ? 0 : 1) ||
+  (a.due && b.due ? (a.due < b.due ? -1 : a.due > b.due ? 1 : 0) : 0);
+
+/* The Journal: every task in this notebook, in three buckets — what is in
+   progress (open, on the page), what is set aside (the backlog), and what is
+   settled (done or struck out). Live work reads by deadline: starred lines
+   lead, then due date, then the order you dragged them into. Done is the
+   record rather than the work, so a deadline no longer sorts it — it stays in
+   the order you put it in. */
 function journalBuckets() {
   const tasks = mine()
     .filter(onJournal)
-    .filter((e) => !S.tag || e.tag === S.tag)
-    .sort((a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0) || rankOf(b) - rankOf(a));
+    .filter((e) => !S.tag || e.tag === S.tag);
+  const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
+  const live = (f) =>
+    tasks
+      .filter((e) => isLive(e) && f(e))
+      .sort((a, b) => star(a, b) || byDeadline(a, b) || rankOf(b) - rankOf(a));
   return {
-    progress: tasks.filter((e) => isLive(e) && !e.backlog),
-    backlog: tasks.filter((e) => isLive(e) && e.backlog),
-    done: db.hideLogged ? [] : tasks.filter((e) => !isLive(e)),
+    progress: live((e) => !e.backlog),
+    backlog: live((e) => e.backlog),
+    done: db.hideLogged
+      ? []
+      : tasks.filter((e) => !isLive(e)).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
   };
 }
 
@@ -859,10 +882,13 @@ function renderJournal() {
 
   /* Every bucket row can be lifted and dragged — but only among the rows it
      shares a bucket and a star with, because the sort would put it straight
-     back if it crossed either line. */
-  const put = (e, bucket) => {
+     back if it crossed either line. In the two buckets that read by deadline
+     the due date is one more such line; undated tasks share the one empty
+     date, so the ordinary page still drags end to end. Done is not sorted by
+     deadline, so there it is no line at all. */
+  const put = (e, bucket, dated = true) => {
     const li = row(e);
-    li.dataset.group = bucket + (e.star ? ":star" : "");
+    li.dataset.group = bucket + (e.star ? ":star" : "") + (dated && e.due ? ":" + e.due : "");
     liftable(li);
     list.append(li);
   };
@@ -872,13 +898,13 @@ function renderJournal() {
     progress.forEach((e) => put(e, "progress"));
   }
 
-  const fold = (label, items, key) => {
+  const fold = (label, items, key, dated = true) => {
     list.append(foldHeading(label, items.length, key));
-    if (S[key]) items.forEach((e) => put(e, key));
+    if (S[key]) items.forEach((e) => put(e, key, dated));
   };
 
   if (backlog.length) fold("Backlog", backlog, "backlogOpen");
-  if (done.length) fold("Done", done, "doneOpen");
+  if (done.length) fold("Done", done, "doneOpen", false);
 
   const empty = $("#empty");
   const bare = !progress.length && !backlog.length && !done.length && !today.length;
@@ -958,6 +984,15 @@ function goalMeta(g) {
   return m;
 }
 
+/* A task's deadline, under its words, and only when it has one. The same
+   line a goal gets, saying the same thing: the day this is wanted by. */
+function dueMeta(e) {
+  const late = isLive(e) && e.due < TODAY();
+  const m = el("span", "row-meta" + (late ? " is-late" : ""));
+  m.append(el("span", null, `by ${dayLabel(e.due)}`));
+  return m;
+}
+
 /* One line. The face is what you see; the layer underneath is what a swipe
    reveals. Everything about the row is derived from the entry, so a re-render
    after any mutation redraws it correctly without special cases. */
@@ -985,6 +1020,7 @@ function row(e) {
   if (e.tag) txt.append(el("span", "tag", safeHtml(e.tag)));
   txt.append(document.createTextNode(e.text));
   if (e.type === "goal") txt.append(goalMeta(e));
+  else if (e.due) txt.append(dueMeta(e));
   txt.onclick = () => openEntry(e.id);
   face.append(txt);
 
@@ -1512,6 +1548,33 @@ function openEntry(id, focusStep = false) {
       acts.append(dr);
     }
 
+    /* A task's deadline is optional both ways: the field starts empty, and
+       emptying it again — by the picker's own clear, or this button — takes the
+       line back off the dated part of the page. */
+    if (e.type === "task") {
+      const dr = el("div", "s-act", ICON.cal);
+      dr.append(el("span", null, "Due by"));
+      const df = el("input", "s-field");
+      df.type = "date";
+      df.value = e.due || "";
+      const clear = el("button", "s-clear", "Clear");
+      const set = (v) => {
+        mutate(null, () => {
+          if (isDate(v)) e.due = v;
+          else delete e.due;
+        });
+        clear.hidden = !e.due;
+      };
+      df.onchange = () => set(df.value);
+      clear.onclick = () => {
+        df.value = "";
+        set("");
+      };
+      clear.hidden = !e.due;
+      dr.append(df, clear);
+      acts.append(dr);
+    }
+
     if (e.type === "task" && goalsFor(e).length) {
       const g = e.goal && byId(e.goal);
       acts.append(
@@ -2023,11 +2086,7 @@ function openSearch() {
         const line = el("div", null, mark(e.text, term));
         body.append(line);
         const where = [
-          e.type === "event"
-            ? dayLabel(e.date)
-            : e.type === "goal"
-              ? `by ${dayLabel(e.due)}`
-              : writtenLabel(e.created),
+          e.type === "event" ? dayLabel(e.date) : e.due ? `by ${dayLabel(e.due)}` : writtenLabel(e.created),
           bookOf(e) !== db.book ? bookName(bookOf(e)) : null,
           e.backlog ? "backlog" : null,
           e.tag ? "#" + e.tag : null,
