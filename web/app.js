@@ -1016,6 +1016,7 @@ function renderPages() {
   pagesIn(db.book).forEach((p) => {
     const b = el("button", "ptab" + (p.id === db.page ? " is-on" : ""));
     b.append(el("span", null, safeHtml(p.name)));
+    b.dataset.page = p.id; // where a lifted row looks to see it is over a page
     /* Tapping the page you are already on opens it, which is where its name
        and its delete live — the same move as the notebook button's long
        press, one level down. */
@@ -1468,7 +1469,12 @@ function swipeable(li, face, e) {
 /* Hold a row still, then drag it up or down its group. The hold is what tells
    a reorder apart from a scroll or a swipe: move before it lands and the row
    never lifts. Once lifted the touch is the row's — the page is held still,
-   and scrolls itself only when the row is carried to an edge. */
+   and scrolls itself only when the row is carried to an edge.
+
+   Carry it up past the edge instead, onto one of the page tabs under the
+   date, and letting go there moves the task to that page — the same move as
+   the entry sheet's "Move to page", without opening anything. Over a tab the
+   group closes its gap again, so it is plain which of the two will happen. */
 const LIFT_MS = 420;
 
 function liftable(li) {
@@ -1478,6 +1484,7 @@ function liftable(li) {
     pid = null,
     x0 = 0,
     y0 = 0,
+    x = 0,
     y = 0,
     scroll0 = 0,
     lifted = false,
@@ -1487,7 +1494,8 @@ function liftable(li) {
     tops = [],
     hs = [],
     from = 0,
-    to = 0;
+    to = 0,
+    target = null; // the page tab the row is held over, if any
 
   const cancel = () => {
     clearTimeout(timer);
@@ -1499,6 +1507,11 @@ function liftable(li) {
   const layout = () => {
     const dy = y - y0 + page.scrollTop - scroll0;
     li.style.transform = `translateY(${dy}px)`;
+    if (target) {
+      to = from;
+      rows.forEach((r) => r !== li && (r.style.transform = ""));
+      return;
+    }
     const mid = tops[from] + dy + hs[from] / 2;
     to = rows.filter((r, i) => i !== from && tops[i] + hs[i] / 2 < mid).length;
     const order = rows.filter((r) => r !== li);
@@ -1511,7 +1524,20 @@ function liftable(li) {
     });
   };
 
+  /* Any page of this notebook but the one the row is already on. */
+  const aim = () => {
+    const t = document.elementFromPoint(x, y)?.closest(".ptab[data-page]:not(.is-on)") || null;
+    if (t === target) return;
+    target?.classList.remove("is-target");
+    target = t;
+    if (t) {
+      t.classList.add("is-target");
+      buzz(6);
+    }
+  };
+
   const edgeScroll = () => {
+    if (target) return (raf = requestAnimationFrame(edgeScroll)); // held over a tab, not an edge
     const box = page.getBoundingClientRect();
     const near = 56;
     const v =
@@ -1547,6 +1573,20 @@ function liftable(li) {
     lifted = false;
     swallow = true;
     li.classList.remove("lifting");
+    if (target) {
+      const pg = target.dataset.page;
+      target.classList.remove("is-target");
+      target = null;
+      // the same wait as a reorder, for the same swallowed click
+      setTimeout(() => {
+        const e = byId(li.dataset.id);
+        const p = db.pages.find((x) => x.id === pg);
+        if (!e || !p) return render();
+        buzz(8);
+        mutate(`Moved to ${p.name}`, () => putPage(e, p.id));
+      }, 0);
+      return;
+    }
     if (to === from) {
       rows.forEach((r) => {
         r.classList.remove("shifting");
@@ -1566,7 +1606,7 @@ function liftable(li) {
     (ev) => {
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
       pid = ev.pointerId;
-      x0 = ev.clientX;
+      x = x0 = ev.clientX;
       y = y0 = ev.clientY;
       swallow = false;
       cancel();
@@ -1579,7 +1619,9 @@ function liftable(li) {
     if (timer && Math.hypot(ev.clientX - x0, ev.clientY - y0) > 8) cancel();
     if (!lifted) return;
     ev.preventDefault();
+    x = ev.clientX;
     y = ev.clientY;
+    aim();
     layout();
   });
   face.addEventListener("pointerup", (ev) => {
@@ -1591,6 +1633,8 @@ function liftable(li) {
     cancel();
     if (!lifted) return;
     to = from; // the browser took the touch back: leave the line where it was
+    target?.classList.remove("is-target");
+    target = null;
     drop();
   });
   // while lifted, the finger carries the row, not the page
