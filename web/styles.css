@@ -288,6 +288,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--ink);
   border-bottom-color: var(--accent);
 }
+/* a lifted task held over another page: let go and it moves there */
+.ptab.is-target {
+  color: var(--ink);
+  background: var(--hair-2);
+  border-bottom-color: var(--accent);
+}
 .ptab-new { color: var(--hair); padding-inline: 7px; }
 .ptab-new svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
 

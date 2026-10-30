@@ -147,7 +147,8 @@ Pages split the **Journal** and nothing else. The Calendar, Goals and Tags
 belong to the notebook and read every page of it at once, because a day, a
 deadline and a group are all things you want whole — having to check five
 pages to find out what is on today would be a worse notebook, not a tidier
-one. Move a task between pages from its entry sheet; moving it to another
+one. Move a task between pages by holding it and dragging it onto another
+page's tab, or from its entry sheet; moving it to another
 notebook lands it on that notebook's default page.
 
 A notebook is named in **five characters or fewer**, a page in **seven**. That
