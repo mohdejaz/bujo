@@ -244,6 +244,52 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
   letter-spacing: -0.01em;
 }
+/* the strip takes over the gap under the date, rather than adding to it */
+#head.paged .stamp { padding-bottom: 4px; }
+
+/* ── the pages of a notebook ────────────────────────────────────────── */
+
+/* Tabs down the edge of the notebook, under its date. Underlined rather than
+   boxed: the four pages above are a segmented control and a second one right
+   below it would read as the same kind of switch. These are the leaves of a
+   book, and the one you are on is the one with a rule under it.
+
+   It scrolls sideways, so a sixth page is reachable on the narrowest phone
+   without any of the names being squeezed — which is also why a page name is
+   capped at seven characters: a tab that has to be truncated is not a tab. */
+.pages {
+  display: flex;
+  gap: 2px;
+  padding: 0 0 2px;
+  margin: 0 -12px 6px;
+  padding-inline: 12px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.pages::-webkit-scrollbar { display: none; }
+.ptab {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px 6px;
+  /* square at the foot: the rule under the page you are on is a straight rule */
+  border-radius: 9px 9px 2px 2px;
+  border-bottom: 2px solid transparent;
+  font-size: 0.84375rem;
+  font-weight: 600;
+  color: var(--dim);
+  white-space: nowrap;
+  transition: color 0.16s, border-color 0.16s, background 0.14s;
+}
+.ptab:active { background: var(--hair-2); }
+.ptab.is-on {
+  color: var(--ink);
+  border-bottom-color: var(--accent);
+}
+.ptab-new { color: var(--hair); padding-inline: 7px; }
+.ptab-new svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
 
 /* ── page ───────────────────────────────────────────────────────────── */
 

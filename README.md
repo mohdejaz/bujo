@@ -28,7 +28,8 @@ Tap a bullet to complete, swipe right to complete, swipe left to set a task
 aside in the backlog. Every line carries its own `#tag` — the Tags page reads a
 group whole — and long-form notes —
 there is no free-standing note, because what you want to remember belongs with
-the thing it is about — and several notebooks can sit side by side. The
+the thing it is about — and several notebooks can sit side by side, each
+with its own pages under the date. The
 journal lives in `localStorage` on the device and is exported and imported as
 JSON from the ⋯ menu — that export is the only backup, so take one now and
 then.
@@ -57,7 +58,8 @@ you get the app but not the installable layer. Pushes to `main` that touch
 `web/` deploy to GitHub Pages automatically.
 
 See [`web/README.md`](web/README.md) for the full guide: gestures, due dates,
-the backlog, goals, tags, notebooks, search and the data format.
+the backlog, goals, tags, notebooks and their pages, search and the data
+format.
 
 ## License
 

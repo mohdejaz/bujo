@@ -4,7 +4,7 @@
  * entries in localStorage; the notebook narrows it, and then the *type* of an
  * entry decides which page it belongs to. Nothing else filters anything.
  *
- *   Journal   tasks. One endless page per notebook; a due date is optional.
+ *   Journal   tasks, on one of the notebook's pages; a due date is optional.
  *   Calendar  events. Every event has a date, grouped by day.
  *   Goals     goals. Each is due by a day and counts the tasks that get it done.
  *   Tags      the one page that cuts across the other three: pick a tag and
@@ -40,6 +40,10 @@
  *           free-standing note, because a note with nothing to hang off is
  *           just a task you have not decided about yet.
  *   book  = which notebook the entry is in, absent for "the first one".
+ *   page  = which page of that notebook a task sits on, absent for "the
+ *           default one". Only a task carries it: the Calendar, Goals and Tags
+ *           read a notebook whole, so an event or a goal belongs to the book
+ *           and not to any one page of it.
  *   created = when it was written. Never printed on the row — a line stays
  *           its words — only in the line's sheet and in search.
  *   pos   = where a task sits on the page after it has been dragged, absent
@@ -131,23 +135,56 @@ function writtenLabel(ms) {
  * to empty it first.
  */
 
+/* And one level down, pages — the tabs down the edge of a paper notebook.
+ *
+ *   page = { id, book, name }
+ *
+ * The same filter trick a third time: a task carries an optional `page`, and
+ * its absence means the notebook's *default* page — the first one in the list
+ * for that book, which always exists. So a journal written before pages
+ * existed gains a page record per notebook and not one entry is rewritten.
+ *
+ * Only the Journal narrows to a page. The Calendar, Goals and Tags read the
+ * whole notebook, because a day, a deadline and a group are all things you
+ * want to see across every page at once — splitting them would mean checking
+ * five pages to find out what is on today.
+ */
+
 /* How many notebooks you can have *open* at once. Archived ones are outside
    this — that is the whole point of archiving one. */
 const BOOK_MAX = 6;
 /* The whole list, archive included, is capped too. */
 const BOOK_KEEP_MAX = 40;
-const BOOK_NAME_MAX = 14;
+/* Pages per notebook. The strip of them sits in the header, so this is really
+   a question of how many tabs fit across a phone. */
+const PAGE_MAX = 6;
+/* And a ceiling across every notebook, as BOOK_KEEP_MAX is for the shelf. */
+const PAGE_KEEP_MAX = 60;
+/* Five for a notebook: it shares one header row with four tabs, a date and a
+   menu, so every character it takes is one the rest cannot have. */
+const BOOK_NAME_MAX = 5;
+/* Seven for a page: the strip is a row of its own and scrolls sideways, so a
+   page can afford two more characters than the notebook holding it — enough
+   for a word someone would actually have picked. Short names are still the
+   feature: a tab has to read at a glance beside its siblings. */
+const PAGE_NAME_MAX = 7;
+/* What the first notebook and its first page are called, for a journal that
+   has never been opened before. */
+const BOOK_FIRST = "bujo";
+const PAGE_FIRST = "log";
 
 const newBook = (name) => ({ id: uid(), name });
+const newPage = (book, name) => ({ id: uid(), book, name });
 
-/* Short display labels. Trimmed, collapsed, never empty, and short enough that
-   the header has a fighting chance. Same shape as cleanTag: normalise, or
-   return null. */
-const cleanLabel = (s) => {
+/* Short display labels, for a notebook and a page both — `max` is whichever
+   of the two this name is for. Trimmed, collapsed, never empty, and short
+   enough that the header has a fighting chance. Same shape as cleanTag:
+   normalise, or return null. */
+const cleanLabel = (s, max) => {
   const t = String(s || "")
     .replace(/\s+/g, " ")
     .trim()
-    .slice(0, BOOK_NAME_MAX);
+    .slice(0, max);
   return t || null;
 };
 
@@ -157,14 +194,19 @@ const cleanLabel = (s) => {
 function withBooks(raw) {
   let books = Array.isArray(raw.books) ? raw.books : [];
   books = books
-    .filter((b) => b && typeof b === "object" && cleanLabel(b.name))
+    .filter((b) => b && typeof b === "object" && cleanLabel(b.name, BOOK_NAME_MAX))
     .slice(0, BOOK_KEEP_MAX)
     .map((b) => {
-      const out = { id: typeof b.id === "string" && b.id ? b.id : uid(), name: cleanLabel(b.name) };
+      /* "journal" was the default name back when one could be 14 characters.
+         Truncating it would leave every journal in the world reading "journ",
+         so the old default becomes the new one; a name someone picked for
+         themselves is only ever shortened. */
+      const name = b.name === "journal" ? BOOK_FIRST : cleanLabel(b.name, BOOK_NAME_MAX);
+      const out = { id: typeof b.id === "string" && b.id ? b.id : uid(), name };
       if (b.archived) out.archived = true;
       return out;
     });
-  if (!books.length) books = [newBook("journal")];
+  if (!books.length) books = [newBook(BOOK_FIRST)];
   // never leave every notebook archived — there would be nothing to open
   if (!books.some((b) => !b.archived)) delete books[0].archived;
   raw.books = books;
@@ -173,14 +215,67 @@ function withBooks(raw) {
   return raw;
 }
 
+/* The page half of the same invariant: every notebook has at least one page,
+   its first one is the default, and db.page names a real page of db.book.
+   Called by load() and by import, right after withBooks — it needs the book
+   list already settled, since a page with no notebook is not a page. */
+function withPages(raw) {
+  const known = new Set(raw.books.map((b) => b.id));
+  const kept = [];
+  const count = new Map(); // pages kept per notebook so far
+  (Array.isArray(raw.pages) ? raw.pages : []).forEach((p) => {
+    if (!p || typeof p !== "object" || !known.has(p.book)) return;
+    const name = cleanLabel(p.name, PAGE_NAME_MAX);
+    if (!name) return;
+    const c = count.get(p.book) || 0;
+    if (c >= PAGE_MAX || kept.length >= PAGE_KEEP_MAX) return;
+    count.set(p.book, c + 1);
+    kept.push({ id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name });
+  });
+  /* The default page, filled in for any notebook without one — including
+     every notebook in a journal written before pages existed. This runs past
+     PAGE_KEEP_MAX on purpose: a notebook with no page would have nowhere to
+     put the lines it already holds, and the invariant outranks the ceiling. */
+  raw.books.forEach((b) => {
+    if (!count.has(b.id)) kept.push(newPage(b.id, PAGE_FIRST));
+  });
+  raw.pages = kept;
+  const here = kept.filter((p) => p.book === raw.book);
+  if (!here.some((p) => p.id === raw.page)) raw.page = here[0].id;
+  return raw;
+}
+
 const liveBooks = () => db.books.filter((b) => !b.archived);
 /* An entry with no `book` belongs to the first notebook — which is how a
    journal written before notebooks needed no migration. */
 const bookOf = (e) => (db.books.some((b) => b.id === e.book) ? e.book : db.books[0].id);
 const curBook = () => db.books.find((b) => b.id === db.book) || db.books[0];
-const bookName = (id) => db.books.find((b) => b.id === id)?.name || "journal";
-/* Every entry in the notebook you are looking at. */
+const bookName = (id) => db.books.find((b) => b.id === id)?.name || BOOK_FIRST;
+/* Every entry in the notebook you are looking at. Page-blind on purpose:
+   three of the four pages read a notebook whole, and the Journal is the one
+   that narrows further — see journalBuckets. */
 const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
+
+/* The pages of one notebook, in order. The first is its default. */
+const pagesIn = (book) => db.pages.filter((p) => p.book === book);
+const defPage = (book) => pagesIn(book)[0];
+/* A task with no `page` is on its notebook's default page — which is how a
+   journal written before pages needed no migration. A page that belongs to
+   another notebook is no page of this entry's, so it falls back too. */
+const pageOf = (e) => {
+  const book = bookOf(e);
+  const p = db.pages.find((x) => x.id === e.page);
+  return p && p.book === book ? p.id : defPage(book).id;
+};
+const curPage = () => db.pages.find((p) => p.id === db.page) || defPage(db.book);
+const pageName = (id) => db.pages.find((p) => p.id === id)?.name || PAGE_FIRST;
+const onPage = (e) => pageOf(e) === db.page;
+/* Where a task goes when it lands on a page: absent for the default one, so
+   the stored shape stays the same whether or not anyone made a second page. */
+const putPage = (e, pid) => {
+  if (pid === defPage(bookOf(e)).id) delete e.page;
+  else e.page = pid;
+};
 
 /* ── store ─────────────────────────────────────────────────────────── */
 
@@ -195,7 +290,8 @@ const WELCOME = [
 
 function fresh() {
   const now = Date.now();
-  const first = newBook("journal");
+  const first = newBook(BOOK_FIRST);
+  const firstPage = newPage(first.id, PAGE_FIRST);
   const goalId = uid();
   return {
     v: 2,
@@ -205,6 +301,8 @@ function fresh() {
     view: "journal",
     books: [first],
     book: first.id,
+    pages: [firstPage],
+    page: firstPage.id,
     entries: WELCOME.map((w, i) => {
       const e = {
         id: uid(),
@@ -273,7 +371,7 @@ function load() {
  * over as they are.
  */
 function migrateV1(old) {
-  const next = withBooks({
+  const next = withPages(withBooks({
     v: 2,
     theme: ["auto", "light", "dark"].includes(old.theme) ? old.theme : "auto",
     text: Number.isFinite(old.text) ? old.text : 1,
@@ -289,8 +387,11 @@ function migrateV1(old) {
         })
       : [],
     book: old.book,
+    /* The dated app had no pages, so every notebook gets its default one and
+       every line lands on it — withPages fills them in. */
+    pages: [],
     entries: [],
-  });
+  }));
   const books = new Set(next.books.map((b) => b.id));
 
   const counts = { tasks: 0, notes: 0, events: 0, backlog: 0, undatedEvents: 0, stubs: 0 };
@@ -444,11 +545,26 @@ function linkGoals(entries, first) {
   });
 }
 
+/* A `page` only means something on a task, and only when it names a page of
+   that task's own notebook. Checked once every entry is adopted, for the same
+   reason linkGoals is: this is where the notebook a bare entry falls back to
+   is known. A page that does not survive leaves the line on the default one,
+   so nothing is ever stranded off-page. */
+function linkPages(entries, pages, first) {
+  const home = new Map(pages.map((p) => [p.id, p.book]));
+  entries.forEach((e) => {
+    if (!e.page) return;
+    if (e.type !== "task" || home.get(e.page) !== (e.book || first)) delete e.page;
+  });
+}
+
 function normalise(raw) {
   withBooks(raw);
+  withPages(raw);
   const books = new Set(raw.books.map((b) => b.id));
   raw.entries = raw.entries.map((e, i) => adopt(e, i, books)).filter(Boolean);
   linkGoals(raw.entries, raw.books[0].id);
+  linkPages(raw.entries, raw.pages, raw.books[0].id);
   raw.v = 2;
   if (!["auto", "light", "dark"].includes(raw.theme)) raw.theme = "auto";
   if (!Number.isFinite(raw.text)) raw.text = 1;
@@ -533,9 +649,13 @@ const byDeadline = (a, b) =>
    the order you put it in. */
 function journalBuckets() {
   /* The tag narrows it only because the Tags page reads a group's tasks
-     through this same function; on the Journal no tag is ever in hand. */
+     through this same function; on the Journal no tag is ever in hand. And
+     for the same reason the page narrows it *except* there: a group reads
+     across the whole notebook, pages and all — a group is a group wherever
+     its lines happen to have been written. */
   const tasks = mine()
     .filter(onJournal)
+    .filter((e) => isTags() || onPage(e))
     .filter((e) => !S.tag || e.tag === S.tag);
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
   const live = (f) =>
@@ -650,7 +770,15 @@ let toastAct = null;
 /* Everything Undo has to be able to put back. The notebook list is in here as
    well as the entries: deleting a notebook is a labelled mutation, and an Undo
    button that only restored the entries would be lying about what it does. */
-const snapshot = () => JSON.stringify({ entries: db.entries, books: db.books, book: db.book, view: db.view });
+const snapshot = () =>
+  JSON.stringify({
+    entries: db.entries,
+    books: db.books,
+    book: db.book,
+    pages: db.pages,
+    page: db.page,
+    view: db.view,
+  });
 
 function mutate(label, fn) {
   const before = snapshot();
@@ -703,6 +831,8 @@ $("#toastUndo").onclick = () => {
   db.entries = was.entries;
   db.books = was.books;
   db.book = was.book;
+  db.pages = was.pages;
+  db.page = was.page;
   db.view = was.view;
   undoStack = null;
   save();
@@ -808,6 +938,8 @@ const ICON = {
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
   notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
   books: '<svg viewBox="0 0 24 24"><rect x="3" y="3.5" width="12" height="17" rx="2.5"/><path d="M18 6.5v12a2 2 0 01-2 2H7"/></svg>',
+  /* a sheet with its corner turned: one page of a notebook */
+  page: '<svg viewBox="0 0 24 24"><path d="M5.5 3.5h8L19 9v11.5H5.5z"/><path d="M13 3.5V9h5.5"/></svg>',
   pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L20.5 7.5l-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M3 8.5h13l-3.5-3.5M21 15.5H8l3.5 3.5"/></svg>',
@@ -863,6 +995,52 @@ function renderHead() {
   const d = new Date();
   $("#stampDow").textContent = DOW[d.getDay()];
   $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
+  renderPages();
+}
+
+/* The notebook's pages, as a row of tabs down the edge of it. Only the Journal
+   prints them, because only the Journal is on one page at a time — the other
+   three read the notebook whole, and a page tab there would be a control that
+   changed nothing on screen.
+
+   Shown even when there is one page: the strip is how a second one gets made,
+   and a notebook that looks pageless is a notebook nobody will ever page. */
+function renderPages() {
+  const strip = $("#pages");
+  const on = db.view === "journal";
+  strip.hidden = !on;
+  $("#head").classList.toggle("paged", on);
+  strip.textContent = "";
+  if (!on) return;
+
+  pagesIn(db.book).forEach((p) => {
+    const b = el("button", "ptab" + (p.id === db.page ? " is-on" : ""));
+    b.append(el("span", null, safeHtml(p.name)));
+    /* Tapping the page you are already on opens it, which is where its name
+       and its delete live — the same move as the notebook button's long
+       press, one level down. */
+    b.onclick = () => (p.id === db.page ? openPage(p.id) : goPage(p.id));
+    longPress(b, () => openPage(p.id));
+    strip.append(b);
+  });
+
+  if (pagesIn(db.book).length < PAGE_MAX) {
+    const add = el("button", "ptab ptab-new", ICON.plus);
+    add.setAttribute("aria-label", "New page");
+    add.onclick = newPagePrompt;
+    strip.append(add);
+  }
+
+  /* Six names can be wider than a phone, so the strip scrolls — and the tab
+     you are on is brought back into view rather than left over the edge after
+     a notebook switch or a jump out of search. */
+  const here = strip.querySelector(".is-on");
+  if (!here) return;
+  const t = here.getBoundingClientRect();
+  const box = strip.getBoundingClientRect();
+  const pad = 12;
+  if (t.left < box.left + pad) strip.scrollLeft -= box.left + pad - t.left;
+  else if (t.right > box.right - pad) strip.scrollLeft += t.right - (box.right - pad);
 }
 
 /* The chip over a tag's lines, naming the group you are reading and standing
@@ -943,8 +1121,11 @@ function renderJournal() {
   const bare = !progress.length && !backlog.length && !done.length && !today.length;
   empty.hidden = !bare;
   if (bare) {
+    /* The page says its own name: with several in a notebook, "empty" on its
+       own leaves you wondering which one you are looking at. */
     empty.innerHTML =
-      "<b>An empty page</b>Write a task below. It needs no date — that is what the Calendar is for.";
+      `<b>${safeHtml(curPage().name)} is empty</b>` +
+      "Write a task below. It needs no date — that is what the Calendar is for.";
   }
 }
 
@@ -1515,6 +1696,8 @@ composer.addEventListener("submit", (ev) => {
   };
   if (tag) e.tag = tag;
   if (db.book !== db.books[0].id) e.book = db.book;
+  /* Only a task has a page; an event and a goal belong to the notebook. */
+  if (type === "task") putPage(e, db.page);
   const day = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
   if (type === "event") e.date = day;
   if (type === "goal") e.due = day;
@@ -1750,9 +1933,24 @@ function openEntry(id, focusStep = false) {
         : actRow(ICON.strike, "Strike out", () => { toggleDropped(id); closeSheet(); })
     );
 
+    /* Move a task to another page of the same notebook. Only a task: an event
+       or a goal has no page to be on, so there is nothing to offer. */
+    const elsewhere = e.type === "task" ? pagesIn(bookOf(e)).filter((p) => p.id !== pageOf(e)) : [];
+    if (elsewhere.length) {
+      acts.append(el("div", "sep", "Move to page"));
+      elsewhere.forEach((p) =>
+        acts.append(
+          actRow(ICON.page, p.name, () => {
+            mutate(`Moved to ${p.name}`, () => putPage(e, p.id));
+            closeSheet();
+          })
+        )
+      );
+    }
+
     // move a line to another notebook
     if (liveBooks().length > 1) {
-      acts.append(el("div", "sep", "Move to"));
+      acts.append(el("div", "sep", "Move to notebook"));
       liveBooks()
         .filter((bk) => bk.id !== bookOf(e))
         .forEach((bk) =>
@@ -1762,6 +1960,9 @@ function openEntry(id, focusStep = false) {
                 const put = (x) => {
                   if (bk.id === db.books[0].id) delete x.book;
                   else x.book = bk.id;
+                  /* Pages belong to a notebook, so one cannot cross with the
+                     line — it arrives on the new notebook's default page. */
+                  delete x.page;
                 };
                 // a goal takes its steps along; a step moved alone leaves its goal behind
                 if (e.type === "goal") stepsOf(e).forEach(put);
@@ -1844,6 +2045,10 @@ function addStep(g, raw) {
   const t = { id: uid(), type: "task", text, state: "open", star: false, created: Date.now(), goal: g.id };
   if (tag) t.tag = tag;
   if (g.book) t.book = g.book;
+  /* A step is an ordinary task, so it lands on the page you are looking at —
+     the same place the composer would have put it. A goal in some other
+     notebook puts its step on that notebook's default page instead. */
+  if (bookOf(g) === db.book) putPage(t, db.page);
   S.anim.add(t.id);
   buzz(7);
   mutate(null, () => db.entries.push(t));
@@ -1991,6 +2196,7 @@ function openMenu() {
 
     acts.append(
       actRow(ICON.books, "Notebooks", openBooks, { k: curBook().name }),
+      actRow(ICON.page, "Pages", () => openPages(), { k: curPage().name }),
       actRow(
         ICON.tag,
         "Tags",
@@ -2010,10 +2216,12 @@ function openMenu() {
     const here = mine();
     const done = here.filter((e) => e.state === "done").length;
     const evs = here.filter((e) => e.type === "event").length;
+    const pgs = pagesIn(db.book).length;
     const foot = el(
       "div",
       "s-sub",
-      `${here.length} in ${curBook().name} · ${evs} on the calendar · ${done} completed · ` +
+      `${here.length} in ${curBook().name} · ${pgs} ${pgs === 1 ? "page" : "pages"} · ` +
+        `${evs} on the calendar · ${done} completed · ` +
         `on this device only · ${VERSION_LABEL}`
     );
     foot.style.cssText = "margin:18px 0 0;text-align:center";
@@ -2021,7 +2229,17 @@ function openMenu() {
   });
 }
 
-/* ── notebooks ─────────────────────────────────────────────────────── */
+/* ── notebooks and pages ───────────────────────────────────────────── */
+
+/* Every way of changing notebook comes through here, because the page you are
+   on belongs to the notebook you are in: it cannot outlive the switch, so the
+   new notebook's default page comes with it. The tag goes for the usual
+   reason — it belongs to the Tags page, not to a journal. */
+function goBook(id) {
+  db.book = id;
+  db.page = defPage(id).id;
+  S.tag = null;
+}
 
 function openBooks() {
   openSheet((b) => {
@@ -2030,15 +2248,17 @@ function openBooks() {
 
     db.books.forEach((bk) => {
       const n = db.entries.filter((e) => bookOf(e) === bk.id).length;
+      const pgs = pagesIn(bk.id).length;
       const rowEl = el("div", "s-book " + (bk.id === db.book ? "on" : bk.archived ? "off" : ""));
       const pick = el("button", "s-book-pick");
-      pick.append(el("span", "s-book-dot"), el("span", "s-book-name", bk.name), el("span", "k", String(n)));
+      pick.append(
+        el("span", "s-book-dot"),
+        el("span", "s-book-name", bk.name),
+        el("span", "k", pgs > 1 ? `${n} · ${pgs} pages` : String(n))
+      );
       pick.onclick = () => {
         if (bk.archived) return openBook(bk.id);
-        mutate(null, () => {
-          db.book = bk.id;
-          S.tag = null;
-        });
+        mutate(null, () => goBook(bk.id));
         buzz(6);
         closeSheet();
       };
@@ -2052,13 +2272,15 @@ function openBooks() {
     acts.append(
       actRow(ICON.plus, "New notebook", () => {
         if (liveBooks().length >= BOOK_MAX) return toast(`${BOOK_MAX} notebooks open already`);
-        const name = cleanLabel(prompt("Name the notebook"));
+        const name = cleanLabel(prompt(`Name the notebook (${BOOK_NAME_MAX} characters)`), BOOK_NAME_MAX);
         if (!name) return;
         const bk = newBook(name);
+        // a notebook is never pageless: it arrives with its default page
+        const pg = newPage(bk.id, PAGE_FIRST);
         mutate(null, () => {
           db.books.push(bk);
-          db.book = bk.id;
-          S.tag = null;
+          db.pages.push(pg);
+          goBook(bk.id);
         });
         closeSheet();
       })
@@ -2080,14 +2302,17 @@ function openBook(id) {
   openSheet((b) => {
     b.append(el("div", "s-title", bk.name));
     const n = db.entries.filter((e) => bookOf(e) === bk.id).length;
-    b.append(el("div", "s-sub", `${n} ${n === 1 ? "line" : "lines"}`));
+    const pgs = pagesIn(bk.id).length;
+    b.append(
+      el("div", "s-sub", `${n} ${n === 1 ? "line" : "lines"} · ${pgs} ${pgs === 1 ? "page" : "pages"}`)
+    );
 
     const ta = el("input", "s-input s-bookname");
     ta.value = bk.name;
     ta.maxLength = BOOK_NAME_MAX;
     b.append(ta);
     onSheetClose = () => {
-      const name = cleanLabel(ta.value);
+      const name = cleanLabel(ta.value, BOOK_NAME_MAX);
       const live = db.books.find((x) => x.id === id);
       if (!live || !name || name === live.name) return;
       mutate(null, () => (live.name = name));
@@ -2109,7 +2334,8 @@ function openBook(id) {
         actRow(ICON.archive, "Archive notebook", () => {
           mutate(`Archived ${bk.name}`, () => {
             bk.archived = true;
-            if (db.book === bk.id) db.book = liveBooks()[0].id;
+            // liveBooks() has already dropped it, so [0] is somewhere else
+            if (db.book === bk.id) goBook(liveBooks()[0].id);
           });
           closeSheet();
         })
@@ -2125,9 +2351,12 @@ function openBook(id) {
             if (!confirm(`Delete ${bk.name} and its ${n} ${n === 1 ? "line" : "lines"}?`)) return;
             onSheetClose = null;
             mutate(`Deleted ${bk.name}`, () => {
+              // the entries first: bookOf reads the list the next line shortens
               db.entries = db.entries.filter((e) => bookOf(e) !== bk.id);
               db.books = db.books.filter((x) => x.id !== bk.id);
+              db.pages = db.pages.filter((pg) => pg.book !== bk.id);
               withBooks(db);
+              withPages(db);
             });
             closeSheet();
           },
@@ -2136,16 +2365,168 @@ function openBook(id) {
       );
     }
 
+    acts.append(actRow(ICON.page, "Pages", () => openPages(bk.id), { k: String(pgs) }));
     acts.append(actRow(ICON.books, "All notebooks", openBooks));
+    b.append(acts);
+  });
+}
+
+/* ── pages ─────────────────────────────────────────────────────────── */
+
+/* How many tasks are on one page. Only tasks, because only a task has a page
+   — an event or a goal is counted by the notebook that holds it. */
+const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
+
+/* Every page of one notebook. Reached from the menu for the notebook you are
+   in, and from a notebook's own sheet for any of them. */
+function openPages(bookId = db.book) {
+  const bk = db.books.find((x) => x.id === bookId) || curBook();
+  openSheet((b) => {
+    b.append(el("div", "s-title", "Pages"));
+    b.append(el("div", "s-sub", `in ${bk.name}`));
+    const acts = el("div", "s-acts");
+
+    const here = pagesIn(bk.id);
+    here.forEach((pg, i) => {
+      const n = pageCount(pg.id);
+      const rowEl = el("div", "s-book " + (pg.id === db.page ? "on" : ""));
+      const pick = el("button", "s-book-pick");
+      pick.append(
+        el("span", "s-book-dot"),
+        el("span", "s-book-name", pg.name),
+        el("span", "k", i === 0 ? `default · ${n}` : String(n))
+      );
+      pick.onclick = () => {
+        closeSheet();
+        goPage(pg.id);
+      };
+      const edit = el("button", "s-book-edit", ICON.pencil);
+      edit.setAttribute("aria-label", "Edit " + pg.name);
+      edit.onclick = () => openPage(pg.id);
+      rowEl.append(pick, edit);
+      acts.append(rowEl);
+    });
+
+    if (here.length < PAGE_MAX) acts.append(actRow(ICON.plus, "New page", () => newPagePrompt(bk.id)));
+    acts.append(actRow(ICON.books, "Notebooks", openBooks, { k: curBook().name }));
+    b.append(acts);
+    b.append(
+      el(
+        "div",
+        "s-sub s-shelf-note",
+        "Pages split the Journal and nothing else — the Calendar, Goals and Tags read the whole notebook."
+      )
+    );
+  });
+}
+
+function newPagePrompt(bookId = db.book) {
+  const bk = db.books.find((x) => x.id === bookId) || curBook();
+  if (pagesIn(bk.id).length >= PAGE_MAX) return toast(`${PAGE_MAX} pages in ${bk.name} already`);
+  const name = cleanLabel(prompt(`Name the page (${PAGE_NAME_MAX} characters)`), PAGE_NAME_MAX);
+  if (!name) return;
+  const pg = newPage(bk.id, name);
+  mutate(null, () => {
+    db.pages.push(pg);
+    goBook(bk.id);
+    db.page = pg.id; // a page you just made is a page you want to be on
+  });
+  closeSheet();
+  buzz(7);
+  if (db.view !== "journal") goTo("journal");
+}
+
+/* One page: its name, and the two things only it can say — whether it is the
+   default one, and whether it can go. */
+function openPage(id) {
+  const pg = db.pages.find((x) => x.id === id);
+  if (!pg) return;
+  const first = defPage(pg.book).id === pg.id;
+  const only = pagesIn(pg.book).length <= 1;
+  const n = pageCount(pg.id);
+  openSheet((b) => {
+    b.append(el("div", "s-title", pg.name));
+    b.append(
+      el(
+        "div",
+        "s-sub",
+        `${n} ${n === 1 ? "line" : "lines"} in ${bookName(pg.book)}` + (first ? " · the default page" : "")
+      )
+    );
+
+    const ta = el("input", "s-input s-bookname");
+    ta.value = pg.name;
+    ta.maxLength = PAGE_NAME_MAX;
+    b.append(ta);
+    onSheetClose = () => {
+      const name = cleanLabel(ta.value, PAGE_NAME_MAX);
+      const live = db.pages.find((x) => x.id === id);
+      if (!live || !name || name === live.name) return;
+      mutate(null, () => (live.name = name));
+    };
+
+    const acts = el("div", "s-acts");
+    if (pg.id !== db.page) {
+      acts.append(
+        actRow(ICON.eye, "Open this page", () => {
+          closeSheet();
+          goPage(pg.id);
+        })
+      );
+    }
+
+    /* Any page can go, the default one included — the next page along takes
+       the role, and the lines that were on it go with it the same way a
+       notebook's do. The one page a notebook cannot be without is its last:
+       delete that and there would be nowhere for the next line to land. */
+    if (!only) {
+      acts.append(
+        actRow(
+          ICON.trash,
+          "Delete page",
+          () => {
+            const next = first ? pagesIn(pg.book)[1].name : null;
+            if (
+              !confirm(
+                `Delete ${pg.name} and its ${n} ${n === 1 ? "line" : "lines"}?` +
+                  (next ? `\n\n${next} becomes the default page.` : "")
+              )
+            )
+              return;
+            onSheetClose = null;
+            mutate(`Deleted ${pg.name}`, () => {
+              /* The entries first: pageOf reads the list the next line
+                 shortens, and on the default page it is what resolves every
+                 line that carries no page of its own. */
+              db.entries = db.entries.filter((e) => !(e.type === "task" && pageOf(e) === pg.id));
+              db.pages = db.pages.filter((x) => x.id !== pg.id);
+              /* A line explicitly on the page that has just become the
+                 default drops the field, so "absent means the default one"
+                 stays the only way a default page is written down. */
+              const def = defPage(pg.book);
+              db.entries.forEach((e) => {
+                if (e.page === def.id) delete e.page;
+              });
+              withPages(db);
+            });
+            closeSheet();
+          },
+          { danger: true }
+        )
+      );
+    }
+
+    acts.append(actRow(ICON.page, "All pages", () => openPages(pg.book)));
     b.append(acts);
   });
 }
 
 /* ── search ────────────────────────────────────────────────────────── */
 
-/* Across every notebook, not just this one: you search because you cannot
-   remember where a line is, and the notebook is part of what you forgot. A hit
-   switches to whichever page and notebook holds it. */
+/* Across every notebook and every page, not just the one you are on: you
+   search because you cannot remember where a line is, and which notebook and
+   which page are part of what you forgot. A hit switches to whichever of the
+   four pages, notebook and page of it holds the line. */
 function openSearch() {
   openSheet((b) => {
     b.append(el("div", "s-title", "Search"));
@@ -2180,6 +2561,7 @@ function openSearch() {
         const where = [
           e.type === "event" ? dayLabel(e.date) : e.due ? `by ${dayLabel(e.due)}` : writtenLabel(e.created),
           bookOf(e) !== db.book ? bookName(bookOf(e)) : null,
+          e.type === "task" && pageOf(e) !== db.page ? pageName(pageOf(e)) : null,
           e.backlog ? "backlog" : null,
           e.tag ? "#" + e.tag : null,
         ]
@@ -2197,6 +2579,10 @@ function openSearch() {
           mutate(null, () => {
             db.view = want;
             db.book = bookOf(e);
+            /* Only a task is on a page; for an event or a goal the notebook's
+               default page is simply where the Journal will be when you get
+               back to it. */
+            db.page = e.type === "task" ? pageOf(e) : defPage(bookOf(e)).id;
             S.tag = null;
             if (e.backlog) S.backlogOpen = true;
             if (e.type === "goal" && !isLive(e)) S.goalsDoneOpen = true;
@@ -2356,13 +2742,42 @@ function goTo(view) {
   /* The tabs are icons, so the page says its own name on arrival and then
      gets out of the way — the header keeps the width instead. */
   note(VIEW_NAME[view]);
+  slide(back);
+  $("#page").scrollTop = 0;
+}
+const stepView = (d) => goTo(VIEWS[VIEWS.indexOf(db.view) + d]);
+
+/* The list slides in from the side you came from — the same motion whether you
+   changed which of the four pages you are on or which page of the notebook. */
+function slide(back) {
   const list = $("#list");
   list.classList.remove("slide-l", "slide-r");
   void list.offsetWidth; // restart the animation
   list.classList.add(back ? "slide-r" : "slide-l");
+}
+
+/* Turn to a page of a notebook. It carries its notebook with it, so a page
+   picked from somewhere else's sheet also switches which journal you are in,
+   and it lands you on the Journal — a page of a notebook is a Journal page,
+   and the strip that names them is only drawn there. */
+function goPage(id) {
+  const pg = db.pages.find((x) => x.id === id);
+  if (!pg || (pg.id === db.page && db.view === "journal")) return;
+  const here = pagesIn(db.book);
+  const back =
+    pg.book === db.book &&
+    pagesIn(pg.book).findIndex((x) => x.id === pg.id) < here.findIndex((x) => x.id === db.page);
+  db.book = pg.book;
+  db.page = pg.id;
+  S.tag = null;
+  save();
+  buzz(6);
+  if (db.view !== "journal") return goTo("journal");
+  render();
+  note(pg.name);
+  slide(back);
   $("#page").scrollTop = 0;
 }
-const stepView = (d) => goTo(VIEWS[VIEWS.indexOf(db.view) + d]);
 
 $("#tabs").onclick = (ev) => {
   const b = ev.target.closest(".tab");
@@ -2383,7 +2798,13 @@ $("#page").addEventListener(
 {
   const head = $("#head");
   let x0 = null;
-  head.addEventListener("pointerdown", (e) => (x0 = e.clientX), { passive: true });
+  /* The strip of pages scrolls sideways itself, so a swipe that starts on it
+     is a swipe through the notebook's pages and not through the four. */
+  head.addEventListener(
+    "pointerdown",
+    (e) => (x0 = e.target.closest("#pages") ? null : e.clientX),
+    { passive: true }
+  );
   head.addEventListener(
     "pointerup",
     (e) => {
