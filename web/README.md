@@ -1,6 +1,6 @@
 # bujo
 
-A touch-first bullet journal in four pages. Tasks share one endless
+A touch-first bullet journal in four pages. Tasks sit on a page of the
 **Journal** and may carry a due date; events have a date and live on the
 **Calendar**; goals have a due date and live on **Goals**, counting the tasks
 that get them done; **Tags** reads across all three, one group at a time.
@@ -133,9 +133,33 @@ archiving one keeps every line it holds and only takes it out of the picker. Up
 to six open at once; archived ones don't count. Move a single line between them
 from its entry sheet.
 
-**Search** (**⋯ → Search**, or `f`) looks across *every* notebook, line and
-note — you search because you forgot where something is, and the notebook is
-part of what you forgot. A hit jumps to the right page and notebook.
+**Pages.** Inside a notebook, up to six pages — the tabs down the edge of a
+paper one. They sit in a strip under the date on the Journal; tap one to turn
+to it, tap the one you are on (or long-press any) to rename or delete it, and
+`+` makes a new one. Every notebook has a **default page**, the first in the
+strip: it is where a line with no page of its own lives, which is how a
+journal written before pages existed needed no migration. Any page can be
+deleted, the default one included — the next along takes the role, and the
+lines go with the page the way they do with a notebook. The one page a
+notebook cannot be without is its last.
+
+Pages split the **Journal** and nothing else. The Calendar, Goals and Tags
+belong to the notebook and read every page of it at once, because a day, a
+deadline and a group are all things you want whole — having to check five
+pages to find out what is on today would be a worse notebook, not a tidier
+one. Move a task between pages from its entry sheet; moving it to another
+notebook lands it on that notebook's default page.
+
+A notebook is named in **five characters or fewer**, a page in **seven**. That
+is the feature, not a limit worked around: a notebook shares one header row
+with four tabs, a date and a menu, while the page strip is a row of its own
+and can afford two more characters. Either way a tab that gets truncated is
+not a tab.
+
+**Search** (**⋯ → Search**, or `f`) looks across *every* notebook and page,
+line and note — you search because you forgot where something is, and which
+notebook and which page are part of what you forgot. A hit jumps to the right
+one of the four, and to the right page of the right notebook.
 
 **Logged lines** can be hidden wholesale from **⋯ → Logged lines**, which is
 the pressure valve for an endless page.
@@ -174,7 +198,8 @@ goal, optional on a task, absent when the task has none. `goal` on a task is
 the id of the goal it is a step towards, in the same notebook.
 `backlog: true` marks a task set aside. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
-migration — and a field the app does not recognise is kept as it was, so an
+migration; `page` is the same trick one level down — it appears on tasks only,
+and is absent for its notebook's default page — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.
 
 ## Coming from the dated journal
@@ -194,7 +219,8 @@ migrates it once and shows a summary of what moved. The rules:
 | repeating rules | the rule is stripped and the line stays as one ordinary task |
 
 Notebooks, tags, stars, per-line notes, theme and text size all carry over.
-Page size (day/week/fortnight) is gone, so notebooks lose it.
+Page size (day/week/fortnight) is gone, so notebooks lose it. Every notebook
+arrives with its default page and every line on it.
 
 Old notes arrive as ordinary tasks, sitting on the page where you can see
 them: they are not actionable, so expect to strike out or delete a few. That
@@ -238,6 +264,8 @@ actually see, and one accent that only ever means *this is now*. Dark mode is
 the same page at night, so every colour is a token redefined in one block.
 
 The model is deliberately thin. There is one array of entries; the notebook
-narrows it and the type of a line decides its page. Neither filter ever
-rewrites an entry, which is why a notebook can be archived without touching
-what it holds, and why the whole store is small enough to read in one sitting.
+narrows it, the type of a line decides its page, and on the Journal the page
+of the notebook narrows it once more. No filter ever rewrites an entry, which
+is why a notebook can be archived without touching what it holds, why a page
+is three fields and a convention about absence, and why the whole store is
+small enough to read in one sitting.

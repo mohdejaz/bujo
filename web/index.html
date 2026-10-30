@@ -52,7 +52,7 @@
         <!-- Which notebook you are in, always on screen: the one thing you must
              never have to guess before writing a line. -->
         <button class="bookbtn" id="bookBtn">
-          <span id="bookName">journal</span>
+          <span id="bookName">bujo</span>
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10l5 5 5-5" /></svg>
         </button>
 
@@ -69,6 +69,12 @@
         <span class="stamp-d" id="stampDow">Sunday</span>
         <span class="stamp-m" id="stampDmy">18 Oct</span>
       </div>
+
+      <!-- The pages of this notebook, as tabs down its edge. Only the Journal
+           shows them: it is the one page that reads a single page of the
+           notebook at a time, while the Calendar, Goals and Tags read the
+           whole of it. Filled in by renderPages. -->
+      <div class="pages" id="pages" role="tablist" aria-label="Pages of this notebook" hidden></div>
     </header>
 
     <main id="page">
