@@ -67,7 +67,11 @@ Two of the four pages are the exceptions that prove it. The **Index** holds no e
 at all, listing `db.pages` for the current notebook so you can turn to one. It is also
 the only place a page is made, renamed or deleted — its composer names a new page
 instead of writing a line — so page handling lives in one view rather than being spread
-across a header strip and a sheet.
+across a header strip and a sheet. Groups are read there and nowhere else, and they are
+a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
+is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
+goes. A group never filters — it is a heading over the Index's rows and the list order
+is untouched, because `pagesIn(book)[0]` is still the default page.
 
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
@@ -83,7 +87,8 @@ above. Outside Search it is the one view that crosses notebooks, so its rows pri
 where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
-notebook's default page, `due`/`backlog` when they do not apply. This is the migration
+notebook's default page, `group` for a page under no group, `due`/`backlog` when they do
+not apply. This is the migration
 strategy, not an optimisation: a journal written before notebooks or pages existed gains
 a record and not one entry is rewritten. Writing an explicit default (`putPage` guards
 this) breaks the invariant that makes old files load untouched.

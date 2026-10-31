@@ -139,6 +139,24 @@ at the foot names a new page rather than writing a line, because pages are what
 this page is made of; you land on the new one, ready to write. It is the same
 move the notebook button in the header makes, one level down.
 
+**Page groups.** A notebook with a dozen pages reads better with headings over
+them, so a page can be put under one from its own sheet — *Group*, then a group
+that already exists or *New group*. The Index then lists the ungrouped pages
+first, the default among them, and each group under a heading you can fold away
+like the Backlog.
+
+A group is only a **name written on the pages that carry it**. There is no
+group to make before you can use one and none left over when the last page
+walks out of it: name one on a page and it exists, take it off the last page
+and it is gone. The pencil on a heading renames the group — which writes the
+new name onto each of its pages at once — or dissolves it, which takes the name
+off and leaves every page exactly where it was.
+
+A group **never filters anything**. It is a heading in the Index and nothing
+more: the Journal still reads one page, the Calendar still reads the notebook
+whole, and no line moves or changes when a group is made, renamed or dissolved.
+Folding one is a this-session thing, like every other fold in the app.
+
 **Starring** lifts a line to the top of its bucket, above every unstarred one.
 
 **Notebooks.** Several journals in one app — work, private — with one open at a
@@ -222,7 +240,8 @@ back — that's also how you move between phone and desktop.
 { "v": 2, "theme": "auto", "text": 1, "awake": false, "view": "today",
   "books": [{ "id": "b1", "name": "bujo" }],
   "book": "b1",
-  "pages": [{ "id": "p1", "book": "b1", "name": "log" }],
+  "pages": [{ "id": "p1", "book": "b1", "name": "log" },
+            { "id": "p2", "book": "b1", "name": "ideas", "group": "side projects" }],
   "page": "p1",
   "entries": [
     { "id": "k3f9a1", "type": "task", "text": "Book the flights",
@@ -245,7 +264,9 @@ never marked and on every event, since an event's `date` already says which day
 it is on. `backlog: true` marks a task set aside. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks only,
-and is absent for its notebook's default page — and a field the app does not recognise is kept as it was, so an
+and is absent for its notebook's default page. `group` is the trick one level
+down again: a page carries the name of the group it is under, and absent means
+it is under none, so there is no list of groups anywhere in the file — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.
 
 ## Coming from the dated journal
