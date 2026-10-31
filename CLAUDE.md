@@ -28,6 +28,12 @@ cd web && ./serve.sh        # prints the LAN URL; ./serve.sh 9000 for another po
 Safari heuristically cache `app.js`/`styles.css`, so a refresh silently shows an old
 build.
 
+Over the LAN it is a plain-http origin, so anything gated on a secure context is simply
+absent there: the service worker, Add to Home Screen, and `navigator.wakeLock` (the
+**⋯ → Screen** row hides itself rather than offering a switch that could do nothing).
+All three come back on `localhost` and on the deployed site, so drive the headless
+browser at `127.0.0.1` when any of them is what you are testing.
+
 There is no test framework, and the logic is almost all DOM-coupled (render, gestures,
 sheets), so unit tests would cover very little. Verify by driving the real page:
 

@@ -178,6 +178,19 @@ the line lives on, and to the right page of the right notebook.
 **Logged lines** can be hidden wholesale from **⋯ → Logged lines**, which is
 the pressure valve for an endless page.
 
+**Keeping the screen awake.** **⋯ → Screen → Stay on** holds the display lit
+while bujo is open and in front of you — for the afternoon you are working off
+the page rather than at it. It is **off by default**, and meant to be turned
+back off: a notebook gets left face-up on a desk, and a screen that never slept
+there would flatten the battery. The lock is handed back whenever you leave the
+app and taken again when you come back, so it never outlives the page.
+
+The row only appears where it can work. The browser hides the API on an
+insecure origin, so you will see it on the deployed site and on `localhost` but
+not over the LAN dev server — the same boundary as *Add to Home Screen* and
+offline mode. Safari has had it since 16.4, so iPhones are covered, in the
+browser and installed.
+
 **Keys.** `←` `→` switch pages, `/` focuses the composer, `f` searches, `Esc`
 closes a sheet.
 
@@ -189,7 +202,7 @@ writes a `bujo-YYYY-MM-DD.json` you can keep, and **Import journal** reads one
 back — that's also how you move between phone and desktop.
 
 ```json
-{ "v": 2, "theme": "auto", "text": 1, "view": "journal",
+{ "v": 2, "theme": "auto", "text": 1, "awake": false, "view": "today",
   "books": [{ "id": "b1", "name": "bujo" }],
   "book": "b1",
   "pages": [{ "id": "p1", "book": "b1", "name": "log" }],
