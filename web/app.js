@@ -289,6 +289,7 @@ function fresh() {
     theme: "auto",
     text: 1,
     hideLogged: false,
+    awake: false,
     view: "today",
     books: [first],
     book: first.id,
@@ -366,6 +367,7 @@ function migrateV1(old) {
     theme: ["auto", "light", "dark"].includes(old.theme) ? old.theme : "auto",
     text: Number.isFinite(old.text) ? old.text : 1,
     hideLogged: !!old.hideLogged,
+    awake: false,
     view: "today",
     /* Page size was a notebook property and is gone; everything else about a
        notebook survives. */
@@ -555,6 +557,7 @@ function normalise(raw) {
   if (!["auto", "light", "dark"].includes(raw.theme)) raw.theme = "auto";
   if (!Number.isFinite(raw.text)) raw.text = 1;
   raw.hideLogged = !!raw.hideLogged;
+  raw.awake = !!raw.awake;
   if (!VIEWS.includes(raw.view)) raw.view = "today";
   return raw;
 }
@@ -918,6 +921,9 @@ const ICON = {
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   /* a lidded box: the notebook is put away, not thrown out */
   archive: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5v10.5a1.5 1.5 0 001.5 1.5h11a1.5 1.5 0 001.5-1.5V8.5M10 13h4"/></svg>',
+  /* a phone throwing light, rays off its corners as well as its sides — two
+     bars alone read as a phone buzzing, which is a thing this app also does */
+  awake: '<svg viewBox="0 0 24 24"><rect x="7.5" y="3.5" width="9" height="17" rx="2.5"/><path d="M3.1 7.4l1.5 1.5M20.9 7.4l-1.5 1.5M2.4 12.5h2.1M19.5 12.5h2.1M3.1 17.6l1.5-1.5M20.9 17.6l-1.5-1.5"/></svg>',
   /* the backlog: a tray to set something down in */
   tray: '<svg viewBox="0 0 24 24"><path d="M3 13.5h4l1.5 2.5h7l1.5-2.5h4"/><path d="M3 13.5L6 5h12l3 8.5V19H3z"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
@@ -1872,6 +1878,29 @@ function openMenu() {
       )
     );
 
+    /* Only offered where it can actually work. A switch that silently does
+       nothing is worse than no switch, and on a plain-http origin this one
+       could not do anything at all. */
+    if (navigator.wakeLock) {
+      acts.append(
+        segRow(
+          ICON.awake,
+          "Screen",
+          [
+            [false, "Sleep"],
+            [true, "Stay on"],
+          ],
+          !!db.awake,
+          (v) => {
+            db.awake = v;
+            save();
+            applyWake();
+            buzz(5);
+          }
+        )
+      );
+    }
+
     acts.append(
       segRow(
         ICON.eye,
@@ -2357,6 +2386,7 @@ function importJson() {
         save();
         applyTheme();
         applyText();
+        applyWake();
         closeSheet();
         render();
         toast(`Imported ${db.entries.length} lines`);
@@ -2375,6 +2405,36 @@ function importJson() {
    moves the whole app together — list, header, sheets and all. */
 function applyText() {
   document.documentElement.style.setProperty("--fs", String(db.text || 1));
+}
+
+/* Hold the screen awake while the journal is open, if you have asked for it.
+   Off by default and deliberately so: a notebook gets left face-up on a desk,
+   and a screen that never slept there would make the app worse on the one
+   device it is written for. On is for the afternoon you are working off the
+   page rather than at it.
+   The lock is handed back by the system every time the page is hidden, and it
+   cannot be taken while it is hidden — so taking it is not a thing you do once
+   at startup. It runs again on the way back, from the same visibilitychange
+   that redraws across midnight. Every failure is survivable and none of them
+   is worth a toast: a refusal leaves the setting on and the next return tries
+   again. */
+let wakeLock = null;
+async function applyWake() {
+  /* Undefined on an insecure origin as well as an old browser, which is how
+     the LAN dev server behaves — the same boundary that keeps Add to Home
+     Screen and the service worker off it. */
+  if (!navigator.wakeLock) return;
+  if (db.awake && !wakeLock && !document.hidden) {
+    try {
+      wakeLock = await navigator.wakeLock.request("screen");
+      // the system takes it back on its own; forgetting it is what lets the
+      // next call ask for a fresh one
+      wakeLock.addEventListener("release", () => (wakeLock = null));
+    } catch {}
+  } else if (!db.awake && wakeLock) {
+    wakeLock.release().catch(() => {});
+    wakeLock = null;
+  }
 }
 
 function applyTheme() {
@@ -2483,11 +2543,15 @@ document.addEventListener("keydown", (e) => {
 // the page may have been open across midnight — the date stamp and the
 // Calendar's marker for the current day both go stale, so redraw on return
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) render();
+  if (!document.hidden) {
+    render();
+    applyWake(); // the lock was handed back while we were away
+  }
 });
 
 applyTheme();
 applyText();
+applyWake();
 render();
 if (db.migrated && !db.migrated.seen) setTimeout(() => openMigrated(), 420);
 
