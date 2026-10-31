@@ -120,7 +120,7 @@ function writtenLabel(ms) {
 
 /* And one level down, pages — the tabs down the edge of a paper notebook.
  *
- *   page = { id, book, name }
+ *   page = { id, book, name, group? }
  *
  * The same filter trick a third time: a task carries an optional `page`, and
  * its absence means the notebook's *default* page — the first one in the list
@@ -132,6 +132,13 @@ function writtenLabel(ms) {
  * splitting it would mean checking five pages to find out what is on today.
  * The Index is the first of the three: the list of these pages themselves, and
  * the one place a page is turned to, named, made or deleted.
+ *
+ * And a fourth time, but only as far as a heading goes: a page carries an
+ * optional `group`, and its absence means it is under none. A group is that
+ * name and nothing else — no record, no id, no list of them anywhere — so
+ * groupsIn() derives the set from the pages that carry it. It is read in the
+ * Index and read nowhere else: a group narrows nothing, holds nothing, and
+ * never reorders db.pages, whose first entry is still the default page.
  */
 
 /* How many notebooks you can have *open* at once. Archived ones are outside
@@ -230,7 +237,14 @@ function withPages(raw) {
     const c = count.get(p.book) || 0;
     if (c >= PAGE_MAX || kept.length >= PAGE_KEEP_MAX) return;
     count.set(p.book, c + 1);
-    kept.push({ id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name });
+    const pg = { id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name };
+    /* A group is a label a page carries, not a record of its own, so there is
+       no list of them to keep straight and nothing here to orphan. Absent
+       means ungrouped, which is how a journal written before groups needs no
+       migration — the same trick as `book` and `page` one level down again. */
+    const group = cleanPage(p.group);
+    if (group) pg.group = group;
+    kept.push(pg);
   });
   /* The default page, filled in for any notebook without one — including
      every notebook in a journal written before pages existed. This runs past
@@ -259,6 +273,14 @@ const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
 /* The pages of one notebook, in order. The first is its default. */
 const pagesIn = (book) => db.pages.filter((p) => p.book === book);
 const defPage = (book) => pagesIn(book)[0];
+/* The groups of one notebook, in the order their first page appears. This is
+   the whole existence of a group: write the name on a page and the group is
+   there, take it off the last page carrying it and the group is gone. There is
+   nothing to create first and nothing left behind, which is why a group can
+   never be empty and never needs deleting. */
+const groupsIn = (book) => [...new Set(pagesIn(book).map((p) => p.group).filter(Boolean))];
+/* The pages of one group — `null` for the ones in no group at all. */
+const inGroup = (book, g) => pagesIn(book).filter((p) => (p.group || null) === g);
 /* A task with no `page` is on its notebook's default page — which is how a
    journal written before pages needed no migration. A page that belongs to
    another notebook is no page of this entry's, so it falls back too. */
@@ -586,6 +608,7 @@ const S = {
   backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
   todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
+  foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
 
@@ -1146,7 +1169,22 @@ function renderIndex() {
   const list = $("#list");
   list.textContent = "";
 
-  pagesIn(db.book).forEach((pg, i) => list.append(pageLink(pg, i === 0)));
+  /* Grouping regroups the *reading* of db.pages and never the array. Its first
+     page is the notebook's default and goPage takes the direction it slides
+     from index order, so a page keeps the mark and the place it really has —
+     which is also why a group can be made and dissolved without a line moving
+     anywhere. */
+  const put = (pg) => list.append(pageLink(pg));
+
+  /* The ungrouped first: the default page is among them, and the Index should
+     open on the page a line lands on when it is told nothing. */
+  inGroup(db.book, null).forEach(put);
+  groupsIn(db.book).forEach((g) => {
+    const pgs = inGroup(db.book, g);
+    const open = !S.foldedGroups.has(g);
+    list.append(groupHeading(g, pgs.length, open));
+    if (open) pgs.forEach(put);
+  });
 
   /* Printed under the list rather than as an empty state, because the Index is
      never empty: a notebook always has at least one page. */
@@ -1160,19 +1198,41 @@ function renderIndex() {
   $("#empty").hidden = true;
 }
 
-/* One page of the notebook, as a row the width of the list: its name, how many
-   lines are on it, and a pencil. Shaped like the notebook rows in the sheets,
-   because it is the same move one level down — turn to one of a short list, or
-   rename it in place. */
-function pageLink(pg, first) {
-  const n = pageCount(pg.id);
+/* A group's heading, over the pages that carry its name. It folds like the
+   Journal's buckets do and it is keyed by name rather than by a flag of its
+   own — there is no fixed set of groups to keep flags for, and the fold is
+   session-only like every other, because a group you did not put away this
+   session should not come back closed. The pencil beside it is the same shape
+   as a page's, and for the same reason: a name you can read is a name you
+   should be able to change without learning a gesture first. */
+function groupHeading(name, n, open) {
+  const h = el("li", "grouphead");
+  const b = el("button", "sep-fold" + (open ? " open" : ""), ICON.chev);
+  b.append(el("span", null, name), el("span", "sep-n", String(n)));
+  b.setAttribute("aria-expanded", String(open));
+  b.onclick = () => {
+    if (open) S.foldedGroups.add(name);
+    else S.foldedGroups.delete(name);
+    render();
+  };
+  const edit = el("button", "pagelink-edit", ICON.pencil);
+  edit.setAttribute("aria-label", "Edit " + name);
+  edit.onclick = () => openGroup(name);
+  h.append(b, edit);
+  return h;
+}
+
+/* One page of the notebook, as a row the width of the list: its name and a
+   pencil. Shaped like the notebook rows in the sheets, because it is the same
+   move one level down — turn to one of a short list, or rename it in place.
+   The name carries the row on its own: a count of lines is not what you came
+   to the Index to read, and which page is the default is something you need
+   when you are looking at that page rather than when you are choosing one, so
+   its own sheet is where both of those are said. */
+function pageLink(pg) {
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
   const pick = el("button", "pagelink-pick");
-  pick.append(
-    el("span", "pagelink-name", safeHtml(pg.name)),
-    el("span", "pagelink-n", `${n} ${n === 1 ? "line" : "lines"}` + (first ? " · default" : "")),
-    el("span", "pagelink-go", ICON.chev)
-  );
+  pick.append(el("span", "pagelink-name", safeHtml(pg.name)), el("span", "pagelink-go", ICON.chev));
   pick.onclick = () => goPage(pg.id);
   const edit = el("button", "pagelink-edit", ICON.pencil);
   edit.setAttribute("aria-label", "Edit " + pg.name);
@@ -1789,9 +1849,12 @@ function openEntry(id) {
     const elsewhere = e.type === "task" ? pagesIn(bookOf(e)).filter((p) => p.id !== pageOf(e)) : [];
     if (elsewhere.length) {
       acts.append(el("div", "sep", "Move to page"));
+      /* The group rides along on the label rather than splitting this into
+         headed sections: it is already under one heading, and a second tier of
+         them over a list this short would be more structure than it is worth. */
       elsewhere.forEach((p) =>
         acts.append(
-          actRow(ICON.page, p.name, () => {
+          actRow(ICON.page, p.group ? `${p.group} · ${p.name}` : p.name, () => {
             mutate(`Moved to ${p.name}`, () => putPage(e, p.id));
             closeSheet();
           })
@@ -2131,6 +2194,59 @@ function openBook(id) {
    — an event is counted by the notebook that holds it. */
 const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
 
+/* Put a page under a group, or take it out of the one it is under. The sheet
+   closes on the way out, which commits any rename typed above it in the same
+   breath — the two are one visit to the page. */
+function setGroup(id, g) {
+  mutate(null, () => {
+    const live = db.pages.find((x) => x.id === id);
+    if (!live) return;
+    if (g) live.group = g;
+    else delete live.group;
+  });
+  buzz(6);
+  closeSheet();
+  note(g || "No group");
+}
+
+/* A group is its name on the pages that carry it and nothing besides, so
+   renaming one writes the new name onto each of them in a single change, and
+   dissolving it takes the name off. The pages stay exactly where they are in
+   the notebook either way — they never moved anywhere to be put back. */
+function openGroup(name) {
+  const book = db.book;
+  const pgs = inGroup(book, name);
+  if (!pgs.length) return;
+  openSheet((b) => {
+    b.append(el("div", "s-title", name));
+    b.append(
+      el("div", "s-sub", `${pgs.length} ${pgs.length === 1 ? "page" : "pages"} in ${bookName(book)}`)
+    );
+
+    const ta = el("input", "s-input s-bookname");
+    ta.setAttribute("autocapitalize", "none"); // lower case by rule, as a page is
+    ta.value = name;
+    b.append(ta);
+    onSheetClose = () => {
+      const next = cleanPage(ta.value);
+      if (!next || next === name) return;
+      mutate(null, () => pagesIn(book).forEach((p) => p.group === name && (p.group = next)));
+    };
+
+    const acts = el("div", "s-acts");
+    acts.append(
+      actRow(ICON.undo, "Dissolve group", () => {
+        onSheetClose = null;
+        mutate(`Dissolved ${name}`, () =>
+          pagesIn(book).forEach((p) => p.group === name && delete p.group)
+        );
+        closeSheet();
+      })
+    );
+    b.append(acts);
+  });
+}
+
 /* A new page, named in the Index's composer. You land on it: a page you just
    made is a page you want to be on, and the Journal is the only place a page
    can be written to. */
@@ -2186,6 +2302,23 @@ function openPage(id) {
         })
       );
     }
+
+    /* Which group the page sits under in the Index. Joining one is writing a
+       name and leaving is deleting it, so there is no group to make first and
+       none to tidy away after — the row that offers a new one is offering a
+       word, not a record. It lives here because a page's name, its group and
+       its delete are one thought, and page handling belongs in one place. */
+    acts.append(el("div", "sep", "Group"));
+    if (pg.group) acts.append(actRow(ICON.undo, "No group", () => setGroup(pg.id, null)));
+    groupsIn(pg.book)
+      .filter((g) => g !== pg.group)
+      .forEach((g) => acts.append(actRow(ICON.page, g, () => setGroup(pg.id, g))));
+    acts.append(
+      actRow(ICON.plus, "New group", () => {
+        const g = cleanPage(prompt("Name the group"));
+        if (g) setGroup(pg.id, g);
+      })
+    );
 
     /* Any page can go, the default one included — the next page along takes
        the role, and the lines that were on it go with it the same way a
