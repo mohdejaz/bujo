@@ -1225,14 +1225,18 @@ function groupHeading(name, n, open) {
 /* One page of the notebook, as a row the width of the list: its name and a
    pencil. Shaped like the notebook rows in the sheets, because it is the same
    move one level down — turn to one of a short list, or rename it in place.
-   The name carries the row on its own: a count of lines is not what you came
-   to the Index to read, and which page is the default is something you need
-   when you are looking at that page rather than when you are choosing one, so
-   its own sheet is where both of those are said. */
+   What the row says beside the name is what is still waiting on the page,
+   because choosing a page is choosing where there is work: how many lines it
+   holds in total is not that, and which one is the default is something you
+   want while you are on a page rather than while you are picking one — both of
+   those are said on the page's own sheet. A page with nothing waiting prints
+   no number at all; an empty end of the row says it better than a nought. */
 function pageLink(pg) {
+  const n = pendingOn(pg.id);
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
   const pick = el("button", "pagelink-pick");
-  pick.append(el("span", "pagelink-name", safeHtml(pg.name)), el("span", "pagelink-go", ICON.chev));
+  pick.append(el("span", "pagelink-name", safeHtml(pg.name)));
+  if (n) pick.append(el("span", "pagelink-n", String(n)));
   pick.onclick = () => goPage(pg.id);
   const edit = el("button", "pagelink-edit", ICON.pencil);
   edit.setAttribute("aria-label", "Edit " + pg.name);
@@ -2193,6 +2197,13 @@ function openBook(id) {
 /* How many tasks are on one page. Only tasks, because only a task has a page
    — an event is counted by the notebook that holds it. */
 const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
+/* And how many of them are still waiting: open, and not set aside. It is the
+   Journal's In progress bucket counted — what you would find at the top of the
+   page if you turned to it. A finished or struck line is behind you, and the
+   backlog is deliberately not waiting, so neither belongs in a number read as
+   "what is left here". */
+const pendingOn = (id) =>
+  db.entries.filter((e) => e.type === "task" && isLive(e) && !e.backlog && pageOf(e) === id).length;
 
 /* Put a page under a group, or take it out of the one it is under. The sheet
    closes on the way out, which commits any rename typed above it in the same
