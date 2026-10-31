@@ -1894,7 +1894,7 @@ function openMenu() {
           (v) => {
             db.awake = v;
             save();
-            applyWake();
+            applyWake(true); // the one caller that asked, so the one that is told
             buzz(5);
           }
         )
@@ -2415,26 +2415,64 @@ function applyText() {
    The lock is handed back by the system every time the page is hidden, and it
    cannot be taken while it is hidden — so taking it is not a thing you do once
    at startup. It runs again on the way back, from the same visibilitychange
-   that redraws across midnight. Every failure is survivable and none of them
-   is worth a toast: a refusal leaves the setting on and the next return tries
-   again. */
+   that redraws across midnight.
+   A lock we are holding can stop being held in two ways, which is why this
+   asks the sentinel rather than trusting the variable: the page goes away, and
+   the release event clears it — or the system quietly takes it back, which is
+   what Low Power Mode on an iPhone does, and there the event is not something
+   to lean on. `released` is the one answer that is always true, so a sentinel
+   reporting itself released counts as no lock at all and the next call asks
+   for a fresh one. Holding a stale sentinel is the worse bug of the two: it
+   reads as “already awake” forever and nothing ever asks again.
+   A request can also be refused outright. That is survivable and the setting
+   stays on, but it is no longer silent: a switch reading Stay on over a screen
+   that keeps sleeping is the one failure you cannot see from inside the app,
+   so a refusal you asked for says so. A refusal nobody asked for — on the way
+   back from the lock screen, before the page has been touched — waits for the
+   next tap instead, which is a fresh chance and costs nothing. */
 let wakeLock = null;
-async function applyWake() {
+let wakeRetry = false;
+async function applyWake(announce = false) {
   /* Undefined on an insecure origin as well as an old browser, which is how
      the LAN dev server behaves — the same boundary that keeps Add to Home
      Screen and the service worker off it. */
   if (!navigator.wakeLock) return;
-  if (db.awake && !wakeLock && !document.hidden) {
-    try {
-      wakeLock = await navigator.wakeLock.request("screen");
-      // the system takes it back on its own; forgetting it is what lets the
-      // next call ask for a fresh one
-      wakeLock.addEventListener("release", () => (wakeLock = null));
-    } catch {}
-  } else if (!db.awake && wakeLock) {
-    wakeLock.release().catch(() => {});
-    wakeLock = null;
+  if (wakeLock && wakeLock.released) wakeLock = null;
+  if (!db.awake) {
+    if (wakeLock) {
+      wakeLock.release().catch(() => {});
+      wakeLock = null;
+    }
+    return;
   }
+  if (wakeLock || document.hidden) return;
+  try {
+    wakeLock = await navigator.wakeLock.request("screen");
+    wakeLock.addEventListener("release", () => {
+      wakeLock = null;
+      armWake();
+    });
+  } catch {
+    armWake();
+    if (announce) toast("Couldn't hold the screen on", false);
+  }
+}
+
+/* The retry is worth nothing if it fires faster than the reason for the
+   refusal goes away, so it waits for a tap: one listener, dropped once it has
+   fired. Our own release() lands here too, which is what the setting check is
+   for — turning the switch off must not re-arm it. */
+function armWake() {
+  if (wakeRetry || !db.awake) return;
+  wakeRetry = true;
+  document.addEventListener(
+    "pointerdown",
+    () => {
+      wakeRetry = false;
+      applyWake();
+    },
+    { once: true }
+  );
 }
 
 function applyTheme() {
