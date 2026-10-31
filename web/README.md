@@ -1,18 +1,19 @@
 # bujo
 
-A touch-first bullet journal in three pages. Tasks sit on a page of the
-**Journal** and may carry a due date; events have a date and live on the
-**Calendar**; the **Index** lists the pages of the notebook and turns to any
-of them. Switching between the three is the only navigation there is.
+A touch-first bullet journal in four pages. **Today** gathers what this day
+holds, from every notebook at once; tasks sit on a page of the **Journal** and
+may carry a due date; events have a date and live on the **Calendar**; the
+**Index** lists the pages of the notebook and turns to any of them. Switching
+between the four is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
 
-| Journal | Calendar | Index | A line, opened |
-| :-: | :-: | :-: | :-: |
-| ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+| Today | Journal | Calendar | Index | A line, opened |
+| :-: | :-: | :-: | :-: | :-: |
+| ![Today: an event that falls on it, then what is overdue, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
 
-All four are the light theme — paper; there is a dark one too, the same page
+All five are the light theme — paper; there is a dark one too, the same page
 at night. The screenshots are taken from a seeded journal, not a real one.
 
 ## What it is
@@ -35,9 +36,14 @@ heading it sits under says which.
 A task is something to do whenever, or by a day; an event is something that
 happens on a day. A line never moves between the pages — changing what kind of
 thing it is would be writing a different line — though the Journal does *show*
-you today's events, at the top, where they are hard to miss. The **Index** is
-the first of the three and holds no lines at all: it is the notebook's own
-contents, and the way to turn to another of its pages.
+you today's events, at the top, where they are hard to miss.
+
+Two of the four pages hold no lines of their own. The **Index** is the
+notebook's own contents, and the way to turn to another of its pages.
+**Today** is the one page that is not about a place at all: every other page
+narrows the journal by where a line lives — which notebook, which page, which
+of the two kinds — and Today narrows it by *when*, so it reads straight across
+all of them.
 
 There is no free-standing note. **Every line carries its own notes** instead —
 open a line and write underneath it — so what you want to remember lives with
@@ -52,10 +58,10 @@ distinction that matters: whether the line is still open.
 ## Using it
 
 **Writing.** Type at the bottom and press return. There is nothing to pick:
-the Journal writes a task, and the Calendar writes an event and asks for the
-day it falls on, because an event without one is not an event. The Calendar
-reads back from the furthest day towards the oldest; several events on one day
-sit newest-written first.
+the Journal writes a task, the Calendar writes an event and asks for the day it
+falls on, because an event without one is not an event, and Today writes a task
+already marked for today. The Calendar reads back from the furthest day towards
+the oldest; several events on one day sit newest-written first.
 
 **Gestures.** Tap a bullet to complete a line. Swipe a row **right** to
 complete it, **left** to set it aside — which for a live task means the
@@ -82,8 +88,36 @@ the top.
 detail, the questions behind it. Strike a line out when it stops being worth
 keeping; delete it when it was never worth writing.
 
-**Today, at the top.** Whatever is on the Calendar for today is printed at
-the head of the Journal, under the date stamp that names the day, with a
+**Today.** The first tab is the day you are standing in, read from *every*
+notebook and *every* page at once — because a day is one day whichever journal
+a line was written in, and having to visit four pages of two notebooks to find
+out what today holds would be a worse notebook, not a tidier one. Three things
+land on it: an **event dated today**, a **task due today or already past**, and
+a **task you marked for today** by hand, from its sheet. The events lead, under
+the date stamp that names the day they fall on; then *Overdue*, then *Today*,
+then a folded *Done* — what the day came to.
+
+Because it reads across everything, every row says where the line actually
+lives: the notebook, and the page of it, but only the part you could not have
+guessed — with one notebook open its name is on every row saying nothing, and
+the same goes for a page when the notebook has only one.
+
+Nothing moves here and nothing is copied. A line keeps living on its own page
+in its own notebook; Today is a read of it, so completing or striking it here
+and there are the same act. There is no dragging, because the order is the
+deadline and a deadline is the one order in this app you do not set by hand.
+Archived notebooks are left out — archiving is putting a journal away.
+
+**Marking a line for today.** Open it and press *Put on Today*. The mark
+records the **day you made it**, not a flag, and that is the whole of how it
+expires: it counts only while it still reads as today, so midnight takes it off
+by itself. A line set aside in the backlog drops off Today whatever its mark
+says — the backlog is the word for *not now* — and keeps the mark, so pulling
+it back puts it straight back on the page. Marking a line that was set aside
+pulls it back out: that is the plainer of the two statements, so it wins.
+
+**Today, at the top of the Journal.** Whatever is on the Calendar for today is
+also printed at the head of the Journal, under the date stamp that names the day, with a
 hairline below it closing it off from the undated work. The event still lives
 on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
@@ -93,7 +127,7 @@ folded at the foot of the Journal with a count; tap the heading to open it, and
 set a line aside or pull it back from the swipe or the entry sheet. A finished
 task has no backlog to go to.
 
-**The Index.** The first tab is the notebook's contents, and the only place
+**The Index.** The second tab is the notebook's contents, and the only place
 pages are handled: every page in order, with how many lines are on each and
 which one is the default. Tap a page to turn to it — you land on the Journal,
 reading that page — or the pencil beside it to rename or delete it. The field
@@ -123,8 +157,10 @@ it is reading: the name sits at the end of the date, under a ribbon, so the
 lines below it are never anonymous. The Calendar belongs to the notebook and
 reads every page of it at once, because a day is something you want whole —
 having to check five pages to find out what is on today would be a worse
-notebook, not a tidier one; neither it nor the Index names a page for that
-reason. Move a task between pages from its entry sheet; moving it to another
+notebook, not a tidier one. Today goes one further and reads every page of
+every notebook. None of those three names a page on its stamp, for the same
+reason: it would say something untrue about what is below it. Today names one
+on each row instead, where it is true. Move a task between pages from its entry sheet; moving it to another
 notebook lands it on that notebook's default page.
 
 A notebook is named in **five characters or fewer**. That is the feature, not
@@ -136,8 +172,8 @@ with an ellipsis. Short still reads better; it is just no longer enforced.
 
 **Search** (**⋯ → Search**, or `f`) looks across *every* notebook and page,
 line and note — you search because you forgot where something is, and which
-notebook and which page are part of what you forgot. A hit jumps to the right
-one of the three, and to the right page of the right notebook.
+notebook and which page are part of what you forgot. A hit jumps to the page
+the line lives on, and to the right page of the right notebook.
 
 **Logged lines** can be hidden wholesale from **⋯ → Logged lines**, which is
 the pressure valve for an endless page.
@@ -161,6 +197,7 @@ back — that's also how you move between phone and desktop.
   "entries": [
     { "id": "k3f9a1", "type": "task", "text": "Book the flights",
       "state": "open", "star": true, "due": "2026-10-27",
+      "today": "2026-10-27",
       "notes": "Check the consulate hours first", "created": 1756000000000 },
     { "id": "k3f9a2", "type": "event", "text": "Flight to Dubai",
       "date": "2026-11-02", "state": "open", "star": false,
@@ -171,7 +208,11 @@ back — that's also how you move between phone and desktop.
 `state` is `open`, `done` or `dropped`. `type` is `task` or `event` — nothing
 else. `date` appears on events and only on events; there is no time of day.
 `due` is a deadline rather than a day something falls on: optional on a task,
-absent when it has none. `backlog: true` marks a task set aside. `book` is absent for the first
+absent when it has none. `today` is the hand mark for the Today page and stores
+**the day the mark was made** rather than `true`, which is how it expires on
+its own at midnight with nothing written back; it is absent on a task that was
+never marked and on every event, since an event's `date` already says which day
+it is on. `backlog: true` marks a task set aside. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks only,
 and is absent for its notebook's default page — and a field the app does not recognise is kept as it was, so an
@@ -241,7 +282,9 @@ the same page at night, so every colour is a token redefined in one block.
 
 The model is deliberately thin. There is one array of entries; the notebook
 narrows it, the type of a line decides its page, and on the Journal the page
-of the notebook narrows it once more. No filter ever rewrites an entry, which
-is why a notebook can be archived without touching what it holds, why a page
-is three fields and a convention about absence, and why the whole store is
-small enough to read in one sitting.
+of the notebook narrows it once more. Today is the one filter that is not a
+place at all — it narrows by the day, and so it reads past all three. No
+filter ever rewrites an entry, which is why a notebook can be archived without
+touching what it holds, why a page is three fields and a convention about
+absence, why a mark for today is a date rather than a flag that would need
+sweeping, and why the whole store is small enough to read in one sitting.

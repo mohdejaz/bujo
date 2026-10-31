@@ -266,9 +266,15 @@ const putPage = (e, pid) => {
 
 /* ── store ─────────────────────────────────────────────────────────── */
 
+/* The first journal teaches the app with its own lines. `today` marks the ones
+   that should also be waiting on the page a fresh install opens on — the two
+   gestures and the line explaining the mark itself — so Today is not an empty
+   page the first time it is seen, and the gestures are learnable right where
+   you land. */
 const WELCOME = [
-  { type: "task", text: "Tap a bullet to complete it", star: false },
-  { type: "task", text: "Swipe a line right to finish, left to set it aside", star: true },
+  { type: "task", text: "Tap a bullet to complete it", star: false, today: true },
+  { type: "task", text: "Swipe a line right to finish, left to set it aside", star: true, today: true },
+  { type: "task", text: "Put a line on Today from its sheet, or give it a day it is due", star: false, today: true },
   { type: "task", text: "Tap the text for notes, a due date and the rest", star: false },
   { type: "event", text: "Events live on the Calendar" },
   { type: "task", text: "The Index turns to another page of this notebook", star: false },
@@ -283,7 +289,7 @@ function fresh() {
     theme: "auto",
     text: 1,
     hideLogged: false,
-    view: "journal",
+    view: "today",
     books: [first],
     book: first.id,
     pages: [firstPage],
@@ -298,6 +304,7 @@ function fresh() {
         created: now + i,
       };
       if (w.type === "event") e.date = TODAY();
+      if (w.today) e.today = TODAY();
       return e;
     }),
   };
@@ -359,7 +366,7 @@ function migrateV1(old) {
     theme: ["auto", "light", "dark"].includes(old.theme) ? old.theme : "auto",
     text: Number.isFinite(old.text) ? old.text : 1,
     hideLogged: !!old.hideLogged,
-    view: "journal",
+    view: "today",
     /* Page size was a notebook property and is gone; everything else about a
        notebook survives. */
     books: Array.isArray(old.books)
@@ -458,14 +465,16 @@ function migrateV1(old) {
    it on the next export. */
 const TYPES = new Set(["task", "event"]);
 /* The pages, in the order the tabs show them. Swipes and arrow keys step
-   through this list, so it is also the order you travel in. The Index comes
-   first the way a contents page does — it is a read of the notebook's shape
-   and the way you turn to a page of it, so it belongs in front of the two
-   pages a line can live on rather than behind them. */
-const VIEWS = ["index", "journal", "calendar"];
+   through this list, so it is also the order you travel in. Today leads: it is
+   the only page that answers the question you open a notebook with, and the
+   one you want under your thumb before you have decided where to look. Behind
+   it the notebook's own three — the Index the way a contents page comes first,
+   being a read of the notebook's shape and the way you turn to a page of it,
+   then the two pages a line can live on. */
+const VIEWS = ["today", "index", "journal", "calendar"];
 /* What each page is called, for the toast that names it on arrival — the tabs
    themselves are icons only. */
-const VIEW_NAME = { journal: "Journal", calendar: "Calendar", index: "Index" };
+const VIEW_NAME = { today: "Today", journal: "Journal", calendar: "Calendar", index: "Index" };
 const STATES = new Set(["open", "done", "dropped"]);
 
 function adopt(raw, i, books) {
@@ -490,10 +499,20 @@ function adopt(raw, i, books) {
     e.date = isDate(raw.date) ? raw.date : TODAY();
     delete e.time; // an event is placed by its day, never by a clock
     delete e.backlog;
+    /* An event already says which day it is on. A hand mark for today would
+       either repeat its date or contradict it, so only a task carries one. */
+    delete e.today;
   } else {
     // a task's deadline is optional — most tasks are just things to do
     if (isDate(raw.due)) e.due = raw.due;
     else delete e.due;
+    /* The hand mark for Today stores the day it was made rather than `true`,
+       and that is the whole of how it expires: it counts only while it still
+       reads as today, so midnight takes it off with no clock, no sweep on load
+       and nothing written back. A stale one is kept exactly as it is — it is
+       harmless, and rewriting it would be the one thing a filter must not do. */
+    if (isDate(raw.today)) e.today = raw.today;
+    else delete e.today;
     // only a task can be set aside, and only while it is still open
     delete e.date;
     delete e.time;
@@ -536,7 +555,7 @@ function normalise(raw) {
   if (!["auto", "light", "dark"].includes(raw.theme)) raw.theme = "auto";
   if (!Number.isFinite(raw.text)) raw.text = 1;
   raw.hideLogged = !!raw.hideLogged;
-  if (!VIEWS.includes(raw.view)) raw.view = "journal";
+  if (!VIEWS.includes(raw.view)) raw.view = "today";
   return raw;
 }
 
@@ -548,11 +567,15 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 const S = {
   backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
+  todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
 
 const isCal = () => db.view === "calendar";
 const isIndex = () => db.view === "index";
+/* Named for the page, not the day: `isToday(e)` would read like a question
+   about a line, and this one is only ever about where you are standing. */
+const isTodayPage = () => db.view === "today";
 
 /* ── selecting what a page shows ───────────────────────────────────── */
 
@@ -612,6 +635,60 @@ const todayEvents = () => {
         b.created - a.created
     );
 };
+
+/* ── Today ─────────────────────────────────────────────────────────── */
+
+/* The one page that is not about a place. Every other page narrows the journal
+   by where a line lives — which notebook, which page of it, which of the two
+   kinds it is. Today narrows it by *when*, and so it reads straight across all
+   of them: a day is one day whichever journal a line was written in, and
+   having to visit four pages of two notebooks to find out what today holds
+   would be a worse notebook, not a tidier one. It is still only a read. No
+   line moves here, nothing is copied, and the mark that puts one here is
+   written by you rather than by the page.
+   Archived notebooks are left out. Archiving is putting a journal away, and a
+   page that reached in and lifted lines back out of it would make the one
+   thing archiving promises untrue. */
+
+/* A line is on today if it falls on today, is wanted by today or by a day
+   already gone, or you said so by hand. A task set aside is none of those,
+   whatever its mark says: the backlog is the word for *not now*, and it has to
+   beat an intention you had earlier in the day. The mark survives the trip, so
+   pulling the line back puts it straight back on the page. */
+function onToday(e) {
+  const t = TODAY();
+  if (e.type === "event") return e.date === t;
+  if (e.backlog) return false;
+  return (e.due && e.due <= t) || e.today === t;
+}
+
+/* Today in four parts: what is on, what is late, what is wanted now, and what
+   the day came to. The live tasks read by deadline exactly as the Journal's do
+   — starred first, then the day, then the order you dragged them into — and
+   Done drops the deadline for the same reason it does there. Overdue is split
+   off under its own heading rather than left to sort to the top, because late
+   and due are different news and the page should say which it is giving you. */
+function todayBuckets() {
+  const t = TODAY();
+  const live = new Set(liveBooks().map((b) => b.id));
+  const here = db.entries.filter((e) => live.has(bookOf(e)) && onToday(e));
+  const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
+  const byAge = (a, b) =>
+    star(a, b) || (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) || b.created - a.created;
+  const task = (f) =>
+    here
+      .filter((e) => e.type === "task" && f(e))
+      .sort((a, b) => star(a, b) || byDeadline(a, b) || rankOf(b) - rankOf(a));
+  const shown = (e) => !db.hideLogged || isLive(e);
+  return {
+    events: here.filter((e) => e.type === "event").filter(shown).sort(byAge),
+    overdue: task((e) => isLive(e) && e.due && e.due < t),
+    now: task((e) => isLive(e) && !(e.due && e.due < t)),
+    done: db.hideLogged
+      ? []
+      : task((e) => !isLive(e)).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
+  };
+}
 
 /* The Calendar: events, newest day first. Descending throughout — the page
    reads back from the furthest date towards the oldest. */
@@ -763,6 +840,29 @@ function toggleBacklog(id) {
   if (!was) S.backlogOpen = true;
 }
 
+/* On Today and off it. The mark is stamped with the day it was made, so
+   putting a line on is writing today's date and taking it off is deleting the
+   field — there is no third state and nothing to expire by hand.
+   Putting one on is silent: it is a thing you just did to a line in front of
+   you. Taking it off earns a toast, because from Today itself the row goes
+   away as you press, and a row that vanishes should leave an Undo behind. */
+function toggleToday(id) {
+  const e = byId(id);
+  if (!e || e.type !== "task") return;
+  const on = e.today === TODAY();
+  buzz(on ? 9 : 7);
+  mutate(on ? "Taken off Today" : null, () => {
+    if (on) delete e.today;
+    else {
+      e.today = TODAY();
+      /* A line set aside is not something you are doing today. Putting it on
+         Today is the plainer of the two statements, so it wins and the line
+         comes back onto the page. */
+      delete e.backlog;
+    }
+  });
+}
+
 /* Drop a dragged line into a new place in its group. The group keeps the rank
    values it already had and hands them out again in the new order — so only
    the lines between the old and new place change, and no amount of dragging
@@ -806,6 +906,10 @@ const ICON = {
   undo: '<svg viewBox="0 0 24 24"><path d="M4 9h9a5.5 5.5 0 010 11H7M4 9l4-4M4 9l4 4"/></svg>',
   notes: '<svg viewBox="0 0 24 24"><path d="M5 6.5h14M5 11.5h14M5 16.5h8"/></svg>',
   books: '<svg viewBox="0 0 24 24"><rect x="3" y="3.5" width="12" height="17" rx="2.5"/><path d="M18 6.5v12a2 2 0 01-2 2H7"/></svg>',
+  /* the day you are standing in. A sun of its own rather than the menu's,
+     which already means the light theme — two meanings on one glyph in one app
+     is one too many. */
+  today: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="4.2"/><path d="M12 2.6v2.4M12 19v2.4M4.35 4.35l1.7 1.7M17.95 17.95l1.7 1.7M2.6 12H5M19 12h2.4M4.35 19.65l1.7-1.7M17.95 6.05l1.7-1.7"/></svg>',
   /* a sheet with its corner turned: one page of a notebook */
   page: '<svg viewBox="0 0 24 24"><path d="M5.5 3.5h8L19 9v11.5H5.5z"/><path d="M13 3.5V9h5.5"/></svg>',
   pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L20.5 7.5l-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>',
@@ -839,7 +943,8 @@ const bulletClass = (e) => (e.state === "done" ? "b b-done" : `b b-${e.type}`);
 function render() {
   renderHead();
   renderComposer();
-  if (isCal()) renderCalendar();
+  if (isTodayPage()) renderToday();
+  else if (isCal()) renderCalendar();
   else if (isIndex()) renderIndex();
   else renderJournal();
   S.anim.clear();
@@ -861,10 +966,11 @@ function renderHead() {
   $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
   /* And which page of the notebook those lines are on — on the Journal only,
      because that is the only page a page narrows. The Calendar reads every
-     page of the notebook at once and the Index is the list of them, so naming
-     one there would say something untrue about what is below it. */
+     page of the notebook at once, Today reads every page of every notebook,
+     and the Index is the list of them, so naming one on any of the three
+     would say something untrue about what is below it. */
   $("#stampPageName").textContent = curPage().name;
-  $("#stampPage").hidden = isCal() || isIndex();
+  $("#stampPage").hidden = isCal() || isIndex() || isTodayPage();
 }
 
 function bucketHeading(label, n) {
@@ -937,6 +1043,47 @@ function renderJournal() {
   }
 }
 
+/* Today: the events that fall on it at the head, under the date stamp that
+   names the day — the same arrangement the Journal uses, and for the same
+   reason: they read as that heading's content and need no heading of their
+   own. Then what is late, then what is wanted, then what the day came to.
+   Nothing here lifts and drags. The order is the deadline, and a deadline is
+   the one order in this app you do not set by hand. */
+function renderToday() {
+  const list = $("#list");
+  list.textContent = "";
+
+  const { events, overdue, now, done } = todayBuckets();
+
+  // every row says where it lives: this is the one page that reads across
+  // notebooks, so a line without its address here would be anonymous
+  const put = (e) => list.append(row(e, { where: true }));
+
+  events.forEach(put);
+
+  if (overdue.length) {
+    list.append(bucketHeading("Overdue", overdue.length));
+    overdue.forEach(put);
+  }
+  if (now.length) {
+    list.append(bucketHeading("Today", now.length));
+    now.forEach(put);
+  }
+  if (done.length) {
+    list.append(foldHeading("Done", done.length, "todayDoneOpen"));
+    if (S.todayDoneOpen) done.forEach(put);
+  }
+
+  const empty = $("#empty");
+  const bare = !events.length && !overdue.length && !now.length && !done.length;
+  empty.hidden = !bare;
+  if (bare) {
+    empty.innerHTML =
+      "<b>Nothing on today</b>" +
+      "Open a line and put it on Today, or give it a day it is wanted by.";
+  }
+}
+
 function renderCalendar() {
   const list = $("#list");
   list.textContent = "";
@@ -1006,19 +1153,39 @@ function pageLink(pg, first) {
   return li;
 }
 
-/* A task's deadline, under its words, and only when it has one — the day it
-   is wanted by, which is the one thing a row prints that is not its words. */
-function dueMeta(e) {
-  const late = isLive(e) && e.due < TODAY();
-  const m = el("span", "row-meta" + (late ? " is-late" : ""));
-  m.append(el("span", null, `by ${dayLabel(e.due)}`));
+/* Where a line lives, for a page that reads across several — but only the
+   part of it you could not have guessed. One notebook open and the notebook's
+   name is on every row saying nothing; one page in it and the same goes for
+   the page. It speaks up exactly when there is something to tell apart. */
+function whereOf(e) {
+  const out = [];
+  if (liveBooks().length > 1) out.push(bookName(bookOf(e)));
+  if (e.type === "task" && pagesIn(bookOf(e)).length > 1) out.push(pageName(pageOf(e)));
+  return out.join(" · ");
+}
+
+/* The second line of a row: the day a task is wanted by, and — where the page
+   reads across notebooks — where the line actually lives. Both are optional
+   and either can stand alone, so the row prints nothing at all when it has
+   nothing to add to its own words. The lateness sits on the date rather than
+   on the line, because it is the date that is late; the place beside it is
+   not news of any colour. */
+function rowMeta(e, where) {
+  const due = e.type === "task" && e.due;
+  if (!due && !where) return null;
+  const m = el("span", "row-meta");
+  if (due) {
+    const late = isLive(e) && e.due < TODAY();
+    m.append(el("span", late ? "is-late" : null, `by ${dayLabel(e.due)}`));
+  }
+  if (where) m.append(el("span", "row-where", safeHtml(where)));
   return m;
 }
 
 /* One line. The face is what you see; the layer underneath is what a swipe
    reveals. Everything about the row is derived from the entry, so a re-render
    after any mutation redraws it correctly without special cases. */
-function row(e) {
+function row(e, opts = {}) {
   const li = el("li", "row");
   li.dataset.id = e.id;
   if (e.state === "done") li.classList.add("is-done");
@@ -1041,7 +1208,8 @@ function row(e) {
   const txt = el("button", "row-text");
   txt.append(document.createTextNode(e.text));
   // only a task carries a deadline, and most of them do not
-  if (e.type === "task" && e.due) txt.append(dueMeta(e));
+  const meta = rowMeta(e, opts.where ? whereOf(e) : "");
+  if (meta) txt.append(meta);
   txt.onclick = () => openEntry(e.id);
   face.append(txt);
 
@@ -1343,8 +1511,14 @@ const composer = $("#composer");
 /* There is nothing to pick any more: the page you are on decides what you are
    writing. The Journal writes a task, the Calendar writes an event and asks
    for the day it falls on, and the Index writes the name of a new page — what
-   a page holds there is pages, so that is what the field takes. Nothing caps
-   what you type: a page name is read on rows that can carry a long one. */
+   a page holds there is pages, so that is what the field takes. Today writes a
+   task already marked for today; it reads across every notebook, so the line
+   has to be told where to live, and the only answer it can have is the
+   notebook and page you have open. That is what the notebook button in the
+   header means on this page — not what you are reading, but where a line you
+   write now will go — and the row that appears says so itself.
+   Nothing caps what you type: a page name is read on rows that can carry a
+   long one. */
 function renderComposer() {
   $("#when").hidden = !isCal();
   if (isCal() && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
@@ -1352,7 +1526,9 @@ function renderComposer() {
     ? "what happens that day?"
     : isIndex()
       ? "name a new page"
-      : "what needs doing?";
+      : isTodayPage()
+        ? "what are you doing today?"
+        : "what needs doing?";
   input.removeAttribute("maxlength");
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
@@ -1389,6 +1565,8 @@ composer.addEventListener("submit", (ev) => {
   if (db.book !== db.books[0].id) e.book = db.book;
   /* Only a task has a page; an event belongs to the notebook. */
   if (type === "task") putPage(e, db.page);
+  // written on Today, so it is wanted today — nothing else would put it there
+  if (isTodayPage()) e.today = TODAY();
   if (type === "event") e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
 
   input.value = "";
@@ -1534,6 +1712,18 @@ function openEntry(id) {
       clear.hidden = !e.due;
       dr.append(df, clear);
       acts.append(dr);
+    }
+
+    /* Only a task: an event already carries the day it falls on, and a mark
+       saying "today" beside it would either repeat that or argue with it. */
+    if (e.type === "task") {
+      const on = e.today === TODAY();
+      acts.append(
+        actRow(ICON.today, on ? "On Today" : "Put on Today", () => {
+          toggleToday(id);
+          openEntry(id);
+        }, { on })
+      );
     }
 
     acts.append(
@@ -2039,7 +2229,7 @@ function openSearch() {
         ]
           .filter(Boolean)
           .join(" · ");
-        body.append(el("div", "h-d", where));
+        body.append(el("div", "h-d", safeHtml(where)));
         if (e.notes && e.notes.toLowerCase().includes(term)) {
           const n = el("div", "h-n", ICON.notes);
           n.append(el("span", null, mark(snippet(e.notes, term), term)));

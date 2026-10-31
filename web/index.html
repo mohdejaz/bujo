@@ -24,21 +24,28 @@
 
     <header id="head">
       <div class="head-row">
-        <!-- The notebook's contents, then the two places a line can live. The
-             Index comes first the way a contents page does: it is where you
-             turn to a page of the notebook, so it sits in front of the pages
-             themselves rather than behind them. Tasks are undated and sit on
-             the Journal; events carry a date and sit on the Calendar.
-             Switching is the only navigation the app has. Each tab is an icon
-             and nothing else — names never fit beside the notebook on a phone,
-             and a toast names the page as you arrive. The name still reaches
-             a screen reader through aria-label. -->
+        <!-- The day first, then the notebook's contents, then the two places
+             a line can live. Today leads because it is the one page that is
+             not about a place at all: it reads every page of every notebook
+             for what falls on this day, which is the question you open the
+             app with. Behind it the Index comes the way a contents page does —
+             it is where you turn to a page of the notebook, so it sits in
+             front of the pages themselves rather than behind them. Tasks are
+             undated and sit on the Journal; events carry a date and sit on the
+             Calendar. Switching is the only navigation the app has. Each tab
+             is an icon and nothing else — names never fit beside the notebook
+             on a phone, and a toast names the page as you arrive. The name
+             still reaches a screen reader through aria-label. -->
         <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
+          <!-- a sun: the day you are standing in -->
+          <button class="tab is-on" id="tabToday" data-view="today" role="tab" aria-selected="true" aria-label="Today">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4.2" /><path d="M12 2.6v2.4M12 19v2.4M4.35 4.35l1.7 1.7M17.95 17.95l1.7 1.7M2.6 12H5M19 12h2.4M4.35 19.65l1.7-1.7M17.95 6.05l1.7-1.7" /></svg>
+          </button>
           <!-- a ribbon marking a page: the Index is how you turn to one -->
           <button class="tab" id="tabIndex" data-view="index" role="tab" aria-selected="false" aria-label="Index">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z" /></svg>
           </button>
-          <button class="tab is-on" id="tabJournal" data-view="journal" role="tab" aria-selected="true" aria-label="Journal">
+          <button class="tab" id="tabJournal" data-view="journal" role="tab" aria-selected="false" aria-label="Journal">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6h10M9.5 12h10M9.5 18h10M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg>
           </button>
           <button class="tab" id="tabCalendar" data-view="calendar" role="tab" aria-selected="false" aria-label="Calendar">
