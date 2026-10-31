@@ -10,7 +10,7 @@ No build step, no dependencies, no account. The journal lives in
 
 | Journal | Calendar | Index | A line, opened |
 | :-: | :-: | :-: | :-: |
-| ![The Journal: today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+| ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
 
 All four are the light theme — paper; there is a dark one too, the same page
 at night. The screenshots are taken from a seeded journal, not a real one.
