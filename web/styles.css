@@ -160,12 +160,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* ── the three pages ────────────────────────────────────────────────── */
 
-/* Journal | Calendar | Index. A segmented control rather than a bottom bar:
-   the composer already owns the bottom of the screen, and the switch belongs
-   next to the notebook it applies to. Icons only — even one name spelled out
-   took width from the notebook button beside them, and the toast on arrival
-   says which page you landed on better than a label you have to read
-   sideways. */
+/* Today | Index | Journal | Calendar. A segmented control rather than a
+   bottom bar: the composer already owns the bottom of the screen, and the
+   switch belongs next to the notebook it applies to. Icons only — even one
+   name spelled out took width from the notebook button beside them, and the
+   toast on arrival says which page you landed on better than a label you have
+   to read sideways. A fourth tab is what finally cost the row something — see
+   the icon size below, which is where that was paid. */
 .tabs {
   flex: none;
   display: flex;
@@ -185,7 +186,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .tab:active { transform: scale(0.94); }
 .tab.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
-.tab svg { width: 1.1875rem; height: 1.1875rem; flex: none; }
+/* Fixed pixels, not rem — the one place in the app that is, along with the
+   menu button beside it, and for the same reason. These are furniture rather
+   than type: four of them scaling with the reading size ate eleven pixels of
+   the notebook's name at the largest step, and a notebook name that truncates
+   is exactly what the five-character cap exists to prevent. 19px is what
+   1.1875rem came to at the default size, so nothing moves there. */
+.tab svg { width: 19px; height: 19px; flex: none; }
 
 .bookbtn {
   flex: 0 1 auto;
@@ -476,7 +483,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   font-weight: 600;
   color: var(--dim);
 }
-.row-meta.is-late { color: var(--accent); }
+/* the lateness is the date's, not the line's — the place beside it on Today
+   is not news of any colour */
+.row-meta .is-late { color: var(--accent); }
+/* where a line actually lives, on the one page that reads across notebooks.
+   The same ink as the deadline beside it, a weight lighter: it is the second
+   thing you read on the line, not a hairline — --hair is for rules, and at
+   night it would have been all but invisible. */
+.row-where { color: var(--dim); font-weight: 500; }
 
 .star {
   flex: none;

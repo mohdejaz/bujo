@@ -57,11 +57,21 @@ on the Journal only — the page of that notebook (`db.page`). Nothing else filt
 anything, and **no filter ever rewrites an entry**. That is why a notebook can be
 archived without touching what it holds.
 
-The third page, the Index, is the exception that proves it: it holds no entries at all,
-listing `db.pages` for the current notebook so you can turn to one. It is also the only
-place a page is made, renamed or deleted — its composer names a new page instead of
-writing a line — so page handling lives in one view rather than being spread across a
-header strip and a sheet.
+Two of the four pages are the exceptions that prove it. The **Index** holds no entries
+at all, listing `db.pages` for the current notebook so you can turn to one. It is also
+the only place a page is made, renamed or deleted — its composer names a new page
+instead of writing a line — so page handling lives in one view rather than being spread
+across a header strip and a sheet.
+
+**Today** is the other, and the sharper one: it is the only page that filters by *when*
+rather than by where, so it reads straight past all three filters above — every
+notebook (bar archived ones) and every page, both types at once. It is still only a
+read; `onToday`/`todayBuckets` in `app.js` select, and nothing is copied or moved. The
+hand mark behind it, `e.today`, stores **the ISO day the mark was made**, never `true`:
+that is what makes it expire at midnight with no clock, no sweep on load and nothing
+written back — which is the only way to have an expiring flag without breaking the rule
+above. Outside Search it is the one view that crosses notebooks, so its rows print
+where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
 notebook's default page, `due`/`backlog` when they do not apply. This is the migration
@@ -98,10 +108,14 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   "Yesterday", so a line means the same thing whenever it is read back.
 - **Portrait, one thumb, phone widths.** The layout is portrait-locked by design. The
   notebook's 5-character name cap is the feature, not a limit to work around: it shares
-  the header row with three tabs and a menu, and a tab that gets truncated is not a tab.
+  the header row with four tabs and a menu, and a tab that gets truncated is not a tab.
   A page name is uncapped — it is read on rows of its own, which clamp it with an
-  ellipsis instead.
+  ellipsis instead. The header row is now full: adding a fifth tab means taking the
+  width from somewhere, and the fourth already cost the tab icons their `rem` sizing.
 - Every type size is `rem` so the text-size setting scales the whole app at once; every
-  colour is a token on `:root` redefined in one dark-mode block.
+  colour is a token on `:root` redefined in one dark-mode block. The two exceptions are
+  icons that live in the header — `.icon-btn svg` and `.tab svg` are fixed pixels,
+  because four tabs growing with the reading size ate the notebook's name at the top
+  step. Icons there are furniture, not type.
 - The user commits and deploys themselves — leave changes in the working tree unless
   asked otherwise.
