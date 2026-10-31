@@ -24,26 +24,25 @@
 
     <header id="head">
       <div class="head-row">
-        <!-- The three places anything can live, and the one that reads
-             across them. Tasks are undated and sit on the Journal; events
-             carry a date and sit on the Calendar; goals carry a due date and
-             sit on Goals; Tags cuts the same lines the other way, one group
-             at a time. Switching is the only navigation the app has. Each tab
-             is an icon and nothing else — names never fit beside the notebook
-             on a phone, and a toast names the page as you arrive. The name
-             still reaches a screen reader through aria-label. -->
+        <!-- The notebook's contents, then the two places a line can live. The
+             Index comes first the way a contents page does: it is where you
+             turn to a page of the notebook, so it sits in front of the pages
+             themselves rather than behind them. Tasks are undated and sit on
+             the Journal; events carry a date and sit on the Calendar.
+             Switching is the only navigation the app has. Each tab is an icon
+             and nothing else — names never fit beside the notebook on a phone,
+             and a toast names the page as you arrive. The name still reaches
+             a screen reader through aria-label. -->
         <nav class="tabs" id="tabs" role="tablist" aria-label="Pages">
+          <!-- a ribbon marking a page: the Index is how you turn to one -->
+          <button class="tab" id="tabIndex" data-view="index" role="tab" aria-selected="false" aria-label="Index">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z" /></svg>
+          </button>
           <button class="tab is-on" id="tabJournal" data-view="journal" role="tab" aria-selected="true" aria-label="Journal">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9.5 6h10M9.5 12h10M9.5 18h10M4.5 6h.01M4.5 12h.01M4.5 18h.01" /></svg>
           </button>
           <button class="tab" id="tabCalendar" data-view="calendar" role="tab" aria-selected="false" aria-label="Calendar">
             <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M3 10h18M8 3v4M16 3v4" /></svg>
-          </button>
-          <button class="tab" id="tabGoals" data-view="goals" role="tab" aria-selected="false" aria-label="Goals">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 21V3.5M5.5 4h12l-3 4.25 3 4.25h-12" /></svg>
-          </button>
-          <button class="tab" id="tabTags" data-view="tags" role="tab" aria-selected="false" aria-label="Tags">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12V4.5A1.5 1.5 0 014.5 3H12l9 9-7.5 7.5z" /><circle cx="7.5" cy="7.5" r="1.3" /></svg>
           </button>
         </nav>
 
@@ -68,13 +67,17 @@
       <div class="stamp" id="stamp">
         <span class="stamp-d" id="stampDow">Sunday</span>
         <span class="stamp-m" id="stampDmy">18 Oct</span>
+        <!-- Which page of the notebook you are writing on, at the far end of
+             the date. The Journal is the only page split by pages, so it is
+             the only one that can name one — the Calendar reads every page at
+             once and the Index is the list of them. The mark is the Index's
+             own tab icon, so the name reads as the page you are turned to and
+             points at where you turn to another. -->
+        <span class="stamp-p" id="stampPage" hidden>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 3.5h11v17l-5.5-4.5-5.5 4.5z" /></svg>
+          <span id="stampPageName">log</span>
+        </span>
       </div>
-
-      <!-- The pages of this notebook, as tabs down its edge. Only the Journal
-           shows them: it is the one page that reads a single page of the
-           notebook at a time, while the Calendar, Goals and Tags read the
-           whole of it. Filled in by renderPages. -->
-      <div class="pages" id="pages" role="tablist" aria-label="Pages of this notebook" hidden></div>
     </header>
 
     <main id="page">
@@ -84,10 +87,9 @@
     </main>
 
     <form id="composer" class="composer" autocomplete="off">
-      <!-- On the Calendar an event needs a day, and on Goals a goal needs the
-           day it is due by, so the composer grows a date field. It is the
-           first child so it wraps onto its own row above the input rather than
-           squeezing it. -->
+      <!-- On the Calendar an event needs the day it falls on, so the composer
+           grows a date field there. It is the first child so it wraps onto its
+           own row above the input rather than squeezing it. -->
       <div class="when" id="when" hidden>
         <label for="whenDate" id="whenLabel">on</label>
         <input type="date" id="whenDate" class="s-field when-date" />
