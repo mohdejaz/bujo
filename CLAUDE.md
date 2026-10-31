@@ -71,7 +71,10 @@ across a header strip and a sheet.
 
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
-notebook (bar archived ones) and every page, both types at once. It is still only a
+notebook (bar archived ones) and every page, both types at once. That is also why it
+has no tab: the tab strip switches between pages *of the notebook*, and Today belongs
+to none, so it is reached by tapping the date in the header instead — the one other
+thing up there that no notebook owns. It is still only a
 read; `onToday`/`todayBuckets` in `app.js` select, and nothing is copied or moved. The
 hand mark behind it, `e.today`, stores **the ISO day the mark was made**, never `true`:
 that is what makes it expire at midnight with no clock, no sweep on load and nothing
@@ -114,14 +117,15 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   "Yesterday", so a line means the same thing whenever it is read back.
 - **Portrait, one thumb, phone widths.** The layout is portrait-locked by design. The
   notebook's 5-character name cap is the feature, not a limit to work around: it shares
-  the header row with four tabs and a menu, and a tab that gets truncated is not a tab.
+  the header row with three tabs and a menu, and a tab that gets truncated is not a tab.
   A page name is uncapped — it is read on rows of its own, which clamp it with an
-  ellipsis instead. The header row is now full: adding a fifth tab means taking the
-  width from somewhere, and the fourth already cost the tab icons their `rem` sizing.
+  ellipsis instead. The row has room for three and no more: a fourth tab once cost the
+  tab icons their `rem` sizing, and moving Today off the strip and onto the date is
+  what bought it back. Anything new up there takes the width from the notebook's name.
 - Every type size is `rem` so the text-size setting scales the whole app at once; every
-  colour is a token on `:root` redefined in one dark-mode block. The two exceptions are
-  icons that live in the header — `.icon-btn svg` and `.tab svg` are fixed pixels,
-  because four tabs growing with the reading size ate the notebook's name at the top
-  step. Icons there are furniture, not type.
+  colour is a token on `:root` redefined in one dark-mode block. The one exception is
+  `.icon-btn svg`, fixed pixels because the menu button is furniture rather than type.
+  `.tab svg` was the same for as long as there were four tabs, which ate the notebook's
+  name at the top step; with three it is `rem` again, and a fourth would undo that.
 - The user commits and deploys themselves — leave changes in the working tree unless
   asked otherwise.

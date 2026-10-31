@@ -160,13 +160,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* ── the three pages ────────────────────────────────────────────────── */
 
-/* Today | Index | Journal | Calendar. A segmented control rather than a
-   bottom bar: the composer already owns the bottom of the screen, and the
-   switch belongs next to the notebook it applies to. Icons only — even one
-   name spelled out took width from the notebook button beside them, and the
-   toast on arrival says which page you landed on better than a label you have
-   to read sideways. A fourth tab is what finally cost the row something — see
-   the icon size below, which is where that was paid. */
+/* Index | Journal | Calendar. A segmented control rather than a bottom bar:
+   the composer already owns the bottom of the screen, and the switch belongs
+   next to the notebook it applies to — which is also the reason there are
+   three of them. Today applies to no notebook, so it hangs off the date on
+   the row below instead, and the width that gave back is what paid for the
+   icon sizing below. Icons only — even one name spelled out took width from
+   the notebook button beside them, and the toast on arrival says which page
+   you landed on better than a label you have to read sideways. */
 .tabs {
   flex: none;
   display: flex;
@@ -186,13 +187,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .tab:active { transform: scale(0.94); }
 .tab.is-on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
-/* Fixed pixels, not rem — the one place in the app that is, along with the
-   menu button beside it, and for the same reason. These are furniture rather
-   than type: four of them scaling with the reading size ate eleven pixels of
-   the notebook's name at the largest step, and a notebook name that truncates
-   is exactly what the five-character cap exists to prevent. 19px is what
-   1.1875rem came to at the default size, so nothing moves there. */
-.tab svg { width: 19px; height: 19px; flex: none; }
+/* rem, like every other size in the app — but only because there are three.
+   Four of these growing with the reading size ate eleven pixels of the
+   notebook's name at the largest step, so they were pinned to the 19px that
+   1.1875rem comes to at the default and read as furniture rather than type.
+   Three leave that width to spare. A fourth tab would take it back, and this
+   is the line that would pay. */
+.tab svg { width: 1.1875rem; height: 1.1875rem; flex: none; }
 
 .bookbtn {
   flex: 0 1 auto;
@@ -231,14 +232,37 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .icon-btn:active { transform: scale(0.9); background: var(--hair-2); }
 .icon-btn svg { width: 22px; height: 22px; }
 
-/* today, in words — the Journal's own date, not a filter on its lines */
+/* today, in words — the page's own date, not a filter on its lines, and on
+   every page the way to Today */
 .stamp {
   display: flex;
   align-items: baseline;
   gap: 8px;
-  padding: 2px 2px 10px;
+  /* Tight under the date: it is the page's title, and a title belongs to what
+     it names rather than floating above it. */
+  padding: 2px 2px 4px;
   min-width: 0;
 }
+/* The date is a control, but it is still the date: no pill, no tint, the same
+   paper as the page under it. It is the one place in the header where that is
+   right — a button up here among the other buttons would read as a fourth tab
+   by another name, which is exactly what moving Today off the strip was for.
+   What is left is the press itself, and the padding that makes the day a
+   thumb-sized target rather than a line of text you have to hit. The negative
+   margins pay that padding back, so the day sits exactly where it sat when it
+   was only a date, and the row is no taller for being tappable. */
+.stamp-today {
+  flex: none;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: -5px 0 -5px -10px;
+  padding: 5px 10px;
+  border-radius: 12px;
+  transition: transform 0.12s;
+}
+.stamp-today:active { transform: scale(0.97); }
+
 .stamp-d {
   flex: none;
   font-size: 1.375rem;
