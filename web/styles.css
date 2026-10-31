@@ -158,14 +158,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .spacer { flex: 1; }
 
-/* ── the two pages ──────────────────────────────────────────────────── */
+/* ── the three pages ────────────────────────────────────────────────── */
 
-/* Journal | Calendar | Goals | Tags. A segmented control rather than a bottom
-   bar: the composer already owns the bottom of the screen, and the switch
-   belongs next to the notebook it applies to. Icons only — even one name
-   spelled out took width from the notebook button beside them, and the toast
-   on arrival says which page you landed on better than a label you have to
-   read sideways. */
+/* Journal | Calendar | Index. A segmented control rather than a bottom bar:
+   the composer already owns the bottom of the screen, and the switch belongs
+   next to the notebook it applies to. Icons only — even one name spelled out
+   took width from the notebook button beside them, and the toast on arrival
+   says which page you landed on better than a label you have to read
+   sideways. */
 .tabs {
   flex: none;
   display: flex;
@@ -233,69 +233,40 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   min-width: 0;
 }
 .stamp-d {
+  flex: none;
   font-size: 1.375rem;
   font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--accent);
 }
 .stamp-m {
+  flex: none;
   font-size: 0.875rem;
   font-weight: 500;
   color: var(--dim);
   letter-spacing: -0.01em;
 }
-/* the strip takes over the gap under the date, rather than adding to it */
-#head.paged .stamp { padding-bottom: 4px; }
-
-/* ── the pages of a notebook ────────────────────────────────────────── */
-
-/* Tabs down the edge of the notebook, under its date. Underlined rather than
-   boxed: the four pages above are a segmented control and a second one right
-   below it would read as the same kind of switch. These are the leaves of a
-   book, and the one you are on is the one with a rule under it.
-
-   It scrolls sideways, so a sixth page is reachable on the narrowest phone
-   without any of the names being squeezed — which is also why a page name is
-   capped at seven characters: a tab that has to be truncated is not a tab. */
-.pages {
-  display: flex;
-  gap: 2px;
-  padding: 0 0 2px;
-  margin: 0 -12px 6px;
-  padding-inline: 12px;
-  overflow-x: auto;
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-.pages::-webkit-scrollbar { display: none; }
-.ptab {
-  flex: none;
+/* the page of the notebook the Journal is reading, at the far end of the date
+   — it is the date that owns the row, so this takes what is left and trails
+   off rather than pushing the day about */
+.stamp-p {
+  margin-left: auto;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 9px 6px;
-  /* square at the foot: the rule under the page you are on is a straight rule */
-  border-radius: 9px 9px 2px 2px;
-  border-bottom: 2px solid transparent;
-  font-size: 0.84375rem;
+  gap: 5px;
+  padding-left: 10px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: var(--dim);
+  letter-spacing: -0.01em;
+}
+.stamp-p svg { width: 0.875rem; height: 0.875rem; flex: none; color: var(--hair); }
+.stamp-p span {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
-  transition: color 0.16s, border-color 0.16s, background 0.14s;
 }
-.ptab:active { background: var(--hair-2); }
-.ptab.is-on {
-  color: var(--ink);
-  border-bottom-color: var(--accent);
-}
-/* a lifted task held over another page: let go and it moves there */
-.ptab.is-target {
-  color: var(--ink);
-  background: var(--hair-2);
-  border-bottom-color: var(--accent);
-}
-.ptab-new { color: var(--hair); padding-inline: 7px; }
-.ptab-new svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
 
 /* ── page ───────────────────────────────────────────────────────────── */
 
@@ -315,8 +286,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 0 12px;
 }
 
-/* A section heading in the list: a day on the Calendar, a bucket (In
-   Progress) or the Backlog and Done folds on the Journal, the active tag filter above either. */
+/* A section heading in the list: a day on the Calendar, or a bucket (In
+   Progress) and the Backlog and Done folds on the Journal. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -438,14 +409,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
-/* a goal: a diamond, open like an event's ring — somewhere to get to */
-.b-goal {
-  width: 0.6rem;
-  height: 0.6rem;
-  border-radius: 2px;
-  border: 2px solid currentColor;
-  transform: rotate(45deg);
-}
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -503,7 +466,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* set aside, not finished: dim the line but leave it unstruck */
 .row.is-backlog .row-text { color: var(--ink-2); }
 
-/* under a goal's words: the day it is due by, its steps and a meter */
+/* under a task's words: the day it is due by */
 .row-meta {
   display: flex;
   align-items: center;
@@ -514,16 +477,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
 }
 .row-meta.is-late { color: var(--accent); }
-/* an event that falls today, on a page with no day headings to mark it */
-.row-meta.is-today { color: var(--accent); }
-.meter {
-  flex: 0 1 4.5rem;
-  height: 4px;
-  border-radius: 2px;
-  background: var(--hair);
-  overflow: hidden;
-}
-.meter i { display: block; height: 100%; border-radius: inherit; background: var(--good); }
 
 .star {
   flex: none;
@@ -536,42 +489,19 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .star svg { width: 0.94rem; height: 0.94rem; }
 svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
-/* ── tags ───────────────────────────────────────────────────────────── */
+/* ── the Index's list of pages ──────────────────────────────────────── */
 
-/* Inverted: ink block, paper letters — the one thing on the page that reads as
-   a label rather than handwriting. Inline, so an untagged line reserves no
-   space at all and a wrapped line still runs the full width. */
-.tag {
-  display: inline-block;
-  vertical-align: 1.5px;
-  margin-right: 7px;
-  padding: 1px 6px 2px;
-  border-radius: 5px;
-  background: var(--ink);
-  color: var(--paper);
-  font-size: 0.6875rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  line-height: 1.35;
-  text-transform: lowercase;
-  white-space: nowrap;
-}
-/* a struck or finished line shouldn't shout its group */
-.row.is-done .tag, .row.is-dropped .tag { opacity: 0.4; }
-.row-text:active .tag { opacity: 0.6; }
-
-/* ── the Tags page's index ──────────────────────────────────────────── */
-
-/* One tag, as a row the width of the list: the chip, how many lines carry it,
-   and a pencil. Shaped like the notebook rows in the sheets, because it is the
-   same move — pick one of a short list, or rename it in place. */
-.taglink {
+/* One page of the notebook, as a row the width of the list: its name, how many
+   lines are on it, and a pencil. Shaped like the notebook rows in the sheets,
+   because it is the same move one level down — turn to one of a short list, or
+   rename it in place. */
+.pagelink {
   display: flex;
   align-items: center;
   gap: 2px;
 }
-.taglink + .taglink { margin-top: 2px; }
-.taglink-pick {
+.pagelink + .pagelink { margin-top: 2px; }
+.pagelink-pick {
   flex: 1;
   min-width: 0;
   display: flex;
@@ -583,28 +513,38 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   text-align: left;
   transition: background 0.15s;
 }
-.taglink-pick:active { background: var(--hair-2); }
-.taglink-pick .tag {
-  flex: none;
-  margin-right: 0;
-  font-size: 0.8125rem;
-  padding: 3px 8px 4px;
+.pagelink-pick:active { background: var(--hair-2); }
+.pagelink-name {
+  flex: 0 1 auto;
+  min-width: 3em;
+  max-width: 62%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1.03125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
 }
-.taglink-n {
+/* the page you are on, in the accent that only ever means "this is now" */
+.pagelink.is-on .pagelink-name { color: var(--accent); }
+.pagelink-n {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   font-size: 0.8125rem;
   font-weight: 600;
   color: var(--dim);
 }
-.taglink-go {
+.pagelink-go {
   flex: none;
   display: grid;
   place-items: center;
   color: var(--hair);
 }
-.taglink-go svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
-.taglink-edit {
+.pagelink-go svg { width: 1rem; height: 1rem; stroke-width: 2.6; }
+.pagelink-edit {
   flex: none;
   width: 2.5rem;
   height: 2.5rem;
@@ -614,40 +554,17 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   color: var(--dim);
   transition: background 0.15s, color 0.15s;
 }
-.taglink-edit:active { background: var(--hair-2); color: var(--ink-2); }
-.taglink-edit svg { width: 1.125rem; height: 1.125rem; }
+.pagelink-edit:active { background: var(--hair-2); color: var(--ink-2); }
+.pagelink-edit svg { width: 1.125rem; height: 1.125rem; }
 
-/* the picker in the entry sheet */
-.s-tags {
-  display: flex;
-  flex-wrap: wrap;
-  /* Not the default `stretch`: the #tag field is half again as tall as a chip,
-     so stretching would size every chip sharing its flex line to the field and
-     leave the chips that wrapped above at their natural height — the same tag
-     picker showing two different chip heights. */
-  align-items: center;
-  gap: 6px;
-  padding: 4px 8px 10px;
+/* What a page is and is not, under the list — the Index is never empty, so
+   there is no empty state to say it in. */
+.index-note {
+  margin: 16px 14px 0;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--dim);
 }
-.tag.pick {
-  cursor: pointer;
-  background: var(--hair);
-  color: var(--ink-2);
-  font-size: 0.75rem;
-  padding: 4px 9px 5px;
-}
-.tag.pick:active { background: var(--ink); color: var(--paper); }
-.tag.pick.on { background: var(--accent); color: #fff; }
-.s-tagin {
-  margin-left: auto;
-  width: 6.5em;
-  padding: 7px 10px;
-  font-size: max(16px, 0.875rem);
-  font-weight: 700;
-  text-align: center;
-  letter-spacing: 0.04em;
-}
-.s-tagin::placeholder { font-weight: 500; letter-spacing: 0; color: var(--dim); }
 
 .notemark {
   flex: none;
@@ -845,6 +762,14 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   transition: background 0.14s;
 }
 .s-act:active { background: var(--hair-2); }
+/* a label can now be a page name of any length, so it trails off instead of
+   wrapping under the icon or shoving the key at the end off the row */
+.s-act > span:not(.k) {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .s-act svg { width: 1.25rem; height: 1.25rem; flex: none; color: var(--dim); }
 .s-act .k { margin-left: auto; font-size: 0.8125rem; font-weight: 600; color: var(--dim); }
 .s-act.danger { color: var(--drop); }
@@ -1006,13 +931,6 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
 .lb { width: 1.375rem; display: grid; place-items: center; flex: none; align-self: center; }
 
-/* a goal's steps, in its sheet */
-.s-steps { margin-bottom: 14px; }
-.s-steps .sep { padding: 2px 6px 4px; }
-.s-steps .s-acts { margin: 0; }
-.s-step { margin: 6px 0 2px; font-size: max(16px, 0.9375rem); padding: 11px 14px; }
-.hit.is-settled .h-t { color: var(--dim); }
-.hit.is-dropped .h-t { text-decoration: line-through; }
 
 /* ── toast ──────────────────────────────────────────────────────────── */
 
