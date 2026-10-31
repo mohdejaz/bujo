@@ -1174,9 +1174,7 @@ function renderIndex() {
      from index order, so a page keeps the mark and the place it really has —
      which is also why a group can be made and dissolved without a line moving
      anywhere. */
-  const all = pagesIn(db.book);
-  const at = new Map(all.map((p, i) => [p.id, i]));
-  const put = (pg) => list.append(pageLink(pg, at.get(pg.id) === 0));
+  const put = (pg) => list.append(pageLink(pg));
 
   /* The ungrouped first: the default page is among them, and the Index should
      open on the page a line lands on when it is told nothing. */
@@ -1224,19 +1222,17 @@ function groupHeading(name, n, open) {
   return h;
 }
 
-/* One page of the notebook, as a row the width of the list: its name, how many
-   lines are on it, and a pencil. Shaped like the notebook rows in the sheets,
-   because it is the same move one level down — turn to one of a short list, or
-   rename it in place. */
-function pageLink(pg, first) {
-  const n = pageCount(pg.id);
+/* One page of the notebook, as a row the width of the list: its name and a
+   pencil. Shaped like the notebook rows in the sheets, because it is the same
+   move one level down — turn to one of a short list, or rename it in place.
+   The name carries the row on its own: a count of lines is not what you came
+   to the Index to read, and which page is the default is something you need
+   when you are looking at that page rather than when you are choosing one, so
+   its own sheet is where both of those are said. */
+function pageLink(pg) {
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
   const pick = el("button", "pagelink-pick");
-  pick.append(
-    el("span", "pagelink-name", safeHtml(pg.name)),
-    el("span", "pagelink-n", `${n} ${n === 1 ? "line" : "lines"}` + (first ? " · default" : "")),
-    el("span", "pagelink-go", ICON.chev)
-  );
+  pick.append(el("span", "pagelink-name", safeHtml(pg.name)), el("span", "pagelink-go", ICON.chev));
   pick.onclick = () => goPage(pg.id);
   const edit = el("button", "pagelink-edit", ICON.pencil);
   edit.setAttribute("aria-label", "Edit " + pg.name);

@@ -548,10 +548,9 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   height: 2.25rem;
 }
 
-/* One page of the notebook, as a row the width of the list: its name, how many
-   lines are on it, and a pencil. Shaped like the notebook rows in the sheets,
-   because it is the same move one level down — turn to one of a short list, or
-   rename it in place. */
+/* One page of the notebook, as a row the width of the list: its name and a
+   pencil. Shaped like the notebook rows in the sheets, because it is the same
+   move one level down — turn to one of a short list, or rename it in place. */
 .pagelink {
   display: flex;
   align-items: center;
@@ -572,9 +571,8 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .pagelink-pick:active { background: var(--hair-2); }
 .pagelink-name {
-  flex: 0 1 auto;
-  min-width: 3em;
-  max-width: 62%;
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -584,16 +582,6 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 /* the page you are on, in the accent that only ever means "this is now" */
 .pagelink.is-on .pagelink-name { color: var(--accent); }
-.pagelink-n {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: var(--dim);
-}
 .pagelink-go {
   flex: none;
   display: grid;
