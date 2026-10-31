@@ -1180,10 +1180,9 @@ function renderIndex() {
      open on the page a line lands on when it is told nothing. */
   inGroup(db.book, null).forEach(put);
   groupsIn(db.book).forEach((g) => {
-    const pgs = inGroup(db.book, g);
     const open = !S.foldedGroups.has(g);
-    list.append(groupHeading(g, pgs.length, open));
-    if (open) pgs.forEach(put);
+    list.append(groupHeading(g, open));
+    if (open) inGroup(db.book, g).forEach(put);
   });
 
   /* Printed under the list rather than as an empty state, because the Index is
@@ -1204,11 +1203,15 @@ function renderIndex() {
    session-only like every other, because a group you did not put away this
    session should not come back closed. The pencil beside it is the same shape
    as a page's, and for the same reason: a name you can read is a name you
-   should be able to change without learning a gesture first. */
-function groupHeading(name, n, open) {
+   should be able to change without learning a gesture first.
+   It carries no count. The number on a page's row is work waiting to be done,
+   which is a reason to turn to it; how many pages a heading has is just the
+   length of the list already under it, and counting that twice would make the
+   one number that means something harder to read. */
+function groupHeading(name, open) {
   const h = el("li", "grouphead");
   const b = el("button", "sep-fold" + (open ? " open" : ""), ICON.chev);
-  b.append(el("span", null, name), el("span", "sep-n", String(n)));
+  b.append(el("span", null, name));
   b.setAttribute("aria-expanded", String(open));
   b.onclick = () => {
     if (open) S.foldedGroups.add(name);
