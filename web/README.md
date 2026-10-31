@@ -132,8 +132,9 @@ set a line aside or pull it back from the swipe or the entry sheet. A finished
 task has no backlog to go to.
 
 **The Index.** The first tab is the notebook's contents, and the only place
-pages are handled: every page of the notebook in order, named and nothing
-else. Tap a page to turn to it — you land on the Journal,
+pages are handled: every page of the notebook in order, each with what is
+still waiting on it — the open lines you have not set aside, and nothing at
+all beside a page with none. Tap a page to turn to it — you land on the Journal,
 reading that page — or the pencil beside it to rename or delete it. The field
 at the foot names a new page rather than writing a line, because pages are what
 this page is made of; you land on the new one, ready to write. It is the same
