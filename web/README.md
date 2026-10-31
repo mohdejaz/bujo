@@ -88,10 +88,14 @@ the top.
 detail, the questions behind it. Strike a line out when it stops being worth
 keeping; delete it when it was never worth writing.
 
-**Today.** The first tab is the day you are standing in, read from *every*
-notebook and *every* page at once — because a day is one day whichever journal
-a line was written in, and having to visit four pages of two notebooks to find
-out what today holds would be a worse notebook, not a tidier one. Three things
+**Today.** Tap the date at the top of any page and you get the day you are
+standing in, read from *every* notebook and *every* page at once — because a
+day is one day whichever journal a line was written in, and having to visit
+four pages of two notebooks to find out what today holds would be a worse
+notebook, not a tidier one. The date carries it rather than a tab: the tabs
+switch between pages *of the notebook*, and Today is the one page that belongs
+to no notebook, so it hangs off the one other thing in the header that belongs
+to none either. It lights while you are on it, the way a tab does. Three things
 land on it: an **event dated today**, a **task due today or already past**, and
 a **task you marked for today** by hand, from its sheet. The events lead, under
 the date stamp that names the day they fall on; then *Overdue*, then *Today*,
@@ -127,7 +131,7 @@ folded at the foot of the Journal with a count; tap the heading to open it, and
 set a line aside or pull it back from the swipe or the entry sheet. A finished
 task has no backlog to go to.
 
-**The Index.** The second tab is the notebook's contents, and the only place
+**The Index.** The first tab is the notebook's contents, and the only place
 pages are handled: every page in order, with how many lines are on each and
 which one is the default. Tap a page to turn to it — you land on the Journal,
 reading that page — or the pencil beside it to rename or delete it. The field
@@ -162,6 +166,12 @@ every notebook. None of those three names a page on its stamp, for the same
 reason: it would say something untrue about what is below it. Today names one
 on each row instead, where it is true. Move a task between pages from its entry sheet; moving it to another
 notebook lands it on that notebook's default page.
+
+A page is named in **lower case**, whatever you type: it is a tab down the
+edge of the notebook rather than a title, and *Work*, *work* and *WORK* are
+the same page by any reading — three of them in the Index would only leave you
+guessing which one a line went to. A notebook keeps the case you gave it; that
+name is the journal's own.
 
 A notebook is named in **five characters or fewer**. That is the feature, not
 a limit worked around: it shares one header row with three tabs and a menu, and

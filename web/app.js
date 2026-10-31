@@ -161,7 +161,7 @@ const BOOK_FIRST = "bujo";
 const PAGE_FIRST = "log";
 
 const newBook = (name) => ({ id: uid(), name });
-const newPage = (book, name) => ({ id: uid(), book, name });
+const newPage = (book, name) => ({ id: uid(), book, name: cleanPage(name) || PAGE_FIRST });
 
 /* Display labels, for a notebook and a page both. Trimmed, collapsed and
    never empty; `max` caps the length where there is a ceiling, and a page
@@ -173,6 +173,19 @@ const cleanLabel = (s, max) => {
     .trim()
     .slice(0, max);
   return t || null;
+};
+
+/* A page's name is lower case, always and everywhere. It is a tab down the
+   edge of the notebook rather than a title: "Work", "work" and "WORK" name the
+   same page by any reading a person would give them, and allowing all three
+   would put three of them in the Index and leave you guessing which one a line
+   went to. The notebook keeps whatever case you gave it — that name is the
+   journal's, and it is read on its own in the header. This runs in the funnel
+   as well as at the keyboard, so a journal written before the rule, or
+   imported from one, comes into line on the next load. */
+const cleanPage = (s) => {
+  const t = cleanLabel(s);
+  return t && t.toLowerCase();
 };
 
 /* Guarantees the one invariant every reader depends on: at least one notebook
@@ -212,7 +225,7 @@ function withPages(raw) {
   const count = new Map(); // pages kept per notebook so far
   (Array.isArray(raw.pages) ? raw.pages : []).forEach((p) => {
     if (!p || typeof p !== "object" || !known.has(p.book)) return;
-    const name = cleanLabel(p.name);
+    const name = cleanPage(p.name);
     if (!name) return;
     const c = count.get(p.book) || 0;
     if (c >= PAGE_MAX || kept.length >= PAGE_KEEP_MAX) return;
@@ -466,13 +479,15 @@ function migrateV1(old) {
    someone's data, and dropping fields we don't recognise would quietly destroy
    it on the next export. */
 const TYPES = new Set(["task", "event"]);
-/* The pages, in the order the tabs show them. Swipes and arrow keys step
-   through this list, so it is also the order you travel in. Today leads: it is
-   the only page that answers the question you open a notebook with, and the
-   one you want under your thumb before you have decided where to look. Behind
-   it the notebook's own three — the Index the way a contents page comes first,
+/* The pages, in the order you travel through them: swipes and arrow keys step
+   this list, and the slide comes in from the side it says. Today leads — it is
+   the only page that answers the question you open a notebook with. Behind it
+   the notebook's own three — the Index the way a contents page comes first,
    being a read of the notebook's shape and the way you turn to a page of it,
-   then the two pages a line can live on. */
+   then the two pages a line can live on. Only those three have a tab: Today is
+   not a page of the notebook, so it is reached from the date in the header
+   instead. It keeps its place at the head of this list all the same, because a
+   swipe still has to know which way the page it leaves should go. */
 const VIEWS = ["today", "index", "journal", "calendar"];
 /* What each page is called, for the toast that names it on arrival — the tabs
    themselves are icons only. */
@@ -970,6 +985,13 @@ function renderHead() {
   const d = new Date();
   $("#stampDow").textContent = DOW[d.getDay()];
   $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
+  /* The date is also the way to Today, and it is marked no differently when
+     that is the page you are on: there it reads as the page's own title, which
+     is what it already was everywhere else. A screen reader is still told,
+     because "you are here" is not something you can see your way to. */
+  const td = $("#todayBtn");
+  if (isTodayPage()) td.setAttribute("aria-current", "page");
+  else td.removeAttribute("aria-current");
   /* And which page of the notebook those lines are on — on the Journal only,
      because that is the only page a page narrows. The Calendar reads every
      page of the notebook at once, Today reads every page of every notebook,
@@ -1535,6 +1557,9 @@ function renderComposer() {
       : isTodayPage()
         ? "what are you doing today?"
         : "what needs doing?";
+  /* The Index is naming a page, which is lower case by rule, so the keyboard
+     stops offering a capital it would only have to take back on submit. */
+  input.setAttribute("autocapitalize", isIndex() ? "none" : "sentences");
   input.removeAttribute("maxlength");
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
@@ -1552,7 +1577,7 @@ composer.addEventListener("submit", (ev) => {
      of the notebook, and you land on it the way a new line lands on the page
      it was written to. */
   if (isIndex()) {
-    const name = cleanLabel(raw);
+    const name = cleanPage(raw);
     input.value = "";
     composer.classList.remove("armed");
     if (name) addPage(db.book, name);
@@ -2142,10 +2167,11 @@ function openPage(id) {
     );
 
     const ta = el("input", "s-input s-bookname");
+    ta.setAttribute("autocapitalize", "none"); // lower case by rule, so the keyboard says so too
     ta.value = pg.name;
     b.append(ta);
     onSheetClose = () => {
-      const name = cleanLabel(ta.value);
+      const name = cleanPage(ta.value);
       const live = db.pages.find((x) => x.id === id);
       if (!live || !name || name === live.name) return;
       mutate(null, () => (live.name = name));
@@ -2483,8 +2509,9 @@ function applyTheme() {
 
 /* ── wiring ────────────────────────────────────────────────────────── */
 
-/* Every way of changing page comes through here — the tabs, the header swipe
-   and the arrow keys — so the slide always runs the way the tabs are laid out. */
+/* Every way of changing page comes through here — the tabs, the date, the
+   header swipe and the arrow keys — so the slide always runs the way VIEWS is
+   laid out. */
 function goTo(view) {
   if (!VIEWS.includes(view) || view === db.view) return;
   const back = VIEWS.indexOf(view) < VIEWS.indexOf(db.view);
@@ -2535,6 +2562,11 @@ $("#tabs").onclick = (ev) => {
   const b = ev.target.closest(".tab");
   if (b) goTo(b.dataset.view);
 };
+
+/* Tap the day and you get the day. The tabs switch which page of the notebook
+   you are reading; this one leaves the notebook behind entirely, which is why
+   it is the date that carries it and not a fourth tab up there. */
+$("#todayBtn").onclick = () => goTo("today");
 
 $("#bookBtn").onclick = openBooks;
 $("#menuBtn").onclick = openMenu;
