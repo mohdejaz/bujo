@@ -185,6 +185,13 @@ back off: a notebook gets left face-up on a desk, and a screen that never slept
 there would flatten the battery. The lock is handed back whenever you leave the
 app and taken again when you come back, so it never outlives the page.
 
+The phone can still refuse, and the usual reason is **Low Power Mode**: iOS
+ignores the request outright there, and can take a lock back mid-afternoon the
+moment the battery drops into it. If it is refused when you flip the switch,
+you get *Couldn't hold the screen on* — the setting stays on, and the next tap
+on the page asks again, so turning Low Power Mode off and carrying on is all it
+takes.
+
 The row only appears where it can work. The browser hides the API on an
 insecure origin, so you will see it on the deployed site and on `localhost` but
 not over the LAN dev server — the same boundary as *Add to Home Screen* and
