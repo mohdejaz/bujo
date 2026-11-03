@@ -11,7 +11,7 @@ No build step, no dependencies, no account. The journal lives in
 
 | Today | Journal | Calendar | Index | A line, opened |
 | :-: | :-: | :-: | :-: | :-: |
-| ![Today: an event that falls on it, then what is overdue, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+| ![Today: an event that falls on it, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
 
 All five are the light theme — paper; there is a dark one too, the same page
 at night. The screenshots are taken from a seeded journal, not a real one.
@@ -96,10 +96,16 @@ notebook, not a tidier one. The date carries it rather than a tab: the tabs
 switch between pages *of the notebook*, and Today is the one page that belongs
 to no notebook, so it hangs off the one other thing in the header that belongs
 to none either. It lights while you are on it, the way a tab does. Three things
-land on it: an **event dated today**, a **task due today or already past**, and
-a **task you marked for today** by hand, from its sheet. The events lead, under
-the date stamp that names the day they fall on; then *Overdue*, then *Today*,
-then a folded *Done* — what the day came to.
+land on it: an **event dated today**, a **task due today**, and a **task you
+marked for today** by hand, from its sheet. The events lead, under the date
+stamp that names the day they fall on; then *Today*, then a folded *Done* —
+what the day came to.
+
+**Nothing carries over.** Each day starts blank. A task you marked yesterday
+and did not finish, or one whose day has passed, does not roll forward onto
+Today — you put back what you still mean to do, one tap from its sheet. A late
+task is not lost: it stays on its own page, where the Journal sorts the
+overdue to the top.
 
 Because it reads across everything, every row says where the line actually
 lives: the notebook, and the page of it, but only the part you could not have
