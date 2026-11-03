@@ -691,26 +691,28 @@ const todayEvents = () => {
    page that reached in and lifted lines back out of it would make the one
    thing archiving promises untrue. */
 
-/* A line is on today if it falls on today, is wanted by today or by a day
-   already gone, or you said so by hand. A task set aside is none of those,
-   whatever its mark says: the backlog is the word for *not now*, and it has to
-   beat an intention you had earlier in the day. The mark survives the trip, so
-   pulling the line back puts it straight back on the page. */
+/* A line is on today if it falls on today, is wanted by today, or you said so
+   by hand today — and only today. Nothing yesterday left undone rolls forward
+   onto it: each day starts blank and is filled by choosing again, because a
+   page that greets you with the leftovers of every day before is a backlog
+   wearing today's date, and putting a line back on it is one tap from its
+   sheet. A late line is not lost by this; it is still on its own page, where
+   the Journal sorts the overdue to the top. A task set aside is none of the
+   above, whatever its mark says: the backlog is the word for *not now*, and it
+   has to beat an intention you had earlier in the day. The mark survives the
+   trip, so pulling the line back puts it straight back on the page. */
 function onToday(e) {
   const t = TODAY();
   if (e.type === "event") return e.date === t;
   if (e.backlog) return false;
-  return (e.due && e.due <= t) || e.today === t;
+  return e.due === t || e.today === t;
 }
 
-/* Today in four parts: what is on, what is late, what is wanted now, and what
-   the day came to. The live tasks read by deadline exactly as the Journal's do
-   — starred first, then the day, then the order you dragged them into — and
-   Done drops the deadline for the same reason it does there. Overdue is split
-   off under its own heading rather than left to sort to the top, because late
-   and due are different news and the page should say which it is giving you. */
+/* Today in three parts: what is on, what is wanted, and what the day came to.
+   The live tasks read by deadline exactly as the Journal's do — starred first,
+   then the day, then the order you dragged them into — and Done drops the
+   deadline for the same reason it does there. */
 function todayBuckets() {
-  const t = TODAY();
   const live = new Set(liveBooks().map((b) => b.id));
   const here = db.entries.filter((e) => live.has(bookOf(e)) && onToday(e));
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
@@ -723,8 +725,7 @@ function todayBuckets() {
   const shown = (e) => !db.hideLogged || isLive(e);
   return {
     events: here.filter((e) => e.type === "event").filter(shown).sort(byAge),
-    overdue: task((e) => isLive(e) && e.due && e.due < t),
-    now: task((e) => isLive(e) && !(e.due && e.due < t)),
+    now: task(isLive),
     done: db.hideLogged
       ? []
       : task((e) => !isLive(e)).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
@@ -1097,14 +1098,14 @@ function renderJournal() {
 /* Today: the events that fall on it at the head, under the date stamp that
    names the day — the same arrangement the Journal uses, and for the same
    reason: they read as that heading's content and need no heading of their
-   own. Then what is late, then what is wanted, then what the day came to.
+   own. Then what is wanted, then what the day came to.
    Nothing here lifts and drags. The order is the deadline, and a deadline is
    the one order in this app you do not set by hand. */
 function renderToday() {
   const list = $("#list");
   list.textContent = "";
 
-  const { events, overdue, now, done } = todayBuckets();
+  const { events, now, done } = todayBuckets();
 
   // every row says where it lives: this is the one page that reads across
   // notebooks, so a line without its address here would be anonymous
@@ -1112,10 +1113,6 @@ function renderToday() {
 
   events.forEach(put);
 
-  if (overdue.length) {
-    list.append(bucketHeading("Overdue", overdue.length));
-    overdue.forEach(put);
-  }
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
     now.forEach(put);
@@ -1126,7 +1123,7 @@ function renderToday() {
   }
 
   const empty = $("#empty");
-  const bare = !events.length && !overdue.length && !now.length && !done.length;
+  const bare = !events.length && !now.length && !done.length;
   empty.hidden = !bare;
   if (bare) {
     empty.innerHTML =
