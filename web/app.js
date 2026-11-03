@@ -852,6 +852,24 @@ function toggleDone(id) {
   });
 }
 
+/* The same line again, beside where it lives: same notebook, same page, same
+   words, notes, star and deadline, so the copy is the thing you meant to do
+   twice and not a blank you have to fill back in. It starts open whatever the
+   original's state — copying a finished task is how you set out to do it
+   again. It takes a fresh `created` and no hand-dragged `pos`, so it lands at
+   the head of its bucket the way a new line does rather than hiding in the
+   original's slot. The spread carries keys this build does not know about,
+   for the same reason `adopt()` keeps them. */
+function duplicateEntry(id) {
+  const e = byId(id);
+  if (!e) return;
+  const copy = { ...e, id: uid(), state: "open", created: Date.now() };
+  delete copy.pos;
+  S.anim.add(copy.id);
+  buzz(7);
+  mutate("Duplicated", () => db.entries.push(copy));
+}
+
 /* Struck out: kept on the page, kept in the record, no longer wanted. */
 function toggleDropped(id) {
   const e = byId(id);
@@ -957,6 +975,8 @@ const ICON = {
   pencil: '<svg viewBox="0 0 24 24"><path d="M4 20h4L20.5 7.5l-4-4L4 16z"/><path d="M14.5 5.5l4 4"/></svg>',
   plus: '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>',
   move: '<svg viewBox="0 0 24 24"><path d="M3 8.5h13l-3.5-3.5M21 15.5H8l3.5 3.5"/></svg>',
+  /* two sheets, one laid over the other: the line and its copy */
+  copy: '<svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2.5 2.5 0 00-2.5-2.5H6A2.5 2.5 0 003.5 6v7A2.5 2.5 0 006 15.5h2.5"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
   /* a lidded box: the notebook is put away, not thrown out */
   archive: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5v10.5a1.5 1.5 0 001.5 1.5h11a1.5 1.5 0 001.5-1.5V8.5M10 13h4"/></svg>',
@@ -1847,6 +1867,14 @@ function openEntry(id) {
         ? actRow(ICON.undo, "Un-strike", () => { toggleDropped(id); closeSheet(); })
         : actRow(ICON.strike, "Strike out", () => { toggleDropped(id); closeSheet(); })
     );
+
+    /* Only a task. An event copied onto the same day is the same event twice;
+       one wanted on another day is a new line written on the Calendar. */
+    if (e.type === "task") {
+      acts.append(
+        actRow(ICON.copy, "Duplicate", () => { duplicateEntry(id); closeSheet(); })
+      );
+    }
 
     /* Move a task to another page of the same notebook. Only a task: an event
        has no page to be on, so there is nothing to offer. */

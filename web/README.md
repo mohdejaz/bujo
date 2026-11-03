@@ -192,6 +192,11 @@ reason: it would say something untrue about what is below it. Today names one
 on each row instead, where it is true. Move a task between pages from its entry sheet; moving it to another
 notebook lands it on that notebook's default page.
 
+**Duplicate** on a task's sheet writes the same line again on the same page
+of the same notebook — its words, notes, star and deadline come with it — and
+the copy starts open even if the original was done or struck out, so it is
+also how you set out to do a finished thing again. Undo takes it back.
+
 A page is named in **lower case**, whatever you type: it is a tab down the
 edge of the notebook rather than a title, and *Work*, *work* and *WORK* are
 the same page by any reading — three of them in the Index would only leave you
