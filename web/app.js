@@ -1173,7 +1173,7 @@ function renderJournal() {
      because carrying it across a heading would say it was finished on a day it
      was not. */
   const put = (e, bucket, sorted = true) => {
-    const li = row(e, { quick: bucket === "progress" });
+    const li = row(e, bucket === "progress" ? { tray: true, mark: true } : {});
     li.dataset.group =
       bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
@@ -1230,17 +1230,21 @@ function renderToday() {
 
   // every row says where it lives: this is the one page that reads across
   // notebooks, so a line without its address here would be anonymous
-  const put = (e) => list.append(row(e, { where: true }));
+  const put = (e, opts = {}) => list.append(row(e, { where: true, ...opts }));
 
-  events.forEach(put);
+  events.forEach((e) => put(e));
 
+  /* The wanted lines carry the same swipe-open tray as the Journal's In
+     Progress, since this is the other list you work from. They do not carry
+     the sun: every line here is already on Today, so the mark could only say
+     one thing, and tapping it would make the row vanish under your thumb. */
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
-    now.forEach(put);
+    now.forEach((e) => put(e, { tray: true }));
   }
   if (done.length) {
     list.append(foldHeading("Done", done.length, "todayDoneOpen"));
-    if (S.todayDoneOpen) done.forEach(put);
+    if (S.todayDoneOpen) done.forEach((e) => put(e));
   }
 
   const empty = $("#empty");
@@ -1410,6 +1414,26 @@ function row(e, opts = {}) {
   under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon(e)));
   li.append(under);
 
+  /* The lists you work from — the Journal's In Progress and Today's wanted
+     lines — keep three things you do *to* a line under its right edge: done,
+     strike out, duplicate. They live under the face rather than on it, so the
+     words have the row to themselves until a short left swipe slides it open;
+     a long swipe still goes straight through to setting the line aside, so
+     the tray adds a stop on the way and takes no gesture away. Done repeats
+     the bullet's own tap on purpose — beside its two neighbours it is the one
+     you would look for. */
+  const open = e.type === "task" && e.state === "open";
+  if (opts.tray && open) {
+    li.classList.add("has-tray");
+    const tray = el("span", "qa-tray");
+    tray.append(
+      qa("qa-done", ICON.check, "Mark done", () => toggleDone(e.id)),
+      qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id)),
+      qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id))
+    );
+    under.append(tray);
+  }
+
   const face = el("div", "row-face");
 
   const bul = el("button", "bul");
@@ -1418,16 +1442,10 @@ function row(e, opts = {}) {
   bul.onclick = () => toggleDone(e.id);
   face.append(bul);
 
-  /* In Progress is the list you work from, so its rows carry the four things
-     you most often do to a line there without opening its sheet. They are
-     split by what they are: putting a line on Today is a mark on the line, so
-     it sits beside the bullet and reads with it, lit when it is on; finishing,
-     striking out and copying are things done *to* the line, so they wait at
-     the far end of the row, out of the way of the words. Done repeats the
-     bullet's own tap on purpose — beside its two neighbours it is the one you
-     would look for. */
-  const quick = opts.quick && e.type === "task" && e.state === "open";
-  if (quick) {
+  /* Putting a line on Today is a mark on the line rather than something done
+     to it, so on In Progress it stays in sight beside the bullet and reads
+     with it, lit when it is on. */
+  if (opts.mark && open) {
     const on = e.today === TODAY();
     face.append(qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () => toggleToday(e.id)));
   }
@@ -1449,15 +1467,6 @@ function row(e, opts = {}) {
     const s = el("span", "star", ICON.star);
     s.setAttribute("aria-label", "Starred");
     face.append(s);
-  }
-  if (quick) {
-    const end = el("span", "qa-end");
-    end.append(
-      qa("qa-done", ICON.check, "Mark done", () => toggleDone(e.id)),
-      qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id)),
-      qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id))
-    );
-    face.append(end);
   }
 
   li.append(face);
@@ -1490,19 +1499,42 @@ function swipeLeft(e) {
 
 const COMMIT = 76;
 
+/* The one row whose tray is slid open, as the function that shuts it. Only
+   one is ever open: touching any other row shuts it first. A re-render drops
+   it along with the row, which is why nothing has to clear it after an
+   action. */
+let shutTray = null;
+
 function swipeable(li, face, e) {
   let x0 = 0,
     y0 = 0,
     dx = 0,
+    base = 0, // where the face rests: 0, or -W while the tray is open
+    W = 0, // how far the tray slides the face
+    full = COMMIT, // how far left a swipe must go to set the line aside
+    tapShut = false,
     active = false,
     decided = false,
     id = null;
+  const tray = li.querySelector(".qa-tray");
 
   const reset = (animate = true) => {
     face.classList.toggle("snap", animate);
     face.style.transform = "";
-    li.classList.remove("sw-l", "sw-r", "dragging");
+    li.classList.remove("sw-l", "sw-r", "sw-full", "tray-open", "dragging");
     setTimeout(() => face.classList.remove("snap"), 300);
+    base = 0;
+    if (shutTray === reset) shutTray = null;
+  };
+
+  const openTray = () => {
+    face.classList.add("snap");
+    face.style.transform = `translateX(${-W}px)`;
+    li.classList.remove("sw-r", "sw-full", "dragging");
+    li.classList.add("sw-l", "tray-open");
+    setTimeout(() => face.classList.remove("snap"), 300);
+    base = -W;
+    shutTray = reset;
   };
 
   face.addEventListener(
@@ -1511,11 +1543,18 @@ function swipeable(li, face, e) {
       if (ev.pointerType === "mouse" && ev.button !== 0) return;
       x0 = ev.clientX;
       y0 = ev.clientY;
-      dx = 0;
+      dx = base;
       active = true;
       decided = false;
       id = ev.pointerId;
       face.classList.remove("snap");
+      if (shutTray && shutTray !== reset) shutTray();
+      // a tap on an open row shuts it rather than opening the line's sheet
+      tapShut = base !== 0;
+      if (tray) {
+        W = tray.offsetWidth + 10;
+        full = W + COMMIT;
+      }
     },
     { passive: true }
   );
@@ -1540,23 +1579,28 @@ function swipeable(li, face, e) {
     }
     ev.preventDefault();
     // rubber-band past the commit point so the gesture feels bounded
-    dx = Math.abs(mx) > COMMIT ? Math.sign(mx) * (COMMIT + (Math.abs(mx) - COMMIT) * 0.35) : mx;
+    const x = base + mx;
+    const lim = x < 0 ? full : COMMIT;
+    dx = Math.abs(x) > lim ? Math.sign(x) * (lim + (Math.abs(x) - lim) * 0.35) : x;
     face.style.transform = `translateX(${dx}px)`;
     li.classList.toggle("sw-r", dx > 12);
     li.classList.toggle("sw-l", dx < -12);
+    // with a tray, the set-aside colour waits until the swipe is past it
+    if (tray) li.classList.toggle("sw-full", dx <= -full + 4);
   });
 
   const end = (ev) => {
     if (!active || (id !== null && ev.pointerId !== id)) return;
     active = false;
     if (!decided) return;
-    const hit = Math.abs(dx) >= COMMIT - 4;
-    if (hit && dx > 0) {
+    if (dx >= COMMIT - 4) {
       reset(false);
       toggleDone(e.id);
-    } else if (hit && dx < 0) {
+    } else if (dx <= -full + 4) {
       reset(false);
       swipeLeft(e);
+    } else if (tray && dx < -W / 2) {
+      openTray();
     } else {
       reset();
     }
@@ -1571,10 +1615,12 @@ function swipeable(li, face, e) {
   face.addEventListener(
     "click",
     (ev) => {
-      if (decided) {
+      if (decided || tapShut) {
         ev.stopPropagation();
         ev.preventDefault();
+        if (!decided) reset();
         decided = false;
+        tapShut = false;
       }
     },
     true

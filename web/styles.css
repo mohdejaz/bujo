@@ -537,9 +537,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--star);
 }
 .star svg { width: 0.94rem; height: 0.94rem; }
-/* In Progress's quick actions. Today sits beside the bullet and lights up in
-   the accent when the line is on it; the other three share the row's far end,
-   drawn quietly in --dim so the words stay the loudest thing on the line. */
+/* Quick actions. Today sits beside the bullet on In Progress and lights up in
+   the accent when the line is on it. The other three wait in the tray under
+   the row's right edge, on a quiet ground rather than a coloured one: a
+   coloured ground is what says a swipe is about to do something, and opening
+   the tray does nothing yet. */
 .qa {
   flex: none;
   width: 1.625rem;
@@ -556,7 +558,28 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .qa-today { margin-left: -6px; }
 .qa-today.on { color: var(--accent); }
 .qa-done:active { color: var(--good); }
-.qa-end { flex: none; display: flex; gap: 2px; margin-right: -4px; }
+
+.qa-tray {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 6px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  opacity: 0;
+  pointer-events: none;
+}
+.qa-tray .qa { width: 2.5rem; height: 2.5rem; color: var(--ink-2); }
+.qa-tray .qa svg { width: 1.25rem; height: 1.25rem; }
+.row.has-tray.sw-l .row-under { background: var(--hair-2); color: var(--ink-2); }
+.row.has-tray.sw-l .row-under .u-r { opacity: 0; }
+.row.has-tray.sw-l .qa-tray { opacity: 1; }
+.row.tray-open .qa-tray { pointer-events: auto; }
+/* past the tray, the swipe is setting the line aside again */
+.row.has-tray.sw-full .row-under { background: var(--accent-soft); color: var(--accent); }
+.row.has-tray.sw-full .row-under .u-r { opacity: 1; }
+.row.has-tray.sw-full .qa-tray { opacity: 0; }
 
 svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
