@@ -119,7 +119,11 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   means rewriting the comments around it, not just the code — a stale comment here is a
   worse defect than a stale line. Match the density and voice of the surrounding file.
 - **Dates read `dd MMM`** everywhere ("Sat 21 Nov"), never "Today"/"Tomorrow"/
-  "Yesterday", so a line means the same thing whenever it is read back.
+  "Yesterday", so a line means the same thing whenever it is read back. The one
+  exception is the day headings inside the Journal's Done fold, which read
+  `MM/dd` (`shortDay`) because there the date is a stamp repeating down the page
+  rather than a day being named. Still absolute, which is the half of the rule
+  that carries the reasoning.
 - **Portrait, one thumb, phone widths.** The layout is portrait-locked by design. The
   notebook's 5-character name cap is the feature, not a limit to work around: it shares
   the header row with three tabs and a menu, and a tab that gets truncated is not a tab.

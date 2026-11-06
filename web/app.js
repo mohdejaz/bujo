@@ -38,10 +38,12 @@
  *   created = when it was written. Never printed on the row — a line stays
  *           its words — only in the line's sheet and in search.
  *   settled = when the line was finished or struck out, absent while it is
- *           open. The Done stack reads back from the most recent, which is
- *           the one thing it can be ordered by that you did not have to set:
+ *           open. It both groups the Done stack into the days it happened on
+ *           and orders it back from the most recent — the one thing a
+ *           finished line can be arranged by that you did not have to set:
  *           it is a record of what happened, so it reads in the order it
- *           happened. Absent on an older journal too, and that is the whole
+ *           happened. The days are read off the lines and stored nowhere.
+ *           Absent on an older journal too, and that is the whole
  *           migration — such a line falls back to `created`, the way it
  *           sorted before this field existed.
  *   pos   = where a task sits on the page after it has been dragged, absent
@@ -93,6 +95,22 @@ function dayLabel(s) {
   return (
     `${DOW[d.getDay()].slice(0, 3)} ${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}` +
     (d.getFullYear() === new Date().getFullYear() ? "" : ` ${d.getFullYear()}`)
+  );
+}
+
+/* The same day as a stamp rather than a sentence: "11/05". For a heading that
+   repeats down the page — the days inside Done — where the weekday and the
+   month's name are three words saying what two numbers already say. It is the
+   one place in the app a date is not read as dd MMM, and it is still absolute:
+   the reason for that rule is that a line should mean the same thing whenever
+   it is read back, and a number for the month keeps that promise. The year
+   joins it when it is not this one, the way every other date here earns its
+   year. */
+function shortDay(s) {
+  const d = parse(s);
+  return (
+    `${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getDate()).padStart(2, "0")}` +
+    (d.getFullYear() === new Date().getFullYear() ? "" : `/${d.getFullYear()}`)
   );
 }
 
@@ -666,8 +684,9 @@ const byDeadline = (a, b) =>
    lead, then due date, then the order you dragged them into. Done is the
    record rather than the work, so neither of those sorts it: a star says what
    to do next and a deadline says when by, and a finished line has no next and
-   nothing left to be late for. It reads back from the line settled most
-   recently, which is the order it actually happened in, unless you have
+   nothing left to be late for. What orders it is the day it was settled on:
+   the record reads back from the most recent day, and within a day from the
+   line settled last — the order it actually happened in, unless you have
    dragged one somewhere else. */
 function journalBuckets() {
   const tasks = mine().filter(onJournal).filter(onPage);
@@ -683,6 +702,28 @@ function journalBuckets() {
       ? []
       : tasks.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
   };
+}
+
+/* The day a settled line is filed under. The same stamp that already orders
+   the Done bucket, so the heading over a row can never disagree with the place
+   the sort gives it — including on a journal written before `settled` existed,
+   where both fall back to when the line was written. */
+const settledDay = (e) => iso(new Date(stampOf(e)));
+
+/* Done, as the days it happened on, most recent first. A read of the bucket
+   and not a fourth filter: the lines arrive already sorted, nothing is
+   rewritten, and the day a heading prints is derived from the line under it
+   rather than stored anywhere. So there is no day to orphan when the last
+   line settled on one is reopened or deleted — the heading simply stops
+   having anything to head. */
+function doneDays(done) {
+  const days = new Map();
+  done.forEach((e) => {
+    const d = settledDay(e);
+    if (!days.has(d)) days.set(d, []);
+    days.get(d).push(e);
+  });
+  return [...days.keys()].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0)).map((d) => [d, days.get(d)]);
 }
 
 /* What is on today, shown at the head of the Journal. An event still belongs
@@ -1087,6 +1128,16 @@ function bucketHeading(label, n) {
   return h;
 }
 
+/* A day inside Done, over the lines settled on it. Shaped like a bucket
+   heading and not like the Calendar's day — it sits *under* a heading rather
+   than closing off the lines before it, and the date is a stamp here, so it
+   reads short and stays quieter than the fold it belongs to. */
+function dayHeading(d, n) {
+  const h = el("li", "sep sep-settled");
+  h.append(el("span", null, shortDay(d)), el("span", "sep-n", String(n)));
+  return h;
+}
+
 /* A bucket heading that folds its lines away. `key` names the S flag. */
 function foldHeading(label, n, key) {
   const h = el("li");
@@ -1117,8 +1168,10 @@ function renderJournal() {
      sort would leave it beside, because it would be put straight back if it
      crossed a line the sort draws. In the two buckets that read by deadline
      those lines are the star and the due date; undated tasks share the one
-     empty date, so the ordinary page still drags end to end. Done is sorted
-     by neither, so it draws no line at all and drags whole. */
+     empty date, so the ordinary page still drags end to end. In Done the line
+     is the day: a row drags among the ones settled beside it and no further,
+     because carrying it across a heading would say it was finished on a day it
+     was not. */
   const put = (e, bucket, sorted = true) => {
     const li = row(e);
     li.dataset.group =
@@ -1132,13 +1185,24 @@ function renderJournal() {
     progress.forEach((e) => put(e, "progress"));
   }
 
-  const fold = (label, items, key, sorted = true) => {
-    list.append(foldHeading(label, items.length, key));
-    if (S[key]) items.forEach((e) => put(e, key, sorted));
-  };
+  if (backlog.length) {
+    list.append(foldHeading("Backlog", backlog.length, "backlogOpen"));
+    if (S.backlogOpen) backlog.forEach((e) => put(e, "backlogOpen"));
+  }
 
-  if (backlog.length) fold("Backlog", backlog, "backlogOpen");
-  if (done.length) fold("Done", done, "doneOpen", false);
+  /* Done reads as the days it happened on: one fold over the whole record, and
+     a dated heading inside it for each day, most recent first. The day is the
+     one thing a finished line still has to say — it has no next and nothing
+     left to be late for — so it is what the record is arranged by, and a
+     month's worth of ticks stops being one undifferentiated stack. */
+  if (done.length) {
+    list.append(foldHeading("Done", done.length, "doneOpen"));
+    if (S.doneOpen)
+      doneDays(done).forEach(([d, items]) => {
+        list.append(dayHeading(d, items.length));
+        items.forEach((e) => put(e, "done:" + d, false));
+      });
+  }
 
   const empty = $("#empty");
   const bare = !progress.length && !backlog.length && !done.length && !today.length;

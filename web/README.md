@@ -75,18 +75,27 @@ once it is past. In Progress and the Backlog read by deadline — anything
 overdue at the top, then the soonest day, then the rest, with every undated
 task below the dated ones. A date is the one order on the page you do not set
 by hand: a line climbs as its day comes. Done is the record rather than the
-work, so neither the star nor the deadline sorts it — it reads back from the
-line you finished or struck out most recently, the order the day actually went
-in.
+work, so neither the star nor the deadline sorts it — what arranges it is the
+day each line was settled on.
+
+**Done, by the day.** Under the one *Done* fold the record is split by day,
+most recent first, with each day's own heading and how many lines it holds.
+The date reads short there — `11/05`, and `11/05/2025` once it is not this
+year — because it is a stamp repeating down the page rather than a day being
+named; everywhere else in the app a date still reads `Sat 21 Nov`. Within a
+day the lines read back from the one settled last, the order the day actually
+went in. A line finished before the app recorded settling dates is filed under
+the day it was written, which is where it already sorted.
 
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
 or down. A line moves within its own bucket — In Progress, Backlog, Done — and
 only among the rows the sort would leave it beside, since anything that crossed
 a line the sort draws would be put straight back. In the two buckets that read
 by deadline those lines are the star and the day, so a dated task drags among
-the tasks due the same day and a starred one among the starred. Done is sorted
-by neither, so it drags whole. A line you write afterwards still lands at the
-top.
+the tasks due the same day and a starred one among the starred. In Done the
+line the sort draws is the day, so a finished task drags among the ones settled
+beside it — carrying one across a day heading would say it was finished on a
+day it was not. A line you write afterwards still lands at the top.
 
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
@@ -170,7 +179,7 @@ Folding one is a this-session thing, like every other fold in the app.
 
 **Starring** lifts a line to the top of its bucket, above every unstarred one.
 Done is the exception: a star is about what to do next, so once a line is
-finished it sorts by when it was finished and nothing else.
+finished it sorts by the day it was finished and nothing else.
 
 **Notebooks.** Several journals in one app — work, private — with one open at a
 time, named in the header. A notebook is a *filter*, not a container:
@@ -280,10 +289,12 @@ absent when it has none. `today` is the hand mark for the Today page and stores
 its own at midnight with nothing written back; it is absent on a task that was
 never marked and on every event, since an event's `date` already says which day
 it is on. `backlog: true` marks a task set aside. `settled` is when a line was
-finished or struck out, and is what orders the Done stack, most recent first;
-it is absent while a line is open, and absent as well on a journal written
-before the field existed — such a line sorts by `created`, exactly as it did
-then. `book` is absent for the first
+finished or struck out, and is both what orders the Done stack, most recent
+first, and the day its heading there prints; it is absent while a line is open,
+and absent as well on a journal written before the field existed — such a line
+falls back to `created`, exactly as it did then. The days themselves are
+nowhere in the file: they are read off the lines, so there is no day to go
+stale when the last line settled on one is reopened or deleted. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks only,
 and is absent for its notebook's default page. `group` is the trick one level
