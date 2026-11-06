@@ -317,8 +317,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 0 12px;
 }
 
-/* A section heading in the list: a day on the Calendar, or a bucket (In
-   Progress) and the Backlog and Done folds on the Journal. */
+/* A section heading in the list: a day on the Calendar, a bucket (In Progress)
+   or one of the Backlog and Done folds on the Journal, and inside Done a day
+   again — the one it was settled on. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -331,7 +332,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sep-day { color: var(--ink-2); }
 .sep-day.is-today { color: var(--accent); }
 .sep-day .sep-n,
-.sep-bucket .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
+.sep-bucket .sep-n,
+.sep-settled .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
+
+/* A day inside Done. It follows a heading rather than closing off the lines
+   above it, so it sits tighter to what comes before; and it is all digits, so
+   it drops the tracking the worded headings need to read as headings at this
+   size. */
+.sep-settled {
+  padding-top: 9px;
+  text-transform: none;
+  letter-spacing: 0.04em;
+}
 
 /* A heading you can fold: the backlog starts closed, because it is not what
    you came to the page to read; Done starts open but can be put away. */
