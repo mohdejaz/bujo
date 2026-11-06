@@ -75,7 +75,8 @@ once it is past. In Progress and the Backlog read by deadline — anything
 overdue at the top, then the soonest day, then the rest, with every undated
 task below the dated ones. A date is the one order on the page you do not set
 by hand: a line climbs as its day comes. Done is the record rather than the
-work, so a deadline no longer sorts it.
+work, so a deadline no longer sorts it — it reads back from the line you
+finished or struck out most recently, the order the day actually went in.
 
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
 or down. A line moves within its own bucket — In Progress, Backlog, Done — and
@@ -273,7 +274,11 @@ absent when it has none. `today` is the hand mark for the Today page and stores
 **the day the mark was made** rather than `true`, which is how it expires on
 its own at midnight with nothing written back; it is absent on a task that was
 never marked and on every event, since an event's `date` already says which day
-it is on. `backlog: true` marks a task set aside. `book` is absent for the first
+it is on. `backlog: true` marks a task set aside. `settled` is when a line was
+finished or struck out, and is what orders the Done stack, most recent first;
+it is absent while a line is open, and absent as well on a journal written
+before the field existed — such a line sorts by `created`, exactly as it did
+then. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks only,
 and is absent for its notebook's default page. `group` is the trick one level

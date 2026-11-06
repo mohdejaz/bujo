@@ -14,7 +14,8 @@
  * pages, because changing what kind of thing it is would be writing a
  * different line.
  *
- *   entry = { id, type, text, state, star, notes, book, page, created, pos }
+ *   entry = { id, type, text, state, star, notes, book, page, created,
+ *             settled, pos }
  *   type  = task                   → Journal, may carry a day it is due by
  *         | event                  → Calendar, carries the day it falls on
  *   due   = a deadline on a task, optional and usually absent. Not `date`: an
@@ -36,9 +37,16 @@
  *           page of it.
  *   created = when it was written. Never printed on the row — a line stays
  *           its words — only in the line's sheet and in search.
+ *   settled = when the line was finished or struck out, absent while it is
+ *           open. The Done stack reads back from the most recent, which is
+ *           the one thing it can be ordered by that you did not have to set:
+ *           it is a record of what happened, so it reads in the order it
+ *           happened. Absent on an older journal too, and that is the whole
+ *           migration — such a line falls back to `created`, the way it
+ *           sorted before this field existed.
  *   pos   = where a task sits on the page after it has been dragged, absent
- *           until then. It shares a scale with `created` (see rankOf), so a
- *           line written after a reorder still lands on top.
+ *           until then. It shares a scale with `created` and `settled` (see
+ *           rankOf), so a line written after a reorder still lands on top.
  */
 
 const KEY = "bujo.v2";
@@ -562,6 +570,11 @@ function adopt(raw, i, books) {
   else delete e.notes;
   if (!(books && books.has(e.book))) delete e.book;
   if (!Number.isFinite(raw.pos)) delete e.pos;
+  /* Only a settled line has a time it was settled. An open one that arrives
+     carrying the stamp has been reopened by an older build, which knew the
+     state but not the field; dropping it here puts the line back among the
+     work, where nothing reads it anyway. */
+  if (!Number.isFinite(raw.settled) || e.state === "open") delete e.settled;
   if (e.type === "event") delete e.due;
   /* Fields of two features this app no longer has: the goal a task was a step
      towards, and the tag that put a line in a group. Dropped on load rather
@@ -623,11 +636,19 @@ const isTodayPage = () => db.view === "today";
 const isLive = (e) => e.state === "open";
 const onJournal = (e) => e.type === "task";
 
-/* Where a task sits on the page: wherever it was dragged to, else when it was
-   written. One scale for both, so an untouched page is newest first — on an
+/* Where a line sits when no hand has moved it: when it was settled if it has
+   been, else when it was written. The same clock for both, so a bucket of
+   live work reads newest first and a bucket of settled work reads most
+   recently settled first — each the order the lines in it arrived. A journal
+   written before `settled` existed has none, and falls back to `created`
+   exactly as it did. */
+const stampOf = (e) => (Number.isFinite(e.settled) ? e.settled : e.created);
+
+/* Where a task sits on the page: wherever it was dragged to, else its own
+   stamp. One scale for both, so an untouched page is newest first — on an
    endless page the line you just wrote is the one you want under your thumb —
    and a fresh line still lands above anything that was dragged. */
-const rankOf = (e) => (Number.isFinite(e.pos) ? e.pos : e.created);
+const rankOf = (e) => (Number.isFinite(e.pos) ? e.pos : stampOf(e));
 
 /* Deadlines, soonest day first and the overdue above all of them, with every
    undated task after. A date is the one order on this page you do not set by
@@ -643,8 +664,9 @@ const byDeadline = (a, b) =>
    progress (open, on the page), what is set aside (the backlog), and what is
    settled (done or struck out). Live work reads by deadline: starred lines
    lead, then due date, then the order you dragged them into. Done is the
-   record rather than the work, so a deadline no longer sorts it — it stays in
-   the order you put it in. */
+   record rather than the work, so a deadline no longer sorts it: it reads back
+   from the line settled most recently, which is the order it actually
+   happened in, unless you have dragged one somewhere else. */
 function journalBuckets() {
   const tasks = mine().filter(onJournal).filter(onPage);
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
@@ -711,7 +733,8 @@ function onToday(e) {
 /* Today in three parts: what is on, what is wanted, and what the day came to.
    The live tasks read by deadline exactly as the Journal's do — starred first,
    then the day, then the order you dragged them into — and Done drops the
-   deadline for the same reason it does there. */
+   deadline for the same reason it does there, reading back from the most
+   recently settled line. */
 function todayBuckets() {
   const live = new Set(liveBooks().map((b) => b.id));
   const here = db.entries.filter((e) => live.has(bookOf(e)) && onToday(e));
@@ -839,6 +862,16 @@ $("#toastUndo").onclick = () => {
   buzz(8);
 };
 
+/* Leaving a line open or coming back to it, in one place: the stamp that puts
+   it in the Done stack is written by the same move that settles it, and taken
+   off by the move that puts it back among the work. Nothing sweeps for it
+   later, and an open line never carries one. */
+function setState(e, state) {
+  e.state = state;
+  if (state === "open") delete e.settled;
+  else e.settled = Date.now();
+}
+
 /* Flip done. The same gesture both ways, so nothing can get stranded. */
 function toggleDone(id) {
   const e = byId(id);
@@ -846,7 +879,7 @@ function toggleDone(id) {
   S.anim.add(id);
   buzz(e.state === "done" ? 6 : 11);
   mutate(null, () => {
-    e.state = e.state === "done" ? "open" : "done";
+    setState(e, e.state === "done" ? "open" : "done");
     // finishing a task is also the end of its time in the backlog
     if (e.state === "done") delete e.backlog;
   });
@@ -865,6 +898,7 @@ function duplicateEntry(id) {
   if (!e) return;
   const copy = { ...e, id: uid(), state: "open", created: Date.now() };
   delete copy.pos;
+  delete copy.settled; // it starts open, so it was never settled
   S.anim.add(copy.id);
   buzz(7);
   mutate("Duplicated", () => db.entries.push(copy));
@@ -878,7 +912,7 @@ function toggleDropped(id) {
   buzz(9);
   const back = e.state === "dropped";
   mutate(back ? "Restored" : "Struck out", () => {
-    e.state = back ? "open" : "dropped";
+    setState(e, back ? "open" : "dropped");
     if (!back) delete e.backlog;
   });
 }
@@ -894,7 +928,7 @@ function toggleBacklog(id) {
     if (was) delete e.backlog;
     else {
       e.backlog = true;
-      e.state = "open"; // the backlog only holds live work
+      setState(e, "open"); // the backlog only holds live work
     }
   });
   if (!was) S.backlogOpen = true;
@@ -937,7 +971,7 @@ function reorder(ids, from, to) {
   buzz(8);
   mutate(null, () =>
     group.forEach((e, i) => {
-      if (slots[i] === e.created) delete e.pos;
+      if (slots[i] === stampOf(e)) delete e.pos;
       else e.pos = slots[i];
     })
   );
