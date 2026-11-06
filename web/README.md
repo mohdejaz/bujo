@@ -75,15 +75,18 @@ once it is past. In Progress and the Backlog read by deadline — anything
 overdue at the top, then the soonest day, then the rest, with every undated
 task below the dated ones. A date is the one order on the page you do not set
 by hand: a line climbs as its day comes. Done is the record rather than the
-work, so a deadline no longer sorts it — it reads back from the line you
-finished or struck out most recently, the order the day actually went in.
+work, so neither the star nor the deadline sorts it — it reads back from the
+line you finished or struck out most recently, the order the day actually went
+in.
 
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
 or down. A line moves within its own bucket — In Progress, Backlog, Done — and
-among its own kind, starred or not, since stars always sit on top. Where the
-deadline sorts the bucket it is one more such line, so a dated task drags
-among the tasks due the same day. A line you write afterwards still lands at
-the top.
+only among the rows the sort would leave it beside, since anything that crossed
+a line the sort draws would be put straight back. In the two buckets that read
+by deadline those lines are the star and the day, so a dated task drags among
+the tasks due the same day and a starred one among the starred. Done is sorted
+by neither, so it drags whole. A line you write afterwards still lands at the
+top.
 
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
@@ -166,6 +169,8 @@ whole, and no line moves or changes when a group is made, renamed or dissolved.
 Folding one is a this-session thing, like every other fold in the app.
 
 **Starring** lifts a line to the top of its bucket, above every unstarred one.
+Done is the exception: a star is about what to do next, so once a line is
+finished it sorts by when it was finished and nothing else.
 
 **Notebooks.** Several journals in one app — work, private — with one open at a
 time, named in the header. A notebook is a *filter*, not a container:

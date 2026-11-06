@@ -664,9 +664,11 @@ const byDeadline = (a, b) =>
    progress (open, on the page), what is set aside (the backlog), and what is
    settled (done or struck out). Live work reads by deadline: starred lines
    lead, then due date, then the order you dragged them into. Done is the
-   record rather than the work, so a deadline no longer sorts it: it reads back
-   from the line settled most recently, which is the order it actually
-   happened in, unless you have dragged one somewhere else. */
+   record rather than the work, so neither of those sorts it: a star says what
+   to do next and a deadline says when by, and a finished line has no next and
+   nothing left to be late for. It reads back from the line settled most
+   recently, which is the order it actually happened in, unless you have
+   dragged one somewhere else. */
 function journalBuckets() {
   const tasks = mine().filter(onJournal).filter(onPage);
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
@@ -679,7 +681,7 @@ function journalBuckets() {
     backlog: live((e) => e.backlog),
     done: db.hideLogged
       ? []
-      : tasks.filter((e) => !isLive(e)).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
+      : tasks.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
   };
 }
 
@@ -732,9 +734,9 @@ function onToday(e) {
 
 /* Today in three parts: what is on, what is wanted, and what the day came to.
    The live tasks read by deadline exactly as the Journal's do — starred first,
-   then the day, then the order you dragged them into — and Done drops the
-   deadline for the same reason it does there, reading back from the most
-   recently settled line. */
+   then the day, then the order you dragged them into — and Done drops both
+   the star and the deadline for the same reasons it does there, reading back
+   from the most recently settled line. */
 function todayBuckets() {
   const live = new Set(liveBooks().map((b) => b.id));
   const here = db.entries.filter((e) => live.has(bookOf(e)) && onToday(e));
@@ -751,7 +753,7 @@ function todayBuckets() {
     now: task(isLive),
     done: db.hideLogged
       ? []
-      : task((e) => !isLive(e)).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
+      : task((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
   };
 }
 
@@ -1111,15 +1113,16 @@ function renderJournal() {
      heading of their own. The first bucket heading below closes them off. */
   today.forEach((e) => list.append(row(e)));
 
-  /* Every bucket row can be lifted and dragged — but only among the rows it
-     shares a bucket and a star with, because the sort would put it straight
-     back if it crossed either line. In the two buckets that read by deadline
-     the due date is one more such line; undated tasks share the one empty
-     date, so the ordinary page still drags end to end. Done is not sorted by
-     deadline, so there it is no line at all. */
-  const put = (e, bucket, dated = true) => {
+  /* Every bucket row can be lifted and dragged — but only among the rows the
+     sort would leave it beside, because it would be put straight back if it
+     crossed a line the sort draws. In the two buckets that read by deadline
+     those lines are the star and the due date; undated tasks share the one
+     empty date, so the ordinary page still drags end to end. Done is sorted
+     by neither, so it draws no line at all and drags whole. */
+  const put = (e, bucket, sorted = true) => {
     const li = row(e);
-    li.dataset.group = bucket + (e.star ? ":star" : "") + (dated && e.due ? ":" + e.due : "");
+    li.dataset.group =
+      bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
     list.append(li);
   };
@@ -1129,9 +1132,9 @@ function renderJournal() {
     progress.forEach((e) => put(e, "progress"));
   }
 
-  const fold = (label, items, key, dated = true) => {
+  const fold = (label, items, key, sorted = true) => {
     list.append(foldHeading(label, items.length, key));
-    if (S[key]) items.forEach((e) => put(e, key, dated));
+    if (S[key]) items.forEach((e) => put(e, key, sorted));
   };
 
   if (backlog.length) fold("Backlog", backlog, "backlogOpen");
