@@ -1173,7 +1173,7 @@ function renderJournal() {
      because carrying it across a heading would say it was finished on a day it
      was not. */
   const put = (e, bucket, sorted = true) => {
-    const li = row(e);
+    const li = row(e, { quick: bucket === "progress" });
     li.dataset.group =
       bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
@@ -1418,6 +1418,20 @@ function row(e, opts = {}) {
   bul.onclick = () => toggleDone(e.id);
   face.append(bul);
 
+  /* In Progress is the list you work from, so its rows carry the four things
+     you most often do to a line there without opening its sheet. They are
+     split by what they are: putting a line on Today is a mark on the line, so
+     it sits beside the bullet and reads with it, lit when it is on; finishing,
+     striking out and copying are things done *to* the line, so they wait at
+     the far end of the row, out of the way of the words. Done repeats the
+     bullet's own tap on purpose — beside its two neighbours it is the one you
+     would look for. */
+  const quick = opts.quick && e.type === "task" && e.state === "open";
+  if (quick) {
+    const on = e.today === TODAY();
+    face.append(qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () => toggleToday(e.id)));
+  }
+
   const txt = el("button", "row-text");
   txt.append(document.createTextNode(e.text));
   // only a task carries a deadline, and most of them do not
@@ -1436,10 +1450,28 @@ function row(e, opts = {}) {
     s.setAttribute("aria-label", "Starred");
     face.append(s);
   }
+  if (quick) {
+    const end = el("span", "qa-end");
+    end.append(
+      qa("qa-done", ICON.check, "Mark done", () => toggleDone(e.id)),
+      qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id)),
+      qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id))
+    );
+    face.append(end);
+  }
 
   li.append(face);
   swipeable(li, face, e);
   return li;
+}
+
+/* A row's quick action: an icon button, labelled for a screen reader since it
+   has no words of its own to show. */
+function qa(cls, icon, label, fn) {
+  const b = el("button", "qa " + cls, icon);
+  b.setAttribute("aria-label", label);
+  b.onclick = fn;
+  return b;
 }
 
 /* What a left swipe means for this line. A live task is set aside; everything

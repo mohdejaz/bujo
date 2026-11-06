@@ -68,6 +68,11 @@ complete it, **left** to set it aside — which for a live task means the
 backlog, and for anything else means striking it out. Tap the text to open
 everything else.
 
+**Quick actions.** Rows under the Journal's **In Progress** carry icons for
+the things you most often do there. A sun beside the bullet puts the line on
+Today (lit while it is on; tap again to take it off). At the far end of the
+row, ✓ marks it done, ⊘ strikes it out and the copy icon duplicates it.
+
 **Due dates.** A task does not need one — most are just things to do — but
 open a line and you can give it a day it is wanted **by**, and take it off
 again with *Clear*. The row then prints that day under its words, in orange
