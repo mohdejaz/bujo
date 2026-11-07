@@ -115,17 +115,20 @@ four pages of two notebooks to find out what today holds would be a worse
 notebook, not a tidier one. The date carries it rather than a tab: the tabs
 switch between pages *of the notebook*, and Today is the one page that belongs
 to no notebook, so it hangs off the one other thing in the header that belongs
-to none either. It lights while you are on it, the way a tab does. Three things
-land on it: an **event dated today**, a **task due today**, and a **task you
-marked for today** by hand, from its sheet. The events lead, under the date
-stamp that names the day they fall on; then *Today*, then a folded *Done* —
-what the day came to.
+to none either. It lights while you are on it, the way a tab does. Four things
+land on it: an **event dated today**, a **task due today**, an **overdue
+task** — one whose day has passed and is still open — and a **task you marked
+for today** by hand, from its sheet. The events lead, under the date stamp
+that names the day they fall on; then *Today*, with the overdue at its head
+and their dates in orange, then a folded *Done* — what the day came to.
 
-**Nothing carries over.** Each day starts blank. A task you marked yesterday
-and did not finish, or one whose day has passed, does not roll forward onto
-Today — you put back what you still mean to do, one tap from its sheet. A late
-task is not lost: it stays on its own page, where the Journal sorts the
-overdue to the top.
+**Only the overdue carry over.** A deadline is a claim on every day after it
+until it is met, so a late task follows you onto Today from whichever notebook
+and page it lives on, and stays until you finish it, strike it out or set it
+aside. Finished today, it moves to Today's *Done* and is gone tomorrow. A hand
+mark does not carry over: a task you marked yesterday and did not finish
+starts today off the page — you put back what you still mean to do, one tap
+from its sheet.
 
 Because it reads across everything, every row says where the line actually
 lives: the notebook, and the page of it, but only the part you could not have
