@@ -63,17 +63,13 @@ falls on, because an event without one is not an event, and Today writes a task
 already marked for today. The Calendar reads back from the furthest day towards
 the oldest; several events on one day sit newest-written first.
 
-**Gestures.** Tap a bullet to complete a line. Swipe a row **right** to
-complete it, **left** to set it aside — which for a live task means the
-backlog, and for anything else means striking it out. Tap the text to open
-everything else.
+**Gestures.** Tap a bullet to complete a line. Tap the text to open
+everything else — star, strike out, set aside, duplicate, move, delete. Rows
+do not swipe sideways.
 
 **Quick actions.** Rows under the Journal's **In Progress** carry a sun
 beside the bullet that puts the line on Today (lit while it is on; tap again
-to take it off). There, and on the Today page's own list, a short swipe
-**left** slides the row open on three more: ☆ stars it (lit while it is on;
-tap again to unstar), ⊘ strikes it out and the copy icon duplicates it. Keep swiping past them and the line is set
-aside as usual; tap the row, or touch another, to close it.
+to take it off).
 
 **Due dates.** A task does not need one — most are just things to do — but
 open a line and you can give it a day it is wanted **by**, and take it off
@@ -157,7 +153,7 @@ striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The backlog.** Tasks you are not doing now but have not given up on. It sits
 folded at the foot of the Journal with a count; tap the heading to open it, and
-set a line aside or pull it back from the swipe or the entry sheet. A finished
+set a line aside or pull it back from the entry sheet. A finished
 task has no backlog to go to.
 
 **The Index.** The first tab is the notebook's contents, and the only place
@@ -354,6 +350,10 @@ cd web
 ./serve.sh 9000     # or pick a port
 ```
 
+On Windows, `serve.bat` (or `serve.bat 9000`) does the same from `cmd` or
+PowerShell; it needs `python` on the PATH. The first run may raise a Windows
+Firewall prompt — allow it on private networks or the phone cannot connect.
+
 *Add to Home Screen* and offline mode need HTTPS or localhost, so over the LAN
 you get the app but not the installable layer. Pushes to `main` that touch
 `web/` deploy to GitHub Pages automatically.
@@ -366,7 +366,7 @@ you get the app but not the installable layer. Pushes to `main` that touch
 | `styles.css` | the paper: colour tokens, dot grid, both themes, the type scale |
 | `app.js` | store, migration, dates, render, gestures, sheets |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable/offline layer |
-| `serve.sh` | LAN dev server (no-store headers) |
+| `serve.sh`, `serve.bat` | LAN dev server (no-store headers), macOS/Linux and Windows |
 
 ## Design notes
 
