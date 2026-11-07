@@ -71,8 +71,8 @@ everything else.
 **Quick actions.** Rows under the Journal's **In Progress** carry a sun
 beside the bullet that puts the line on Today (lit while it is on; tap again
 to take it off). There, and on the Today page's own list, a short swipe
-**left** slides the row open on three more: ✓ marks it done, ⊘ strikes it out
-and the copy icon duplicates it. Keep swiping past them and the line is set
+**left** slides the row open on three more: ☆ stars it (lit while it is on;
+tap again to unstar), ⊘ strikes it out and the copy icon duplicates it. Keep swiping past them and the line is set
 aside as usual; tap the row, or touch another, to close it.
 
 **Due dates.** A task does not need one — most are just things to do — but
