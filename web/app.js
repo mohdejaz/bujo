@@ -334,7 +334,7 @@ const putPage = (e, pid) => {
    you land. */
 const WELCOME = [
   { type: "task", text: "Tap a bullet to complete it", star: false, today: true },
-  { type: "task", text: "Swipe a line right to finish, left to set it aside", star: true, today: true },
+  { type: "task", text: "Hold a line, then drag it to reorder", star: true, today: true },
   { type: "task", text: "Put a line on Today from its sheet, or give it a day it is due", star: false, today: true },
   { type: "task", text: "Tap the text for notes, a due date and the rest", star: false },
   { type: "event", text: "Events live on the Calendar" },
@@ -1179,7 +1179,7 @@ function renderJournal() {
      because carrying it across a heading would say it was finished on a day it
      was not. */
   const put = (e, bucket, sorted = true) => {
-    const li = row(e, bucket === "progress" ? { tray: true, mark: true } : {});
+    const li = row(e, bucket === "progress" ? { mark: true } : {});
     li.dataset.group =
       bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
@@ -1240,13 +1240,12 @@ function renderToday() {
 
   events.forEach((e) => put(e));
 
-  /* The wanted lines carry the same swipe-open tray as the Journal's In
-     Progress, since this is the other list you work from. They do not carry
-     the sun: every line here is already on Today, so the mark could only say
-     one thing, and tapping it would make the row vanish under your thumb. */
+  /* The wanted lines do not carry the sun the Journal's In Progress does:
+     every line here is already on Today, so the mark could only say one
+     thing, and tapping it would make the row vanish under your thumb. */
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
-    now.forEach((e) => put(e, { tray: true }));
+    now.forEach((e) => put(e));
   }
   if (done.length) {
     list.append(foldHeading("Done", done.length, "todayDoneOpen"));
@@ -1405,9 +1404,13 @@ function rowMeta(e, where) {
   return m;
 }
 
-/* One line. The face is what you see; the layer underneath is what a swipe
-   reveals. Everything about the row is derived from the entry, so a re-render
-   after any mutation redraws it correctly without special cases. */
+/* One line. The face is all there is: a row does nothing sideways. It once
+   slid right to finish and left to set aside, with a tray of quick actions
+   under its edge, and between them a row had five gestures where it needed
+   two — tap the bullet to finish, tap the words for everything else. Every
+   one of those actions is still a row in the entry sheet. Everything about
+   the row is derived from the entry, so a re-render after any mutation
+   redraws it correctly without special cases. */
 function row(e, opts = {}) {
   const li = el("li", "row");
   li.dataset.id = e.id;
@@ -1416,35 +1419,7 @@ function row(e, opts = {}) {
   if (e.backlog) li.classList.add("is-backlog");
   if (S.anim.has(e.id)) li.classList.add("anim");
 
-  const under = el("div", "row-under");
-  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon(e)));
-  li.append(under);
-
-  /* The lists you work from — the Journal's In Progress and Today's wanted
-     lines — keep three things you do *to* a line under its right edge: star,
-     strike out, duplicate. They live under the face rather than on it, so the
-     words have the row to themselves until a short left swipe slides it open;
-     a long swipe still goes straight through to setting the line aside, so
-     the tray adds a stop on the way and takes no gesture away. Done is not
-     among them: the bullet's tap and the right swipe already say it twice, and
-     a tick here read as one more thing the left swipe might do. Star took its
-     place because it is the one switch that otherwise meant opening the line,
-     and it is lit while it is on, the way the Today mark is. Silent like the
-     sheet's own star — the lit star on the row is the whole receipt. */
   const open = e.type === "task" && e.state === "open";
-  if (opts.tray && open) {
-    li.classList.add("has-tray");
-    const tray = el("span", "qa-tray");
-    tray.append(
-      qa("qa-star" + (e.star ? " on" : ""), ICON.star, e.star ? "Unstar" : "Star it", () =>
-        mutate(null, () => (e.star = !e.star))
-      ),
-      qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id)),
-      qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id))
-    );
-    under.append(tray);
-  }
-
   const face = el("div", "row-face");
 
   const bul = el("button", "bul");
@@ -1481,7 +1456,6 @@ function row(e, opts = {}) {
   }
 
   li.append(face);
-  swipeable(li, face, e);
   return li;
 }
 
@@ -1494,152 +1468,15 @@ function qa(cls, icon, label, fn) {
   return b;
 }
 
-/* What a left swipe means for this line. A live task is set aside; everything
-   else — an event, a task already finished — has no backlog to go to, so the
-   gesture strikes it out instead. Setting a *done* line aside would
-   quietly un-complete it, which is not what the gesture looks like. */
+/* Whether a line can be set aside. Only a live task has a backlog to go to;
+   setting a *done* line aside would quietly un-complete it, and an event is
+   due on its day or not at all. */
 const canBacklog = (e) => e.type === "task" && e.state === "open";
-const swipeLeftIcon = (e) => (canBacklog(e) ? (e.backlog ? ICON.back : ICON.tray) : ICON.strike);
-
-function swipeLeft(e) {
-  if (canBacklog(e)) toggleBacklog(e.id);
-  else toggleDropped(e.id);
-}
 
 /* ── gestures ──────────────────────────────────────────────────────── */
 
-const COMMIT = 76;
-
-/* The one row whose tray is slid open, as the function that shuts it. Only
-   one is ever open: touching any other row shuts it first. A re-render drops
-   it along with the row, which is why nothing has to clear it after an
-   action. */
-let shutTray = null;
-
-function swipeable(li, face, e) {
-  let x0 = 0,
-    y0 = 0,
-    dx = 0,
-    base = 0, // where the face rests: 0, or -W while the tray is open
-    W = 0, // how far the tray slides the face
-    full = COMMIT, // how far left a swipe must go to set the line aside
-    tapShut = false,
-    active = false,
-    decided = false,
-    id = null;
-  const tray = li.querySelector(".qa-tray");
-
-  const reset = (animate = true) => {
-    face.classList.toggle("snap", animate);
-    face.style.transform = "";
-    li.classList.remove("sw-l", "sw-r", "sw-full", "tray-open", "dragging");
-    setTimeout(() => face.classList.remove("snap"), 300);
-    base = 0;
-    if (shutTray === reset) shutTray = null;
-  };
-
-  const openTray = () => {
-    face.classList.add("snap");
-    face.style.transform = `translateX(${-W}px)`;
-    li.classList.remove("sw-r", "sw-full", "dragging");
-    li.classList.add("sw-l", "tray-open");
-    setTimeout(() => face.classList.remove("snap"), 300);
-    base = -W;
-    shutTray = reset;
-  };
-
-  face.addEventListener(
-    "pointerdown",
-    (ev) => {
-      if (ev.pointerType === "mouse" && ev.button !== 0) return;
-      x0 = ev.clientX;
-      y0 = ev.clientY;
-      dx = base;
-      active = true;
-      decided = false;
-      id = ev.pointerId;
-      face.classList.remove("snap");
-      if (shutTray && shutTray !== reset) shutTray();
-      // a tap on an open row shuts it rather than opening the line's sheet
-      tapShut = base !== 0;
-      if (tray) {
-        W = tray.offsetWidth + 10;
-        full = W + COMMIT;
-      }
-    },
-    { passive: true }
-  );
-
-  face.addEventListener("pointermove", (ev) => {
-    if (!active || ev.pointerId !== id) return;
-    const mx = ev.clientX - x0;
-    const my = ev.clientY - y0;
-    if (li.classList.contains("lifting")) {
-      active = false; // a long press picked the row up: this is a drag, not a swipe
-      return;
-    }
-    if (!decided) {
-      if (Math.abs(my) > 10 && Math.abs(my) > Math.abs(mx)) {
-        active = false; // vertical: let the page scroll
-        return;
-      }
-      if (Math.abs(mx) < 8) return;
-      decided = true;
-      li.classList.add("dragging");
-      face.setPointerCapture(id);
-    }
-    ev.preventDefault();
-    // rubber-band past the commit point so the gesture feels bounded
-    const x = base + mx;
-    const lim = x < 0 ? full : COMMIT;
-    dx = Math.abs(x) > lim ? Math.sign(x) * (lim + (Math.abs(x) - lim) * 0.35) : x;
-    face.style.transform = `translateX(${dx}px)`;
-    li.classList.toggle("sw-r", dx > 12);
-    li.classList.toggle("sw-l", dx < -12);
-    // with a tray, the set-aside colour waits until the swipe is past it
-    if (tray) li.classList.toggle("sw-full", dx <= -full + 4);
-  });
-
-  const end = (ev) => {
-    if (!active || (id !== null && ev.pointerId !== id)) return;
-    active = false;
-    if (!decided) return;
-    if (dx >= COMMIT - 4) {
-      reset(false);
-      toggleDone(e.id);
-    } else if (dx <= -full + 4) {
-      reset(false);
-      swipeLeft(e);
-    } else if (tray && dx < -W / 2) {
-      openTray();
-    } else {
-      reset();
-    }
-  };
-  face.addEventListener("pointerup", end);
-  face.addEventListener("pointercancel", () => {
-    active = false;
-    reset();
-  });
-
-  // a swipe must not also fire the tap underneath it
-  face.addEventListener(
-    "click",
-    (ev) => {
-      if (decided || tapShut) {
-        ev.stopPropagation();
-        ev.preventDefault();
-        if (!decided) reset();
-        decided = false;
-        tapShut = false;
-      }
-    },
-    true
-  );
-}
-
 /* Hold a row still, then drag it up or down its group. The hold is what tells
-   a reorder apart from a scroll or a swipe: move before it lands and the row
+   a reorder apart from a scroll: move before it lands and the row
    never lifts. Once lifted the touch is the row's — the page is held still,
    and scrolls itself only when the row is carried to an edge. Moving a line to
    another page is the entry sheet's job, not this gesture's. */
