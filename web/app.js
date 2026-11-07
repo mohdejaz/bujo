@@ -756,26 +756,32 @@ const todayEvents = () => {
    page that reached in and lifted lines back out of it would make the one
    thing archiving promises untrue. */
 
-/* A line is on today if it falls on today, is wanted by today, or you said so
-   by hand today — and only today. Nothing yesterday left undone rolls forward
-   onto it: each day starts blank and is filled by choosing again, because a
-   page that greets you with the leftovers of every day before is a backlog
-   wearing today's date, and putting a line back on it is one tap from its
-   sheet. A late line is not lost by this; it is still on its own page, where
-   the Journal sorts the overdue to the top. A task set aside is none of the
-   above, whatever its mark says: the backlog is the word for *not now*, and it
-   has to beat an intention you had earlier in the day. The mark survives the
-   trip, so pulling the line back puts it straight back on the page. */
+/* A line is on today if it falls on today, is wanted by today or was wanted
+   by a day already gone, or you said so by hand today. The overdue are the one
+   thing that rolls forward, and only because a deadline is a claim on every
+   day after it until it is met: a late line hidden on its own page, two
+   notebooks away, is the line most likely to be forgotten, and the day you
+   are standing in is where it is owed. It stays only while it is open, or was
+   settled today — finishing it is what the day came to, so it lands in Done
+   with the rest, and tomorrow it is gone. A hand mark is different and still
+   does not roll forward: it is an intention for one day, and yesterday's is
+   yesterday's. A task set aside is none of the above, whatever its mark or
+   its date says: the backlog is the word for *not now*, and it has to beat
+   both. The mark survives the trip, so pulling the line back puts it straight
+   back on the page. */
 function onToday(e) {
   const t = TODAY();
   if (e.type === "event") return e.date === t;
   if (e.backlog) return false;
-  return e.due === t || e.today === t;
+  if (e.due === t || e.today === t) return true;
+  return !!e.due && e.due < t && (isLive(e) || settledDay(e) === t);
 }
 
 /* Today in three parts: what is on, what is wanted, and what the day came to.
    The live tasks read by deadline exactly as the Journal's do — starred first,
-   then the day, then the order you dragged them into — and Done drops both
+   then the day, then the order you dragged them into, which puts the overdue
+   at the head of the list without a heading of their own, the orange date on
+   each saying all a heading would — and Done drops both
    the star and the deadline for the same reasons it does there, reading back
    from the most recently settled line. */
 function todayBuckets() {
