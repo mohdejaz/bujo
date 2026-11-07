@@ -1421,19 +1421,24 @@ function row(e, opts = {}) {
   li.append(under);
 
   /* The lists you work from — the Journal's In Progress and Today's wanted
-     lines — keep three things you do *to* a line under its right edge: done,
+     lines — keep three things you do *to* a line under its right edge: star,
      strike out, duplicate. They live under the face rather than on it, so the
      words have the row to themselves until a short left swipe slides it open;
      a long swipe still goes straight through to setting the line aside, so
-     the tray adds a stop on the way and takes no gesture away. Done repeats
-     the bullet's own tap on purpose — beside its two neighbours it is the one
-     you would look for. */
+     the tray adds a stop on the way and takes no gesture away. Done is not
+     among them: the bullet's tap and the right swipe already say it twice, and
+     a tick here read as one more thing the left swipe might do. Star took its
+     place because it is the one switch that otherwise meant opening the line,
+     and it is lit while it is on, the way the Today mark is. Silent like the
+     sheet's own star — the lit star on the row is the whole receipt. */
   const open = e.type === "task" && e.state === "open";
   if (opts.tray && open) {
     li.classList.add("has-tray");
     const tray = el("span", "qa-tray");
     tray.append(
-      qa("qa-done", ICON.check, "Mark done", () => toggleDone(e.id)),
+      qa("qa-star" + (e.star ? " on" : ""), ICON.star, e.star ? "Unstar" : "Star it", () =>
+        mutate(null, () => (e.star = !e.star))
+      ),
       qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id)),
       qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id))
     );
