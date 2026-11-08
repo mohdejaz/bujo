@@ -419,12 +419,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .row-under svg { width: 21px; height: 21px; }
 .row-under .u-r { opacity: 0; }
 .row-under .u-l { opacity: 0; }
-/* The right swipe is Today, so it takes the accent — the colour that means
-   "this is now" on the date, on the tab and on the sun itself, and the one
-   thing it would be wrong to show this gesture in is the green that means
-   finished. Both grounds are the accent now; the side and the icon are what
-   tell the two gestures apart, and a thumb only ever sees one of them. */
-.row.sw-r .row-under { opacity: 1; background: var(--accent-soft); color: var(--accent); }
+/* The right swipe finishes the line, so it takes the green that means
+   finished everywhere else — and leaves the accent to the left-hand journey,
+   which is the only other coloured ground a row shows. */
+.row.sw-r .row-under { opacity: 1; background: var(--good-soft); color: var(--good); }
 .row.sw-r .row-under .u-l { opacity: 1; }
 .row.sw-l .row-under { opacity: 1; background: var(--accent-soft); color: var(--accent); }
 .row.sw-l .row-under .u-r { opacity: 1; }
@@ -613,11 +611,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--star);
 }
 .star svg { width: 0.94rem; height: 0.94rem; }
-/* A quick action. They all live in the swipe-out tray now — Today was the
-   one that sat on the row itself, in the mark's column, and it moved to the
-   right swipe when the bullet took that column back. */
+/* A quick action. Today is the one that sits on the row itself, in its own
+   column beside the mark and the same rem wide, so the two read as a pair
+   rather than as a mark and a button. Its hit area is held by ::after on
+   the same terms as the bullet's, reaching into the gap on either side but
+   never as far as its neighbour. The rest live in the swipe-out tray, which
+   sizes them for a thumb instead. */
 .qa {
   flex: none;
+  width: 1rem;
+  height: 1.625rem;
+  margin-top: -1px;
   display: grid;
   place-items: center;
   position: relative;
@@ -625,14 +629,25 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
   transition: background 0.15s, color 0.15s;
 }
+.qa::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px;
+}
 .qa:active { background: var(--hair-2); }
+.qa svg { width: 1rem; height: 1rem; }
+.qa-today.on { color: var(--accent); }
+/* The sun's column standing empty, on the rows of the Journal that cannot
+   have one. It holds the words still as the eye runs down the page. */
+.qa-slot { flex: none; width: 1rem; }
 
 /* The tray under the row's right edge: everything you do to a line, in the
    order you would reach for it — finish, strike out, set aside, copy. On a
    quiet ground rather than a coloured one, because a coloured ground is what
    says a swipe is about to do something, and opening the tray does nothing
-   yet. Four of them is what the row has room for at a thumb's width each;
-   a fifth would start eating the words still showing beside it. */
+   yet. Three, because finishing is the bullet's tap and the right swipe and
+   does not need a third door — and because every one of them costs a thumb's
+   width of the words still showing beside the tray. */
 .qa-tray {
   position: absolute;
   top: 0;
@@ -644,7 +659,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   opacity: 0;
   pointer-events: none;
 }
-.qa-tray .qa { width: 2.25rem; height: 2.25rem; color: var(--ink-2); }
+.qa-tray .qa { width: 2.25rem; height: 2.25rem; margin-top: 0; color: var(--ink-2); }
+.qa-tray .qa::after { content: none; }
 .qa-tray .qa svg { width: 1.2rem; height: 1.2rem; }
 .row.has-tray.sw-l .row-under { background: var(--hair-2); color: var(--ink-2); }
 .row.has-tray.sw-l .row-under .u-r { opacity: 0; }

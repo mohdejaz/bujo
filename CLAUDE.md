@@ -83,7 +83,10 @@ read; `onToday`/`todayBuckets` in `app.js` select, and nothing is copied or move
 hand mark behind it, `e.today`, stores **the ISO day the mark was made**, never `true`:
 that is what makes it expire at midnight with no clock, no sweep on load and nothing
 written back — which is the only way to have an expiring flag without breaking the rule
-above. Outside Search it is the one view that crosses notebooks, so its rows print
+above. `e.notToday` is its mirror and works the same way: the day you took a line *off*
+Today. It exists because the thing it argues with is a deadline, and a deadline is not
+the view's to move — an overdue line has to be dismissable for the day without `due`
+being rewritten, and tomorrow the date speaks again. Outside Search it is the one view that crosses notebooks, so its rows print
 where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
