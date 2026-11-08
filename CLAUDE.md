@@ -132,8 +132,11 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   tab icons their `rem` sizing, and moving Today off the strip and onto the date is
   what bought it back. Anything new up there takes the width from the notebook's name.
 - Every type size is `rem` so the text-size setting scales the whole app at once; every
-  colour is a token on `:root` redefined in one dark-mode block. The one exception is
-  `.icon-btn svg`, fixed pixels because the menu button is furniture rather than type.
+  colour is a token on `:root` redefined in one dark-mode block. Two things are fixed
+  pixels, both furniture rather than type: `.icon-btn svg`, because the menu button is,
+  and `.sep-fold svg`, the chevron on every fold heading, which stands in the 14px of
+  left margin a plain `.sep` spends on padding; in `rem` it would grow out of that
+  margin and walk the word off the column the headings share.
   `.tab svg` was the same for as long as there were four tabs, which ate the notebook's
   name at the top step; with three it is `rem` again, and a fourth would undo that.
 - The user commits and deploys themselves — leave changes in the working tree unless
