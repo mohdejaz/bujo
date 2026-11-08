@@ -79,8 +79,8 @@ the oldest; several events on one day sit newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else. Swipe a row **right** to
-put it on Today, or to take it back off. Swipe it **left** a short way and it
-stops against a tray of four actions; carry the swipe **all the way left** and
+finish it. Swipe it **left** a short way and it stops against a tray of three
+actions; carry the swipe **all the way left** and
 it goes straight past them to setting the line aside, so the tray is a stop on
 the journey and takes no gesture away. A row with a tray open is shut by
 tapping it, or by touching any other row — only one is ever open.
@@ -90,17 +90,30 @@ from — the Journal's live work and Today's wanted lines — in the order you
 reach for them:
 
 ```
-  ✓  mark done      ⊘  strike out      ▣  set aside      ⧉  duplicate
+  ⊘  strike out      ▣  set aside      ⧉  duplicate
 ```
 
-Four is what the row has room for at a thumb's width each. *Mark done* leads
-even though the bullet's tap says it too — the tray is where you look when
-you have already swiped, and the one thing you most often do to a task should
-not be the one thing missing from it.
+Finishing is not among them: the bullet's tap says it and so does the right
+swipe, and a third door onto it here would read as one more thing the left
+swipe might be about to do. Three also leaves more of the words showing
+beside the open tray — each button costs a thumb's width of them.
 
-Today has no button on the row. It is the right swipe, because the column at
-the head of a line belongs to that line's mark and a row cannot have two
-first things.
+**Quick actions.** A task you are working on carries a **sun** beside its
+mark, which puts the line on Today (lit while it is on; tap again to take it
+off). Only the work in progress: a line you have set aside is not one you
+are deciding the day of — Today drops a backlogged line whatever its mark
+says — and a line already finished has no next day. Those rows keep the
+sun's column all the same, empty, so the words run down one edge of the page
+whatever is in it.
+
+The sun says whether the line is on Today, not whether you put it there — so
+it is lit on every line of the **Today** page, and tapping it takes that line
+off, whatever carried it on. For a line you marked, dropping the mark is
+enough. For one the calendar sent — due today, or late — the deadline is
+still true and would simply put it back, so the tap records that you said
+*not today*, and that is all it records: **the deadline itself is never
+touched**. The dismissal keeps the day it was made, the same way the mark
+does, so midnight ends it and a line still owed is back tomorrow.
 
 **The work has no heading.** Open the Journal and every live task on the page
 is simply there, under the date, in deadline order — naming that pile would
@@ -187,7 +200,10 @@ Archived notebooks are left out — archiving is putting a journal away.
 **Marking a line for today.** Open it and press *Put on Today*. The mark
 records the **day you made it**, not a flag, and that is the whole of how it
 expires: it counts only while it still reads as today, so midnight takes it off
-by itself. A line set aside in the backlog drops off Today whatever its mark
+by itself. Taking a line off records a day in just the same way, which is what
+lets a line held there by a deadline be dismissed for the day without the
+deadline being rewritten — tomorrow the date speaks again and the line is
+back. A line set aside in the backlog drops off Today whatever its mark
 says — the backlog is the word for *not now* — and keeps the mark, so pulling
 it back puts it straight back on the page. Marking a line that was set aside
 pulls it back out: that is the plainer of the two statements, so it wins.

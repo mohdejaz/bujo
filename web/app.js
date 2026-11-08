@@ -333,7 +333,7 @@ const putPage = (e, pid) => {
    page the first time it is seen, and the gestures are learnable right where
    you land. */
 const WELCOME = [
-  { type: "task", text: "Swipe a line left for its actions, right to put it on Today", star: false, today: true },
+  { type: "task", text: "Swipe a line left for its actions, right to finish it", star: false, today: true },
   { type: "task", text: "Hold a line, then drag it to reorder", star: true, today: true },
   { type: "task", text: "Put a line on Today from its sheet, or give it a day it is due", star: false, today: true },
   { type: "task", text: "Tap the text for notes, a due date and the rest", star: false },
@@ -565,8 +565,10 @@ function adopt(raw, i, books) {
     delete e.time; // an event is placed by its day, never by a clock
     delete e.backlog;
     /* An event already says which day it is on. A hand mark for today would
-       either repeat its date or contradict it, so only a task carries one. */
+       either repeat its date or contradict it, so only a task carries one —
+       and neither, then, the mark that takes one off. */
     delete e.today;
+    delete e.notToday;
   } else {
     // a task's deadline is optional — most tasks are just things to do
     if (isDate(raw.due)) e.due = raw.due;
@@ -578,6 +580,15 @@ function adopt(raw, i, books) {
        harmless, and rewriting it would be the one thing a filter must not do. */
     if (isDate(raw.today)) e.today = raw.today;
     else delete e.today;
+    /* And its opposite, on the same terms: the day you said a line was not
+       for today. It needs its own field because the thing it argues with is
+       a deadline, and a deadline is not ours to move — a line owed since
+       last week has to be dismissable without the date it is late against
+       being rewritten. Stored as the day, so midnight ends the dismissal
+       exactly as it ends the mark, and the overdue line is back tomorrow,
+       which is what a deadline that is still unmet should do. */
+    if (isDate(raw.notToday)) e.notToday = raw.notToday;
+    else delete e.notToday;
     // only a task can be set aside, and only while it is still open
     delete e.date;
     delete e.time;
@@ -773,6 +784,10 @@ function onToday(e) {
   const t = TODAY();
   if (e.type === "event") return e.date === t;
   if (e.backlog) return false;
+  /* Taken off by hand, today. It beats the deadline because it is the newer
+     statement and the more specific one: the date says the line is owed, you
+     say not on this day, and tomorrow the date says it again. */
+  if (e.notToday === t) return false;
   if (e.due === t || e.today === t) return true;
   return !!e.due && e.due < t && (isLive(e) || settledDay(e) === t);
 }
@@ -989,14 +1004,23 @@ function toggleBacklog(id) {
    Putting one on is silent: it is a thing you just did to a line in front of
    you. Taking it off earns a toast, because from Today itself the row goes
    away as you press, and a row that vanishes should leave an Undo behind. */
+/* The sun is whether the line is on Today, not whether you put it there —
+   so tapping it off takes the line off the page whatever carried it on.
+   Dropping the hand mark is enough for a line you marked. A line the
+   calendar sent needs saying out loud, because the deadline that put it
+   there is still true and would simply put it there again; `notToday`
+   records that for the day, and nothing touches the deadline itself. */
 function toggleToday(id) {
   const e = byId(id);
   if (!e || e.type !== "task") return;
-  const on = e.today === TODAY();
+  const on = onToday(e);
   buzz(on ? 9 : 7);
   mutate(on ? "Taken off Today" : null, () => {
-    if (on) delete e.today;
-    else {
+    if (on) {
+      delete e.today;
+      if (onToday(e)) e.notToday = TODAY();
+    } else {
+      delete e.notToday;
       e.today = TODAY();
       /* A line set aside is not something you are doing today. Putting it on
          Today is the plainer of the two statements, so it wins and the line
@@ -1187,7 +1211,7 @@ function renderJournal() {
   /* Today's events lead the page, directly under the date stamp that names the
      day they fall on — so they read as that heading's content and need no
      heading of their own. */
-  today.forEach((e) => list.append(row(e)));
+  today.forEach((e) => list.append(row(e, { sun: true })));
 
   /* Every bucket row can be lifted and dragged — but only among the rows the
      sort would leave it beside, because it would be put straight back if it
@@ -1198,7 +1222,7 @@ function renderJournal() {
      because carrying it across a heading would say it was finished on a day it
      was not. */
   const put = (e, bucket, sorted = true) => {
-    const li = row(e, bucket === "progress" ? { tray: true } : {});
+    const li = row(e, bucket === "progress" ? { tray: true, sun: true } : { sun: true });
     li.dataset.group =
       bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
@@ -1265,20 +1289,25 @@ function renderToday() {
   // notebooks, so a line without its address here would be anonymous
   const put = (e, opts = {}) => list.append(row(e, { where: true, ...opts }));
 
-  events.forEach((e) => put(e));
+  events.forEach((e) => put(e, { sun: true }));
 
   /* The wanted lines carry the same swipe-open tray as the Journal's live
-     work, since this is the other list you work from. Their right swipe
-     still means Today, which here can only mean taking a line back off it —
-     the row then leaves the page under your thumb, which is the honest
-     result and the same one the sheet gives. */
+     work, since this is the other list you work from, and the same sun.
+     It is not the tautology it looks like: a line reaches this page three
+     ways — you marked it today, it is due today, or it is late — and only
+     the first is a mark you made. So the sun is lit on the lines you chose
+     and unlit on the ones the calendar sent, which is the one thing this
+     page cannot otherwise tell you, and tapping it is how you choose or
+     unchoose. A line held here only by its mark does leave when you take
+     the mark off; that is the honest result, and the sheet has always done
+     the same. */
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
-    now.forEach((e) => put(e, { tray: true }));
+    now.forEach((e) => put(e, { tray: true, sun: true }));
   }
   if (done.length) {
     list.append(foldHeading("Done", done.length, "todayDoneOpen"));
-    if (S.todayDoneOpen) done.forEach((e) => put(e));
+    if (S.todayDoneOpen) done.forEach((e) => put(e, { sun: true }));
   }
 
   const empty = $("#empty");
@@ -1445,26 +1474,23 @@ function row(e, opts = {}) {
   if (S.anim.has(e.id)) li.classList.add("anim");
 
   const under = el("div", "row-under");
-  under.append(el("span", "u-l", ICON.today), el("span", "u-r", swipeLeftIcon(e)));
+  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon(e)));
   li.append(under);
 
   /* The lists you work from — the Journal's live work and Today's wanted
-     lines — keep everything you do *to* a line under its right edge: finish
-     it, strike it out, set it aside, copy it. They live under the face
-     rather than on it, so the words have the row to themselves until a left
-     swipe slides it open; a long swipe carries straight past the tray to
-     setting the line aside, so the tray is a stop on the way and takes no
-     gesture away.
-     Done is in the tray now, where it once was not. It was left out while
-     the bullet was a tap target that said the same thing; a live line has no
-     bullet any more, so without it the one thing you most often do to a task
-     would be the one thing the row could not do. */
+     lines — keep what you do to a line under its right edge: strike it out,
+     set it aside, copy it. They live under the face rather than on it, so
+     the words have the row to themselves until a left swipe slides it open;
+     a long swipe carries straight past the tray to setting the line aside,
+     so the tray is a stop on the way and takes no gesture away.
+     Finishing is not among the three. The bullet's own tap says it, and so
+     does the right swipe, and a third way to say it here would read as one
+     more thing the left swipe might be about to do. */
   const open = e.type === "task" && e.state === "open";
   if (opts.tray && open) {
     li.classList.add("has-tray");
     const tray = el("span", "qa-tray");
     tray.append(
-      qa("qa-done", ICON.check, "Mark done", () => toggleDone(e.id), true),
       qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id), true),
       qa("qa-aside", e.backlog ? ICON.back : ICON.tray,
         e.backlog ? "Back on the page" : "Set aside in backlog", () => toggleBacklog(e.id), true),
@@ -1477,15 +1503,36 @@ function row(e, opts = {}) {
 
   /* One column at the head of every row, one rem wide, holding the line's
      own mark — so the words start in the same place whichever list is being
-     read, and the mark is a thumb away wherever the line turns up. Today
-     used to stand in this column on the live work; it is the right swipe
-     now, because the column belongs to the mark and a row cannot have two
-     first things. */
+     read, and the mark is a thumb away wherever the line turns up. */
   const bul = el("button", "bul");
   bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
   bul.append(el("i", bulletClass(e)));
   bul.onclick = () => toggleDone(e.id);
   face.append(bul);
+
+  /* Then the sun, beside the mark and the same width, on the Journal. Only
+     the work in progress gets one: a line you have set aside is not one you
+     are deciding the day of, and Today drops a backlogged line whatever its
+     mark says, so a sun there would be a switch that did nothing. A line
+     already finished has no next day either.
+     The slot is held open on every row of the page even when it is empty,
+     because the alternative is the words stepping left and right as the eye
+     runs from the work into the Backlog and the Done. A list that reserves
+     the column reads as one list; a list that drops it reads as three. The
+     other pages ask for no slot at all and keep their words where the mark
+     leaves them. */
+  if (opts.sun) {
+    if (open && !e.backlog) {
+      const on = onToday(e);
+      face.append(
+        qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () =>
+          toggleToday(e.id)
+        )
+      );
+    } else {
+      face.append(el("span", "qa-slot"));
+    }
+  }
 
   const txt = el("button", "row-text");
   /* The words get one line and an ellipsis past it. A list is read by running
@@ -1573,10 +1620,10 @@ function swipeLeft(e) {
 
 /* ── gestures ──────────────────────────────────────────────────────── */
 
-/* A right swipe puts the line on Today, or takes it off again. It used to
-   finish the line, which the bullet's own tap already did and the tray now
-   says in words as well — so the gesture went to the one mark that had no
-   home once the bullet took its column back.
+/* A right swipe finishes the line. It is the shortest journey a row offers
+   and it is given to the thing most often done to one — the same reason the
+   tray does not carry it as well: two ways to finish, a centimetre apart on
+   the same gesture, is one too many.
    How far a swipe has to travel before it means something. The tray makes
    the left-hand journey longer than this: past the tray, and then this far
    again, which is what keeps a tray-open from ever turning into a set-aside
@@ -1679,7 +1726,7 @@ function swipeable(li, face, e) {
     if (!decided) return;
     if (dx >= COMMIT - 4) {
       reset(false);
-      toggleToday(e.id);
+      toggleDone(e.id);
     } else if (dx <= -full + 4) {
       reset(false);
       swipeLeft(e);
@@ -2096,7 +2143,7 @@ function openEntry(id) {
     /* Only a task: an event already carries the day it falls on, and a mark
        saying "today" beside it would either repeat that or argue with it. */
     if (e.type === "task") {
-      const on = e.today === TODAY();
+      const on = onToday(e);
       acts.append(
         actRow(ICON.today, on ? "On Today" : "Put on Today", () => {
           toggleToday(id);
