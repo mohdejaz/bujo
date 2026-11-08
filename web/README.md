@@ -98,13 +98,18 @@ swipe, and a third door onto it here would read as one more thing the left
 swipe might be about to do. Three also leaves more of the words showing
 beside the open tray — each button costs a thumb's width of them.
 
-**Quick actions.** A task you are working on carries a **sun** beside its
-mark, which puts the line on Today (lit while it is on; tap again to take it
-off). Only the work in progress: a line you have set aside is not one you
-are deciding the day of — Today drops a backlogged line whatever its mark
-says — and a line already finished has no next day. Those rows keep the
-sun's column all the same, empty, so the words run down one edge of the page
-whatever is in it.
+**Quick actions.** A task you are working on carries a **sun** at the head of
+the row, before its mark, which puts the line on Today (lit while it is on;
+tap again to take it off). Only the work in progress: a line you have set
+aside is not one you are deciding the day of — Today drops a backlogged line
+whatever its mark says — and a line already finished has no next day.
+
+A row without a sun holds nothing in its place, so the Backlog and the Done
+begin at the edge of their cards and the work in progress is the one bucket
+indented. That indent is the sun, not decoration: the rows you can still do
+something about are the rows that step in. The mark itself is always the
+same step from the words it belongs to, which is why the sun leads rather
+than sitting between them.
 
 The sun says whether the line is on Today, not whether you put it there — so
 it is lit on every line of the **Today** page, and tapping it takes that line
