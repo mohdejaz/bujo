@@ -419,7 +419,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .row-under svg { width: 21px; height: 21px; }
 .row-under .u-r { opacity: 0; }
 .row-under .u-l { opacity: 0; }
-.row.sw-r .row-under { opacity: 1; background: var(--good-soft); color: var(--good); }
+/* The right swipe is Today, so it takes the accent — the colour that means
+   "this is now" on the date, on the tab and on the sun itself, and the one
+   thing it would be wrong to show this gesture in is the green that means
+   finished. Both grounds are the accent now; the side and the icon are what
+   tell the two gestures apart, and a thumb only ever sees one of them. */
+.row.sw-r .row-under { opacity: 1; background: var(--accent-soft); color: var(--accent); }
 .row.sw-r .row-under .u-l { opacity: 1; }
 .row.sw-l .row-under { opacity: 1; background: var(--accent-soft); color: var(--accent); }
 .row.sw-l .row-under .u-r { opacity: 1; }
@@ -495,31 +500,22 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
-/* * for a task set aside. Not the event's ring, which is what it was: the two
-   do meet in Search, and a shape that means two things in one list means
-   neither. Three bars instead, and the only mark here that is drawn rather
-   than enclosed — it catches the eye in a fold you opened on purpose without
-   reading as finished or struck out, which the other two marks do.
-   Drawn from the box itself and its two pseudo-elements: the box is the
-   upright, and because the pseudos take `inset: 0` inside it they start as
-   the very same bar and only differ by the turn, so all three cross dead
-   centre whatever the text size scales them to. */
+/* A task set aside: a circle filled half way. It says what the backlog is in
+   one shape — a line begun and put down, somewhere between the task's filled
+   dot and the nothing it would be if you had never started. Full ink, not
+   grey: the heading above it is what says it is quiet, and three dots that
+   differed only by how pale they were asked the eye to compare greys that
+   are never side by side.
+   One gradient rather than a pseudo-element: `border-radius` clips the
+   background to the circle, so the straight edge down the middle and the
+   round outside both come free, at any text size. */
 .b-backlog {
-  width: 2px;
-  height: 0.75rem;
-  border-radius: 2px;
-  background: currentColor;
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
 }
-.b-backlog::before,
-.b-backlog::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border-radius: 2px;
-  background: currentColor;
-}
-.b-backlog::before { transform: rotate(60deg); }
-.b-backlog::after { transform: rotate(-60deg); }
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -617,17 +613,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--star);
 }
 .star svg { width: 0.94rem; height: 0.94rem; }
-/* The one quick action a row carries: Today, in the mark's column on the
-   Journal's live work, lit in the accent when the line is on it. It takes
-   the column's width rather than a width of its own — a live line has no
-   mark, so the sun is what stands there, and the words after it have to
-   start where the words after an asterisk or a cross start. Its hit area is
-   held by ::after on the same terms as the bullet's. */
+/* A quick action. They all live in the swipe-out tray now — Today was the
+   one that sat on the row itself, in the mark's column, and it moved to the
+   right swipe when the bullet took that column back. */
 .qa {
   flex: none;
-  width: 1rem;
-  height: 1.625rem;
-  margin-top: -1px;
   display: grid;
   place-items: center;
   position: relative;
@@ -635,23 +625,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--dim);
   transition: background 0.15s, color 0.15s;
 }
-.qa::after {
-  content: "";
-  position: absolute;
-  inset: -4px -2px -4px -8px;
-}
 .qa:active { background: var(--hair-2); }
-.qa svg { width: 1rem; height: 1rem; }
-.qa-today.on { color: var(--accent); }
 
 /* The tray under the row's right edge: everything you do to a line, in the
    order you would reach for it — finish, strike out, set aside, copy. On a
    quiet ground rather than a coloured one, because a coloured ground is what
    says a swipe is about to do something, and opening the tray does nothing
    yet. Four of them is what the row has room for at a thumb's width each;
-   a fifth would start eating the words still showing beside it.
-   These override `.qa`'s one-rem column width — in the tray a quick action
-   is a button you aim at, not a mark standing in a gutter. */
+   a fifth would start eating the words still showing beside it. */
 .qa-tray {
   position: absolute;
   top: 0;
@@ -664,7 +645,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   pointer-events: none;
 }
 .qa-tray .qa { width: 2.25rem; height: 2.25rem; color: var(--ink-2); }
-.qa-tray .qa::after { content: none; }
 .qa-tray .qa svg { width: 1.2rem; height: 1.2rem; }
 .row.has-tray.sw-l .row-under { background: var(--hair-2); color: var(--ink-2); }
 .row.has-tray.sw-l .row-under .u-r { opacity: 0; }
@@ -1127,10 +1107,8 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-n svg { flex: none; width: 0.8125rem; height: 0.8125rem; margin-top: 3px; color: var(--dim); }
 .hit .h-n span { min-width: 0; }
 
-/* The mark's column standing empty: in a search hit whose line has no mark,
-   and on a row of live work read away from the Journal, where there is no
-   sun to put in it either. The same rem as `.bul` and `.qa`, because the
-   whole point of keeping it is that the words do not move. */
+/* The mark's column in a search hit: the same rem as `.bul` on a row, so a
+   line found here and the same line on its page read down the same edge. */
 .lb { width: 1rem; display: grid; place-items: center; flex: none; align-self: center; }
 
 
