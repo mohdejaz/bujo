@@ -79,14 +79,29 @@ already marked for today. The Calendar reads back from the furthest day towards
 the oldest; several events on one day sit newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
-to reopen it. Tap the text to open everything else — mark done, star, strike
-out, set aside, duplicate, move, delete. Rows do not swipe sideways.
+to reopen it. Tap the text to open everything else. Swipe a row **right** to
+finish it. Swipe it **left** a short way and it stops against a tray of four
+actions; carry the swipe **all the way left** and it goes straight past them
+to setting the line aside, so the tray is a stop on the journey and takes no
+gesture away. A row with a tray open is shut by tapping it, or by touching
+any other row — only one is ever open.
+
+**The tray.** Under the right edge of every line on the two lists you work
+from — the Journal's live work and Today's wanted lines — in the order you
+reach for them:
+
+```
+  ✓  mark done      ⊘  strike out      ▣  set aside      ⧉  duplicate
+```
+
+Four is what the row has room for at a thumb's width each. The live work has
+no mark of its own to tap, so *mark done* leads: without it the thing you
+most often do to a task would be the one thing the row could not do.
 
 **Quick actions.** The Journal's live work has no mark of its own, so that
 column carries a sun instead, which puts the line on Today (lit while it is
 on; tap again to take it off). Only the live work: a line you have put down
-or finished is not one you are deciding the day of. A live task is therefore
-finished from its sheet rather than from the row.
+or finished is not one you are deciding the day of.
 
 **The work has no heading.** Open the Journal and every live task on the page
 is simply there, under the date, in deadline order — naming that pile would
@@ -186,8 +201,9 @@ striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The backlog.** Tasks you are not doing now but have not given up on. It sits
 folded at the foot of the Journal with a count — the one bucket that starts
-closed; tap the heading to open it, and set a line aside or pull it back from
-the entry sheet. A finished task has no backlog to go to.
+closed; tap the heading to open it. A line is set aside from its tray, from a
+long left swipe or from its sheet, and pulled back out from the sheet. A
+finished task has no backlog to go to.
 
 **The Index.** The first tab is the notebook's contents, and the only place
 pages are handled: every page of the notebook in order, each with what is
