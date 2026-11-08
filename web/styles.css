@@ -317,9 +317,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 0 12px;
 }
 
-/* A section heading in the list: a day on the Calendar, a bucket (In Progress)
-   or one of the Backlog and Done folds on the Journal, and inside Done a day
-   again — the one it was settled on. */
+/* A section heading in the list: a day on the Calendar, Today's own bucket,
+   one of the Backlog and Done folds on the Journal, and inside Done a day
+   again — the one it was settled on. The Journal's live work has no heading;
+   it is what the page is. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -335,6 +336,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sep-bucket .sep-n,
 .sep-settled .sep-n { float: right; letter-spacing: 0.04em; color: var(--dim); font-weight: 600; }
 
+/* Not a heading but a rule, where today's events run into the work below them
+   and there is no heading between to close them off. It takes the headings'
+   own side margins, so the line it draws ends where their words begin and
+   end — a rule that ran wider than the column it divides would read as a
+   divider of the page rather than of the list. */
+.sep-rule {
+  list-style: none;
+  height: 1px;
+  margin: 15px 14px 13px;
+  background: var(--hair);
+}
+
 /* A day inside Done. It follows a heading rather than closing off the lines
    above it, so it sits tighter to what comes before; and it is all digits, so
    it drops the tracking the worded headings need to read as headings at this
@@ -345,12 +358,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: 0.04em;
 }
 
-/* A heading you can fold: the backlog starts closed, because it is not what
-   you came to the page to read; Done starts open but can be put away. */
+/* A heading you can fold, which on the Journal means the two piles below the
+   work: Done starts open and can be put away, the backlog starts closed
+   because it is not what you came to the page to read. The chevron stands in the 14px that `.sep` spends on left
+   padding, against a nil gap, so the word lands in the one column every
+   heading in the app reads down and the mark sits outside it, in the page's
+   own margin. The box around that mark is mostly air — the mark itself is
+   three pixels wide — and that air is the gap you see. */
 .sep-fold {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 0;
   width: 100%;
   text-align: left;
   font: inherit;
@@ -359,13 +377,17 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: 0.11em;
   text-transform: uppercase;
   color: var(--dim);
-  padding: 16px 14px 6px;
+  padding: 16px 14px 6px 0;
   border-radius: 12px;
 }
 .sep-fold:active { color: var(--ink-2); }
+/* Pixels, not rem — the only size in the app besides `.icon-btn svg` that is.
+   The margin this mark stands in is a fixed 14px, so one that grew with the
+   text would outgrow it and walk the word off the column at the larger
+   steps, which is the opposite of what it is there for. It is furniture. */
 .sep-fold svg {
-  width: 0.875rem;
-  height: 0.875rem;
+  width: 14px;
+  height: 14px;
   stroke-width: 2.6;
   transition: transform 0.18s;
 }
@@ -385,11 +407,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   position: relative;
   display: flex;
   align-items: flex-start;
-  /* The bullet and the Today mark already sit in tap-sized boxes wider than
-     what they draw, so the box itself is most of the space before the words;
-     the gap only has to keep two boxes from touching. */
+  /* The Today mark sits in a tap-sized box wider than what it draws, so that
+     box is most of the space it takes; the gap only has to keep two boxes
+     from touching. The bullet's box no longer has that slack to spare — it
+     is as narrow as the widest shape in it — so what pays for the tightness
+     on the left is the row's own padding, 8px there against 12px at the end,
+     where the star and the notes mark are furniture rather than a column. */
   gap: 5px;
-  padding: 0.69rem 12px;
+  padding: 0.69rem 12px 0.69rem 8px;
   background: var(--paper);
   border-radius: 14px;
 }
@@ -406,17 +431,32 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 .row.shifting { transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.25, 1); }
 
-/* bullets — CSS shapes, no glyph fonts to fight with */
+/* bullets — CSS shapes, no glyph fonts to fight with.
+   The gutter is 1rem because the widest shape in it — the × at 0.8rem — is,
+   and nothing in the column needs air it is not using. It had been 1.625rem
+   around a half-rem dot, and that slack was pushing the first letter of every
+   line in the app a thumb's width in from the edge of its own card.
+   What the width must not cost is the target, because the bullet is how a
+   line is completed: ::after carries a hit area the layout never sees,
+   reaching left to the edge of the card and right only to the middle of the
+   gap. It stops there because what sits on the other side of that gap is the
+   Today button, and a hit area that crossed into it would quietly take taps
+   meant for a mark the row draws in plain sight. */
 .bul {
   flex: none;
-  width: 1.625rem;
+  width: 1rem;
   height: 1.625rem;
   margin-top: -1px;
   display: grid;
   place-items: center;
   position: relative;
-  border-radius: 9px;
+  border-radius: 6px;
   transition: background 0.15s;
+}
+.bul::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px -4px -8px;
 }
 .bul:active { background: var(--hair-2); }
 .b {
@@ -431,6 +471,31 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
+/* * for a task set aside. Not the event's ring, which is what it was: the two
+   do meet in Search, and a shape that means two things in one list means
+   neither. Three bars instead, and the only mark here that is drawn rather
+   than enclosed — it catches the eye in a fold you opened on purpose without
+   reading as finished or struck out, which the other two marks do.
+   Drawn from the box itself and its two pseudo-elements: the box is the
+   upright, and because the pseudos take `inset: 0` inside it they start as
+   the very same bar and only differ by the turn, so all three cross dead
+   centre whatever the text size scales them to. */
+.b-backlog {
+  width: 2px;
+  height: 0.75rem;
+  border-radius: 2px;
+  background: currentColor;
+}
+.b-backlog::before,
+.b-backlog::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 2px;
+  background: currentColor;
+}
+.b-backlog::before { transform: rotate(60deg); }
+.b-backlog::after { transform: rotate(-60deg); }
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -470,6 +535,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   word-break: break-word;
   text-align: left;
   position: relative;
+}
+/* The line's own words, clamped to one line. The button around them holds the
+   deadline underneath as well, so the clamp sits on the words and not on the
+   button — otherwise the second line would be cut off with them. `min-width`
+   is what lets it shrink below its text: a flex item will not, and the
+   ellipsis never appears. */
+.row-line {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 /* done: the ticked bullet says it, so the words stay readable — only a line
    struck out keeps a line through it */
@@ -516,22 +593,31 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--star);
 }
 .star svg { width: 0.94rem; height: 0.94rem; }
-/* The one quick action a row carries: Today, beside the bullet on In
-   Progress, lit in the accent when the line is on it. */
+/* The one quick action a row carries: Today, in the mark's column on the
+   Journal's live work, lit in the accent when the line is on it. It takes
+   the column's width rather than a width of its own — a live line has no
+   mark, so the sun is what stands there, and the words after it have to
+   start where the words after an asterisk or a cross start. Its hit area is
+   held by ::after on the same terms as the bullet's. */
 .qa {
   flex: none;
-  width: 1.625rem;
+  width: 1rem;
   height: 1.625rem;
   margin-top: -1px;
   display: grid;
   place-items: center;
-  border-radius: 9px;
+  position: relative;
+  border-radius: 6px;
   color: var(--dim);
   transition: background 0.15s, color 0.15s;
 }
+.qa::after {
+  content: "";
+  position: absolute;
+  inset: -4px -2px -4px -8px;
+}
 .qa:active { background: var(--hair-2); }
 .qa svg { width: 1rem; height: 1rem; }
-.qa-today { margin-left: -2px; }
 .qa-today.on { color: var(--accent); }
 
 svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
@@ -960,7 +1046,7 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-search:focus { outline: none; border-color: var(--accent); }
 .hit {
   display: flex;
-  gap: 11px;
+  gap: 6px;
   align-items: flex-start;
   width: 100%;
   padding: 11px 8px;
@@ -986,7 +1072,11 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .hit .h-n svg { flex: none; width: 0.8125rem; height: 0.8125rem; margin-top: 3px; color: var(--dim); }
 .hit .h-n span { min-width: 0; }
 
-.lb { width: 1.375rem; display: grid; place-items: center; flex: none; align-self: center; }
+/* The mark's column standing empty: in a search hit whose line has no mark,
+   and on a row of live work read away from the Journal, where there is no
+   sun to put in it either. The same rem as `.bul` and `.qa`, because the
+   whole point of keeping it is that the words do not move. */
+.lb { width: 1rem; display: grid; place-items: center; flex: none; align-self: center; }
 
 
 /* ── toast ──────────────────────────────────────────────────────────── */

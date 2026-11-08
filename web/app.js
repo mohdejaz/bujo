@@ -1079,11 +1079,33 @@ const bwrap = (cls) => {
 };
 
 /* A struck-out entry keeps its own bullet (dimmed) — what it *was* is still
-   part of the record. Only done and set-aside get their own mark. */
-/* A task set aside keeps its ordinary bullet: the Backlog heading already says
-   where it is, and a second glyph for it only competed with the one meaning
-   that matters — whether the line is still open. */
-const bulletClass = (e) => (e.state === "done" ? "b b-done" : `b b-${e.type}`);
+   part of the record. Done and set-aside each get their own mark.
+   A task set aside gets an asterisk: the Backlog heading only says where it
+   is on the one page that has that heading, and in Search — or anywhere a
+   line is read away from its fold — the mark is the only thing that says it
+   is not being worked on. Not a ring, because the ring is the event's and
+   Search is a list where both turn up at once. The star a line can carry is
+   no clash either: that is gold, and it sits at the other end of the row.
+   A live task gets no mark at all — the dot it used to carry said only that
+   it was a task on a page of tasks, which the page had already said. Every
+   other mark here is a departure from that: a ring is a day, an asterisk is
+   put down, a cross is finished, and the dot that is left is a task struck
+   out, which is a line you decided against rather than the default. So the
+   column stays empty for the ordinary case and reads as a column of marks
+   rather than a column of bullets.
+   Done is tested first because it is the only state that can arrive on a line
+   that was in the backlog; setting one aside is undone the moment it is
+   finished, so past that test `backlog` always means an open task. */
+const bulletClass = (e) =>
+  e.state === "done"
+    ? "b b-done"
+    : e.backlog
+      ? "b b-backlog"
+      : e.type === "event"
+        ? "b b-event"
+        : e.state === "open"
+          ? null
+          : "b b-task";
 
 
 /* ── render ────────────────────────────────────────────────────────── */
@@ -1128,6 +1150,10 @@ function renderHead() {
   $("#stampPage").hidden = isCal() || isIndex() || isTodayPage();
 }
 
+/* A bucket heading that does not fold, and the only one left: Today's own.
+   Everything on that page is there because of the day, which is not a pile
+   you put away — and it carries no chevron for the same reason the Journal's
+   two do, that the mark means a fold and nothing else. */
 function bucketHeading(label, n) {
   const h = el("li", "sep sep-bucket");
   h.append(el("span", null, label), el("span", "sep-n", String(n)));
@@ -1144,7 +1170,11 @@ function dayHeading(d, n) {
   return h;
 }
 
-/* A bucket heading that folds its lines away. `key` names the S flag. */
+/* A bucket heading that folds its lines away. `key` names the S flag.
+   The chevron is the state and nothing else — it says which way this heading
+   is turned and turns with it — which is why only Backlog and Done have one.
+   They are the two piles you put away; the work itself has no heading at all
+   and cannot be folded, so there is nothing for a third mark to say. */
 function foldHeading(label, n, key) {
   const h = el("li");
   const b = el("button", "sep-fold" + (S[key] ? " open" : ""), ICON.chev);
@@ -1167,7 +1197,7 @@ function renderJournal() {
 
   /* Today's events lead the page, directly under the date stamp that names the
      day they fall on — so they read as that heading's content and need no
-     heading of their own. The first bucket heading below closes them off. */
+     heading of their own. */
   today.forEach((e) => list.append(row(e)));
 
   /* Every bucket row can be lifted and dragged — but only among the rows the
@@ -1186,10 +1216,18 @@ function renderJournal() {
     list.append(li);
   };
 
-  if (progress.length) {
-    list.append(bucketHeading("In Progress", progress.length));
-    progress.forEach((e) => put(e, "progress"));
-  }
+  /* The work itself carries no heading and no fold. It is what the page is —
+     naming it only told you that the lines under the name were the lines you
+     were already looking at, and a fold over it was a way to hide the one
+     thing you opened the Journal to see. So it leads, always, every live line
+     of it, and the two headings below are the exceptions to it rather than
+     its equals: what you have put down, and what you have finished.
+     A hairline stands in for the heading where today's events run into it,
+     because without one the day's events and the undated work would read as
+     a single stack. Where there are no events the page simply starts with
+     the work, and where there is no work the next heading closes them off. */
+  if (today.length && progress.length) list.append(el("li", "sep-rule"));
+  progress.forEach((e) => put(e, "progress"));
 
   if (backlog.length) {
     list.append(foldHeading("Backlog", backlog.length, "backlogOpen"));
@@ -1240,7 +1278,7 @@ function renderToday() {
 
   events.forEach((e) => put(e));
 
-  /* The wanted lines do not carry the sun the Journal's In Progress does:
+  /* The wanted lines do not carry the sun the Journal's live work does:
      every line here is already on Today, so the mark could only say one
      thing, and tapping it would make the row vanish under your thumb. */
   if (now.length) {
@@ -1422,22 +1460,42 @@ function row(e, opts = {}) {
   const open = e.type === "task" && e.state === "open";
   const face = el("div", "row-face");
 
-  const bul = el("button", "bul");
-  bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
-  bul.append(el("i", bulletClass(e)));
-  bul.onclick = () => toggleDone(e.id);
-  face.append(bul);
-
-  /* Putting a line on Today is a mark on the line rather than something done
-     to it, so on In Progress it stays in sight beside the bullet and reads
-     with it, lit when it is on. */
-  if (opts.mark && open) {
+  /* One column at the head of every row, one rem wide, and exactly one thing
+     in it — so the words start in the same place whichever list you are
+     reading and whatever the line turns out to be. What fills it is the
+     line's mark where it has one; the Today sun where it has not, which is
+     the live work on the Journal; and nothing but the width itself for a
+     live line read anywhere else. The column is never dropped when it is
+     empty, because that is what would make the text jump between sections. */
+  const cls = bulletClass(e);
+  const mark = opts.mark && open;
+  if (cls) {
+    const bul = el("button", "bul");
+    bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
+    bul.append(el("i", cls));
+    bul.onclick = () => toggleDone(e.id);
+    face.append(bul);
+  } else if (mark) {
+    /* Putting a line on Today is a mark on the line rather than something
+       done to it, so on the live work it sits in the mark's own column and
+       reads as one, lit when it is on. Only there: a line put down or
+       finished is not one you are deciding the day of. */
     const on = e.today === TODAY();
     face.append(qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () => toggleToday(e.id)));
+  } else {
+    face.append(el("span", "lb"));
   }
 
   const txt = el("button", "row-text");
-  txt.append(document.createTextNode(e.text));
+  /* The words get one line and an ellipsis past it. A list is read by running
+     down the left of it, and a line that wrapped to three pushed the next one
+     out of that scan — so what a row costs no longer depends on how much was
+     typed into it, and a page of long lines reads as a page rather than as
+     paragraphs. The whole of it is one tap away in the sheet, which is where
+     a line you have to read properly belongs. */
+  const line = el("span", "row-line");
+  line.append(document.createTextNode(e.text));
+  txt.append(line);
   // only a task carries a deadline, and most of them do not
   const meta = rowMeta(e, opts.where ? whereOf(e) : "");
   if (meta) txt.append(meta);
@@ -2557,7 +2615,9 @@ function openMigrated(fromMenu = false) {
     );
     const acts = el("div", "s-acts");
     const line = (icon, label, n) => acts.append(actRow(icon, label, () => {}, { k: n }));
-    line('<i class="b b-task" style="margin:0 3px"></i>', "Tasks", c.tasks || 0);
+    /* Icons, not bullets: a task has no mark of its own on a row any more, so
+       a dot here would be a signifier the app no longer uses. */
+    line(ICON.check, "Tasks", c.tasks || 0);
     line('<i class="b b-event" style="margin:0 3px"></i>', "Events", c.events || 0);
     if (c.notes) line(ICON.notes, "Notes → tasks", c.notes);
     if (c.backlog) line(ICON.tray, "Someday → backlog", c.backlog);

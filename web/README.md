@@ -11,7 +11,7 @@ No build step, no dependencies, no account. The journal lives in
 
 | Today | Journal | Calendar | Index | A line, opened |
 | :-: | :-: | :-: | :-: | :-: |
-| ![Today: an event that falls on it, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then tasks by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+| ![Today: an event that falls on it, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then every live task by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
 
 All five are the light theme — paper; there is a dark one too, the same page
 at night. The screenshots are taken from a seeded journal, not a real one.
@@ -19,16 +19,27 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 ## What it is
 
 ```
-  •  a task        something to do, whenever — or by a day
+     a task        something to do, whenever — or by a day: no mark at all
   ○  an event      something that happens, on a day
+  *  set aside     a task in the backlog, not being worked on
   ×  done
+  •  struck out    a task you decided against, ruled through
   ≡  carries notes
 ```
+
+Every row starts with the same one-rem column, so the words line up down the
+whole page whichever list you are reading. A task you are working on puts
+nothing in it — being a task on a page of tasks is what the page already
+says, and leaving it empty makes the column read as marks rather than as
+bullets. On the Journal that space carries the **sun** instead.
 
 Two kinds of line, and the page you are on decides which you are writing. A
 **task** goes on the Journal, newest first, until you drag it somewhere else
 or give it a day it is wanted by. The row prints only its words and that day,
-if it has one; the day the line was written is in its sheet. An **event**
+if it has one; the day the line was written is in its sheet. A row is **one
+line high whatever is on it** — words longer than the width end in `…` rather
+than wrapping, so what a line costs on the page does not depend on how much
+was typed into it, and the whole of it is one tap away in its sheet. An **event**
 always carries a date, and that is what makes it an event; it goes on the
 Calendar. A date and no clock — an event is placed on a day, and the day
 heading it sits under says which.
@@ -51,9 +62,13 @@ the thing it is about rather than floating loose on the page. A line that
 holds notes is marked `≡`; the notes themselves never appear in the list,
 because a line stays one line.
 
-A task set aside in the backlog keeps its ordinary `•`. The Backlog heading
-already says where it is, and a second glyph only competed with the one
-distinction that matters: whether the line is still open.
+A task set aside in the backlog is marked `*`. The Backlog heading says where
+it is on the Journal, but a line is also read away from that fold — in Search
+most of all — and there the mark is the only thing that says it is not being
+worked on. An asterisk rather than the event's ring, because Search is a list
+where both turn up at once and a shape that means two things there means
+neither. The gold star a line can carry is a different thing in a different
+place: that one sits at the end of the row, this one at the head of it.
 
 ## Using it
 
@@ -63,18 +78,36 @@ falls on, because an event without one is not an event, and Today writes a task
 already marked for today. The Calendar reads back from the furthest day towards
 the oldest; several events on one day sit newest-written first.
 
-**Gestures.** Tap a bullet to complete a line. Tap the text to open
-everything else — star, strike out, set aside, duplicate, move, delete. Rows
-do not swipe sideways.
+**Gestures.** Tap a line's mark to complete it or, on one already finished,
+to reopen it. Tap the text to open everything else — mark done, star, strike
+out, set aside, duplicate, move, delete. Rows do not swipe sideways.
 
-**Quick actions.** Rows under the Journal's **In Progress** carry a sun
-beside the bullet that puts the line on Today (lit while it is on; tap again
-to take it off).
+**Quick actions.** The Journal's live work has no mark of its own, so that
+column carries a sun instead, which puts the line on Today (lit while it is
+on; tap again to take it off). Only the live work: a line you have put down
+or finished is not one you are deciding the day of. A live task is therefore
+finished from its sheet rather than from the row.
+
+**The work has no heading.** Open the Journal and every live task on the page
+is simply there, under the date, in deadline order — naming that pile would
+only have told you the lines under the name were the lines you were already
+reading, and a fold over it would have hidden the one thing you came for.
+Today's events still lead, with a hairline closing them off from the work
+where both are on the page.
+
+**Folding.** The two headings below the work — *Backlog* and *Done* — are
+folds: tap the word to put their lines away, and the chevron beside it turns
+to say which way it is set. The count stays either way, so a closed bucket
+still says how much is in it. Done opens each time you come back and the
+Backlog starts closed, because it is not what you came to the page to read;
+what you fold away is forgotten when you leave, since a fold you did not set
+this session is a trap. Today's own heading does not fold — what is on that
+page is there because of the day, which is not a pile to put away.
 
 **Due dates.** A task does not need one — most are just things to do — but
 open a line and you can give it a day it is wanted **by**, and take it off
 again with *Clear*. The row then prints that day under its words, in orange
-once it is past. In Progress and the Backlog read by deadline — anything
+once it is past. The work and the Backlog read by deadline — anything
 overdue at the top, then the soonest day, then the rest, with every undated
 task below the dated ones. A date is the one order on the page you do not set
 by hand: a line climbs as its day comes. Done is the record rather than the
@@ -91,7 +124,7 @@ went in. A line finished before the app recorded settling dates is filed under
 the day it was written, which is where it already sorted.
 
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
-or down. A line moves within its own bucket — In Progress, Backlog, Done — and
+or down. A line moves within its own bucket — the work, Backlog, Done — and
 only among the rows the sort would leave it beside, since anything that crossed
 a line the sort draws would be put straight back. In the two buckets that read
 by deadline those lines are the star and the day, so a dated task drags among
@@ -152,9 +185,9 @@ on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The backlog.** Tasks you are not doing now but have not given up on. It sits
-folded at the foot of the Journal with a count; tap the heading to open it, and
-set a line aside or pull it back from the entry sheet. A finished
-task has no backlog to go to.
+folded at the foot of the Journal with a count — the one bucket that starts
+closed; tap the heading to open it, and set a line aside or pull it back from
+the entry sheet. A finished task has no backlog to go to.
 
 **The Index.** The first tab is the notebook's contents, and the only place
 pages are handled: every page of the notebook in order, each with what is
