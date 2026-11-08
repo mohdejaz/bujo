@@ -1501,38 +1501,33 @@ function row(e, opts = {}) {
 
   const face = el("div", "row-face");
 
-  /* One column at the head of every row, one rem wide, holding the line's
-     own mark — so the words start in the same place whichever list is being
-     read, and the mark is a thumb away wherever the line turns up. */
+  /* The sun first, on the work in progress, and on nothing else: a line you
+     have set aside is not one you are deciding the day of — Today drops a
+     backlogged line whatever its mark says, so a sun there would be a switch
+     that did nothing — and a line already finished has no next day.
+     A row without one holds nothing in its place. The column was reserved
+     for a while, to keep every line on the page starting its words in one
+     column, but an empty indent is a cost paid on every row of the Backlog
+     and the Done for a tidiness only visible when you look for it. The
+     buckets read as buckets, and a line with no sun begins at the edge of
+     its card like the Calendar's and Search's do. */
+  if (opts.sun && open && !e.backlog) {
+    const on = onToday(e);
+    face.append(
+      qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () =>
+        toggleToday(e.id)
+      )
+    );
+  }
+
+  /* Then the mark, always the last thing before the words and always the
+     same step from them — so the mark and the line it belongs to read as
+     one wherever that line turns up. */
   const bul = el("button", "bul");
   bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
   bul.append(el("i", bulletClass(e)));
   bul.onclick = () => toggleDone(e.id);
   face.append(bul);
-
-  /* Then the sun, beside the mark and the same width, on the Journal. Only
-     the work in progress gets one: a line you have set aside is not one you
-     are deciding the day of, and Today drops a backlogged line whatever its
-     mark says, so a sun there would be a switch that did nothing. A line
-     already finished has no next day either.
-     The slot is held open on every row of the page even when it is empty,
-     because the alternative is the words stepping left and right as the eye
-     runs from the work into the Backlog and the Done. A list that reserves
-     the column reads as one list; a list that drops it reads as three. The
-     other pages ask for no slot at all and keep their words where the mark
-     leaves them. */
-  if (opts.sun) {
-    if (open && !e.backlog) {
-      const on = onToday(e);
-      face.append(
-        qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () =>
-          toggleToday(e.id)
-        )
-      );
-    } else {
-      face.append(el("span", "qa-slot"));
-    }
-  }
 
   const txt = el("button", "row-text");
   /* The words get one line and an ellipsis past it. A list is read by running

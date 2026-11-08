@@ -465,10 +465,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
    line in the app a thumb's width in from the edge of its own card.
    What the width must not cost is the target, because the bullet is how a
    line is completed: ::after carries a hit area the layout never sees,
-   reaching left to the edge of the card and right only to the middle of the
-   gap. It stops there because what sits on the other side of that gap is the
-   Today button, and a hit area that crossed into it would quietly take taps
-   meant for a mark the row draws in plain sight. */
+   reaching into the middle of the gap on either side and no further, so it
+   takes no tap meant for the sun at its left or the words at its right.
+   Where the bullet leads the row — the pages that show no sun — there is
+   nothing on its left to keep clear of, so it reaches out to the edge of
+   the card instead. */
 .bul {
   flex: none;
   width: 1rem;
@@ -483,8 +484,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .bul::after {
   content: "";
   position: absolute;
-  inset: -4px -2px -4px -8px;
+  inset: -4px -2px;
 }
+.row-face > .bul:first-child::after { inset: -4px -2px -4px -8px; }
 .bul:active { background: var(--hair-2); }
 .b {
   display: block;
@@ -611,12 +613,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   color: var(--star);
 }
 .star svg { width: 0.94rem; height: 0.94rem; }
-/* A quick action. Today is the one that sits on the row itself, in its own
-   column beside the mark and the same rem wide, so the two read as a pair
-   rather than as a mark and a button. Its hit area is held by ::after on
-   the same terms as the bullet's, reaching into the gap on either side but
-   never as far as its neighbour. The rest live in the swipe-out tray, which
-   sizes them for a thumb instead. */
+/* A quick action. Today is the one that sits on the row itself, leading it
+   in its own column beside the mark and the same rem wide, so the two read
+   as a pair rather than as a mark and a button. It is first on the row, so
+   its ::after is the one that reaches out to the edge of the card; the
+   bullet, with the sun at its shoulder, keeps to the middle of the gap. The
+   rest live in the swipe-out tray, which sizes them for a thumb instead. */
 .qa {
   flex: none;
   width: 1rem;
@@ -632,14 +634,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .qa::after {
   content: "";
   position: absolute;
-  inset: -4px -2px;
+  inset: -4px -2px -4px -8px;
 }
 .qa:active { background: var(--hair-2); }
 .qa svg { width: 1rem; height: 1rem; }
 .qa-today.on { color: var(--accent); }
-/* The sun's column standing empty, on the rows of the Journal that cannot
-   have one. It holds the words still as the eye runs down the page. */
-.qa-slot { flex: none; width: 1rem; }
 
 /* The tray under the row's right edge: everything you do to a line, in the
    order you would reach for it — finish, strike out, set aside, copy. On a
