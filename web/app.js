@@ -333,7 +333,7 @@ const putPage = (e, pid) => {
    page the first time it is seen, and the gestures are learnable right where
    you land. */
 const WELCOME = [
-  { type: "task", text: "Swipe a line left for its actions, right to finish it", star: false, today: true },
+  { type: "task", text: "Swipe a line left for its actions, right to put it on Today", star: false, today: true },
   { type: "task", text: "Hold a line, then drag it to reorder", star: true, today: true },
   { type: "task", text: "Put a line on Today from its sheet, or give it a day it is due", star: false, today: true },
   { type: "task", text: "Tap the text for notes, a due date and the rest", star: false },
@@ -1080,32 +1080,21 @@ const bwrap = (cls) => {
 
 /* A struck-out entry keeps its own bullet (dimmed) — what it *was* is still
    part of the record. Done and set-aside each get their own mark.
-   A task set aside gets an asterisk: the Backlog heading only says where it
-   is on the one page that has that heading, and in Search — or anywhere a
-   line is read away from its fold — the mark is the only thing that says it
-   is not being worked on. Not a ring, because the ring is the event's and
-   Search is a list where both turn up at once. The star a line can carry is
-   no clash either: that is gold, and it sits at the other end of the row.
-   A live task gets no mark at all — the dot it used to carry said only that
-   it was a task on a page of tasks, which the page had already said. Every
-   other mark here is a departure from that: a ring is a day, an asterisk is
-   put down, a cross is finished, and the dot that is left is a task struck
-   out, which is a line you decided against rather than the default. So the
-   column stays empty for the ordinary case and reads as a column of marks
-   rather than a column of bullets.
+   A task set aside gets a half-filled circle: the Backlog heading only says
+   where it is on the one page that has that heading, and in Search — or
+   anywhere a line is read away from its fold — the mark is the only thing
+   that says it is not being worked on. Half filled because that is what the
+   backlog is, a line begun and put down, and because a shape carries across
+   a list where a shade does not.
+   Every line carries one, the ordinary task included: the dot is what the
+   column is for, and the marks that are not a dot only read as departures
+   from it if the dot is there to depart from. It is also the tap that
+   finishes a line, which a column with nothing in it cannot be.
    Done is tested first because it is the only state that can arrive on a line
    that was in the backlog; setting one aside is undone the moment it is
    finished, so past that test `backlog` always means an open task. */
 const bulletClass = (e) =>
-  e.state === "done"
-    ? "b b-done"
-    : e.backlog
-      ? "b b-backlog"
-      : e.type === "event"
-        ? "b b-event"
-        : e.state === "open"
-          ? null
-          : "b b-task";
+  e.state === "done" ? "b b-done" : e.backlog ? "b b-backlog" : `b b-${e.type}`;
 
 
 /* ── render ────────────────────────────────────────────────────────── */
@@ -1209,7 +1198,7 @@ function renderJournal() {
      because carrying it across a heading would say it was finished on a day it
      was not. */
   const put = (e, bucket, sorted = true) => {
-    const li = row(e, bucket === "progress" ? { tray: true, mark: true } : {});
+    const li = row(e, bucket === "progress" ? { tray: true } : {});
     li.dataset.group =
       bucket + (sorted ? (e.star ? ":star" : "") + (e.due ? ":" + e.due : "") : "");
     liftable(li);
@@ -1279,9 +1268,10 @@ function renderToday() {
   events.forEach((e) => put(e));
 
   /* The wanted lines carry the same swipe-open tray as the Journal's live
-     work, since this is the other list you work from. They do not carry the
-     sun: every line here is already on Today, so the mark could only say one
-     thing, and tapping it would make the row vanish under your thumb. */
+     work, since this is the other list you work from. Their right swipe
+     still means Today, which here can only mean taking a line back off it —
+     the row then leaves the page under your thumb, which is the honest
+     result and the same one the sheet gives. */
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
     now.forEach((e) => put(e, { tray: true }));
@@ -1455,7 +1445,7 @@ function row(e, opts = {}) {
   if (S.anim.has(e.id)) li.classList.add("anim");
 
   const under = el("div", "row-under");
-  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon(e)));
+  under.append(el("span", "u-l", ICON.today), el("span", "u-r", swipeLeftIcon(e)));
   li.append(under);
 
   /* The lists you work from — the Journal's live work and Today's wanted
@@ -1485,31 +1475,17 @@ function row(e, opts = {}) {
 
   const face = el("div", "row-face");
 
-  /* One column at the head of every row, one rem wide, and exactly one thing
-     in it — so the words start in the same place whichever list you are
-     reading and whatever the line turns out to be. What fills it is the
-     line's mark where it has one; the Today sun where it has not, which is
-     the live work on the Journal; and nothing but the width itself for a
-     live line read anywhere else. The column is never dropped when it is
-     empty, because that is what would make the text jump between sections. */
-  const cls = bulletClass(e);
-  const mark = opts.mark && open;
-  if (cls) {
-    const bul = el("button", "bul");
-    bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
-    bul.append(el("i", cls));
-    bul.onclick = () => toggleDone(e.id);
-    face.append(bul);
-  } else if (mark) {
-    /* Putting a line on Today is a mark on the line rather than something
-       done to it, so on the live work it sits in the mark's own column and
-       reads as one, lit when it is on. Only there: a line put down or
-       finished is not one you are deciding the day of. */
-    const on = e.today === TODAY();
-    face.append(qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () => toggleToday(e.id)));
-  } else {
-    face.append(el("span", "lb"));
-  }
+  /* One column at the head of every row, one rem wide, holding the line's
+     own mark — so the words start in the same place whichever list is being
+     read, and the mark is a thumb away wherever the line turns up. Today
+     used to stand in this column on the live work; it is the right swipe
+     now, because the column belongs to the mark and a row cannot have two
+     first things. */
+  const bul = el("button", "bul");
+  bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
+  bul.append(el("i", bulletClass(e)));
+  bul.onclick = () => toggleDone(e.id);
+  face.append(bul);
 
   const txt = el("button", "row-text");
   /* The words get one line and an ellipsis past it. A list is read by running
@@ -1597,7 +1573,11 @@ function swipeLeft(e) {
 
 /* ── gestures ──────────────────────────────────────────────────────── */
 
-/* How far a swipe has to travel before it means something. The tray makes
+/* A right swipe puts the line on Today, or takes it off again. It used to
+   finish the line, which the bullet's own tap already did and the tray now
+   says in words as well — so the gesture went to the one mark that had no
+   home once the bullet took its column back.
+   How far a swipe has to travel before it means something. The tray makes
    the left-hand journey longer than this: past the tray, and then this far
    again, which is what keeps a tray-open from ever turning into a set-aside
    by accident. */
@@ -1699,7 +1679,7 @@ function swipeable(li, face, e) {
     if (!decided) return;
     if (dx >= COMMIT - 4) {
       reset(false);
-      toggleDone(e.id);
+      toggleToday(e.id);
     } else if (dx <= -full + 4) {
       reset(false);
       swipeLeft(e);

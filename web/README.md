@@ -19,19 +19,17 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 ## What it is
 
 ```
-     a task        something to do, whenever — or by a day: no mark at all
+  •  a task        something to do, whenever — or by a day
   ○  an event      something that happens, on a day
-  *  set aside     a task in the backlog, not being worked on
+  ◐  set aside     a task in the backlog, begun and put down
   ×  done
-  •  struck out    a task you decided against, ruled through
   ≡  carries notes
 ```
 
-Every row starts with the same one-rem column, so the words line up down the
-whole page whichever list you are reading. A task you are working on puts
-nothing in it — being a task on a page of tasks is what the page already
-says, and leaving it empty makes the column read as marks rather than as
-bullets. On the Journal that space carries the **sun** instead.
+Every row starts with the same one-rem column holding that mark, so the words
+line up down the whole page whichever list you are reading, and the mark is
+always a thumb away. A task struck out keeps its `•`, dimmed and ruled
+through: that is a line you decided against, not a state of the work.
 
 Two kinds of line, and the page you are on decides which you are writing. A
 **task** goes on the Journal, newest first, until you drag it somewhere else
@@ -62,13 +60,14 @@ the thing it is about rather than floating loose on the page. A line that
 holds notes is marked `≡`; the notes themselves never appear in the list,
 because a line stays one line.
 
-A task set aside in the backlog is marked `*`. The Backlog heading says where
-it is on the Journal, but a line is also read away from that fold — in Search
-most of all — and there the mark is the only thing that says it is not being
-worked on. An asterisk rather than the event's ring, because Search is a list
-where both turn up at once and a shape that means two things there means
-neither. The gold star a line can carry is a different thing in a different
-place: that one sits at the end of the row, this one at the head of it.
+A task set aside in the backlog is marked `◐`, a circle filled half way. The
+Backlog heading says where it is on the Journal, but a line is also read away
+from that fold — in Search most of all — and there the mark is the only thing
+that says it is not being worked on. Half filled because that is what the
+backlog is: a line begun and put down, between the task's filled dot and the
+nothing it would be if you had never started. In full ink rather than grey —
+a shape carries across a list, a shade does not, and the heading above it is
+what says the pile is quiet.
 
 ## Using it
 
@@ -80,11 +79,11 @@ the oldest; several events on one day sit newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else. Swipe a row **right** to
-finish it. Swipe it **left** a short way and it stops against a tray of four
-actions; carry the swipe **all the way left** and it goes straight past them
-to setting the line aside, so the tray is a stop on the journey and takes no
-gesture away. A row with a tray open is shut by tapping it, or by touching
-any other row — only one is ever open.
+put it on Today, or to take it back off. Swipe it **left** a short way and it
+stops against a tray of four actions; carry the swipe **all the way left** and
+it goes straight past them to setting the line aside, so the tray is a stop on
+the journey and takes no gesture away. A row with a tray open is shut by
+tapping it, or by touching any other row — only one is ever open.
 
 **The tray.** Under the right edge of every line on the two lists you work
 from — the Journal's live work and Today's wanted lines — in the order you
@@ -94,14 +93,14 @@ reach for them:
   ✓  mark done      ⊘  strike out      ▣  set aside      ⧉  duplicate
 ```
 
-Four is what the row has room for at a thumb's width each. The live work has
-no mark of its own to tap, so *mark done* leads: without it the thing you
-most often do to a task would be the one thing the row could not do.
+Four is what the row has room for at a thumb's width each. *Mark done* leads
+even though the bullet's tap says it too — the tray is where you look when
+you have already swiped, and the one thing you most often do to a task should
+not be the one thing missing from it.
 
-**Quick actions.** The Journal's live work has no mark of its own, so that
-column carries a sun instead, which puts the line on Today (lit while it is
-on; tap again to take it off). Only the live work: a line you have put down
-or finished is not one you are deciding the day of.
+Today has no button on the row. It is the right swipe, because the column at
+the head of a line belongs to that line's mark and a row cannot have two
+first things.
 
 **The work has no heading.** Open the Journal and every live task on the page
 is simply there, under the date, in deadline order — naming that pile would
