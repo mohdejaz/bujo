@@ -1413,12 +1413,13 @@ function groupHeading(name, open) {
 /* One page of the notebook, as a row the width of the list: its name and a
    pencil. Shaped like the notebook rows in the sheets, because it is the same
    move one level down — turn to one of a short list, or rename it in place.
-   What the row says beside the name is what is still waiting on the page,
-   because choosing a page is choosing where there is work: how many lines it
-   holds in total is not that, and which one is the default is something you
-   want while you are on a page rather than while you are picking one — both of
-   those are said on the page's own sheet. A page with nothing waiting prints
-   no number at all; an empty end of the row says it better than a nought. */
+   What the row says beside the name is what is still open on the page — the
+   work in progress and the backlog together — because choosing a page is
+   choosing where there is work left: how many lines it holds in total is not
+   that, and which one is the default is something you want while you are on
+   a page rather than while you are picking one, both of which are said on
+   the page's own sheet. A page with nothing open prints no number at all; an
+   empty end of the row says it better than a nought. */
 function pageLink(pg) {
   const n = pendingOn(pg.id);
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
@@ -2531,13 +2532,15 @@ function openBook(id) {
 /* How many tasks are on one page. Only tasks, because only a task has a page
    — an event is counted by the notebook that holds it. */
 const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
-/* And how many of them are still waiting: open, and not set aside. It is the
-   Journal's In progress bucket counted — what you would find at the top of the
-   page if you turned to it. A finished or struck line is behind you, and the
-   backlog is deliberately not waiting, so neither belongs in a number read as
-   "what is left here". */
+/* And how many of them are still open: the work in progress and the backlog
+   together, which is everything on the page you have not finished with. The
+   backlog counts because the number is read while you are choosing a page,
+   and at that distance a line you set aside is still a line you have — the
+   distinction between now and not-now is one you want once you are on the
+   page, where the fold already makes it. A finished or struck line is the
+   only thing behind you, and that is what the number leaves out. */
 const pendingOn = (id) =>
-  db.entries.filter((e) => e.type === "task" && isLive(e) && !e.backlog && pageOf(e) === id).length;
+  db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
 
 /* Put a page under a group, or take it out of the one it is under. The sheet
    closes on the way out, which commits any rename typed above it in the same
