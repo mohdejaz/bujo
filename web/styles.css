@@ -360,15 +360,19 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 
 /* A heading you can fold, which on the Journal means the two piles below the
    work: Done starts open and can be put away, the backlog starts closed
-   because it is not what you came to the page to read. The chevron stands in the 14px that `.sep` spends on left
-   padding, against a nil gap, so the word lands in the one column every
-   heading in the app reads down and the mark sits outside it, in the page's
-   own margin. The box around that mark is mostly air — the mark itself is
-   three pixels wide — and that air is the gap you see. */
+   because it is not what you came to the page to read. The chevron stands in
+   the 14px that `.sep` spends on left padding, so the word lands in the one
+   column every heading in the app reads down and the mark sits outside it,
+   in the page's own margin.
+   The space between them is a real gap now rather than the air inside the
+   chevron's box, which had the mark crowding the word it belongs to. It is
+   paid for by pulling the chevron the same distance further out, so the two
+   cancel and the word does not move — which is the whole constraint here:
+   whatever this gap becomes, the margin has to give it back. */
 .sep-fold {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 4px;
   width: 100%;
   text-align: left;
   font: inherit;
@@ -388,6 +392,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sep-fold svg {
   width: 14px;
   height: 14px;
+  margin-left: -4px; /* gives back exactly what the gap above takes */
   stroke-width: 2.6;
   transition: transform 0.18s;
 }
@@ -406,10 +411,18 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
    card edge to read as a division — so a column of one-line rows had nothing
    saying where one line ended and the next began but the space between them,
    and that space is the first thing a long list takes back.
-   Inset at the head so it starts where the row's own content starts, and run
-   out flush to the other edge: a rule that began at the card edge would box
-   the row in, and one that stopped short at both ends would read as a mark
-   of its own rather than as the join between two things.
+   Inset to the words themselves, not to the row's content, and run out flush
+   to the other edge. Starting it under the mark would have the rule cut
+   across the one column the eye follows down the page; starting it at the
+   words leaves that column clear and the rule divides only the text it is
+   dividing. A rule that began at the card edge would box the row in, and one
+   that stopped short at both ends would read as a mark of its own rather
+   than as the join between two things.
+   Where the words begin is the row's left padding, the mark, and the gap
+   after it — plus the sun and its own gap on the rows that lead with one.
+   Written out as that sum rather than as the number it comes to, because
+   two of the four terms are `rem` and the whole thing has to follow the
+   text-size setting the way the row it belongs to does.
    Only ever *between*. Never above the first row of a bucket, which its
    heading has already closed off, and never below the last, which would
    draw a line under nothing — which is the whole of why this is `+` and not
@@ -422,11 +435,12 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   position: absolute;
   z-index: 1;
   top: 0;
-  left: 8px;
+  left: calc(8px + 1rem + 5px);
   right: 0;
   height: 1px;
   background: var(--hair);
 }
+.row + .row:has(.qa-today)::before { left: calc(8px + 1rem + 5px + 1rem + 5px); }
 /* A swipe slides the face off a coloured ground. The rule belongs to the
    list, not to that ground, and a seam across the top of it would read as
    part of what the swipe is doing. */
