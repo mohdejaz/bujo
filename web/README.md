@@ -128,8 +128,12 @@ Today's events still lead, with a hairline closing them off from the work
 where both are on the page.
 
 **One line to a row.** Lines are divided by a hairline rather than by a gap,
-the way a mail list does it: inset at the head so it starts where the row's
-content starts, flush to the other edge. Only between — never above the first
+the way a mail list does it: it starts where the words start — after the sun
+and the mark, not under them — and runs flush to the other edge, so the
+column of marks stays clear down the page and the rule divides only the text
+it is dividing. The inset follows the row, so it sits further in on the work
+in progress, which leads with a sun, than on the Backlog and the Done, which
+do not. Only between — never above the first
 line under a heading, which the heading has already closed off, and never
 below the last. A row is the same paper as the page it sits on, so without
 the rule a column of one-line rows had nothing but space saying where one
