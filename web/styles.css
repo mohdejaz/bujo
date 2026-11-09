@@ -401,7 +401,37 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   overflow: hidden;
   touch-action: pan-y;
 }
-.row + .row { margin-top: 2px; }
+/* Between one line and the next, the way a mail list does it: a rule rather
+   than a gap. A row is the same paper as the page it sits on — there is no
+   card edge to read as a division — so a column of one-line rows had nothing
+   saying where one line ended and the next began but the space between them,
+   and that space is the first thing a long list takes back.
+   Inset at the head so it starts where the row's own content starts, and run
+   out flush to the other edge: a rule that began at the card edge would box
+   the row in, and one that stopped short at both ends would read as a mark
+   of its own rather than as the join between two things.
+   Only ever *between*. Never above the first row of a bucket, which its
+   heading has already closed off, and never below the last, which would
+   draw a line under nothing — which is the whole of why this is `+` and not
+   a border on every row.
+   `z-index` because the face is painted over the top of it otherwise: the
+   face fills the row and carries the paper, and the rule has to sit on that
+   paper rather than under it. */
+.row + .row::before {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: 8px;
+  right: 0;
+  height: 1px;
+  background: var(--hair);
+}
+/* A swipe slides the face off a coloured ground. The rule belongs to the
+   list, not to that ground, and a seam across the top of it would read as
+   part of what the swipe is doing. */
+.row.sw-l::before,
+.row.sw-r::before { content: none; }
 
 /* what a swipe reveals underneath */
 .row-under {

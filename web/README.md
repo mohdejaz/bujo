@@ -127,6 +127,14 @@ reading, and a fold over it would have hidden the one thing you came for.
 Today's events still lead, with a hairline closing them off from the work
 where both are on the page.
 
+**One line to a row.** Lines are divided by a hairline rather than by a gap,
+the way a mail list does it: inset at the head so it starts where the row's
+content starts, flush to the other edge. Only between — never above the first
+line under a heading, which the heading has already closed off, and never
+below the last. A row is the same paper as the page it sits on, so without
+the rule a column of one-line rows had nothing but space saying where one
+line ended, and space is the first thing a long list takes back.
+
 **Folding.** The two headings below the work — *Backlog* and *Done* — are
 folds: tap the word to put their lines away, and the chevron beside it turns
 to say which way it is set. The count stays either way, so a closed bucket
