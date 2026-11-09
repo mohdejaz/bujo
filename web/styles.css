@@ -364,15 +364,20 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
    the 14px that `.sep` spends on left padding, so the word lands in the one
    column every heading in the app reads down and the mark sits outside it,
    in the page's own margin.
-   The space between them is a real gap now rather than the air inside the
-   chevron's box, which had the mark crowding the word it belongs to. It is
-   paid for by pulling the chevron the same distance further out, so the two
-   cancel and the word does not move — which is the whole constraint here:
-   whatever this gap becomes, the margin has to give it back. */
+   The space between them is a real gap rather than the air inside the
+   chevron's box, which had the mark crowding the word it belongs to. Two
+   knobs set it and they pull against each other: the gap opens the space,
+   and the chevron's negative margin decides who pays for it. Give the
+   margin the whole gap and the word holds its column while the mark hangs
+   further into the page's edge; give it none and the mark stays put while
+   the word steps right. It is split here — six of the ten pixels come out
+   of the margin — because the mark reaches the edge of the column the rows
+   are drawn in at about six, and the word is still close enough to the day
+   stamps under it to read as the same rank. */
 .sep-fold {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 10px;
   width: 100%;
   text-align: left;
   font: inherit;
@@ -392,7 +397,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .sep-fold svg {
   width: 14px;
   height: 14px;
-  margin-left: -4px; /* gives back exactly what the gap above takes */
+  margin-left: -6px; /* gives back six of the ten the gap above takes */
   stroke-width: 2.6;
   transition: transform 0.18s;
 }
