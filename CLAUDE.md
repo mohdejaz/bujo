@@ -71,7 +71,12 @@ across a header strip and a sheet. Groups are read there and nowhere else, and t
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
-is untouched, because `pagesIn(book)[0]` is still the default page.
+is untouched, because the default page is unaffected by it. That default is the
+page carrying `def`, falling back to `pagesIn(book)[0]` when no page of the notebook
+carries one — so an old journal reads back unchanged. `setDefaultPage` is the only
+thing that moves it, and it writes every page-less task in that notebook down on the
+page it was already on before it flips the flag: absence means the default, so moving
+the default without that would quietly empty one page into another.
 
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every

@@ -74,8 +74,11 @@ what says the pile is quiet.
 **Writing.** Type at the bottom and press return. There is nothing to pick:
 the Journal writes a task, the Calendar writes an event and asks for the day it
 falls on, because an event without one is not an event, and Today writes a task
-already marked for today. The Calendar reads back from the furthest day towards
-the oldest; several events on one day sit newest-written first.
+already marked for today — onto the notebook's **default page**, since Today
+belongs to no page and whichever one the Journal was last showing is where you
+happened to be, not an answer to where the line goes. The Calendar reads back
+from the furthest day towards the oldest; several events on one day sit
+newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else. Swipe a row **right** to
@@ -278,11 +281,16 @@ from its entry sheet.
 **Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
 a paper one. The **Index** is where they live: turn to one, rename or delete it
 with the pencil, name a new one in the field at the foot. Every notebook has a
-**default page**, the first in the list: it is where a line with no page of its
-own lives, which is how a journal written before pages existed needed no
-migration. Any page can be deleted, the default one included — the next along
-takes the role, and the lines go with the page the way they do with a notebook.
-The one page a notebook cannot be without is its last.
+**default page**: it is where a line with no page of its own lives, which is
+how a journal written before pages existed needed no migration, where a line
+written on Today lands, and where the notebook opens. The first page holds the
+role until you move it — *Make … the default* on any page's sheet. Moving it
+does not move a single line: every line that had no page of its own is written
+down on the page it was already on first, so what changes is which page the
+silence means, not where anything sits. Any page can be deleted, the default
+one included — the first of the pages left takes the role, and the lines go
+with the page the way they do with a notebook. The one page a notebook cannot
+be without is its last.
 
 Pages split the **Journal** and nothing else, and the Journal says which page
 it is reading: the name sits at the end of the date, under a ribbon, so the
@@ -385,7 +393,10 @@ nowhere in the file: they are read off the lines, so there is no day to go
 stale when the last line settled on one is reopened or deleted. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks only,
-and is absent for its notebook's default page. `group` is the trick one level
+and is absent for its notebook's default page, whichever page that currently
+is — a page says it is the default by carrying `def`, and absent on all of
+them means the first one, so a journal written before the default could be
+moved reads back unchanged. `group` is the trick one level
 down again: a page carries the name of the group it is under, and absent means
 it is under none, so there is no list of groups anywhere in the file — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.
