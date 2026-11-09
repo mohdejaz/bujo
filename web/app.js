@@ -270,6 +270,10 @@ function withPages(raw) {
        migration — the same trick as `book` and `page` one level down again. */
     const group = cleanPage(p.group);
     if (group) pg.group = group;
+    /* One default to a notebook. A file claiming two has the first of them
+       honoured and the rest dropped, rather than leaving `defPage` to pick
+       by an order that is not the question being asked. */
+    if (p.def === true && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
     kept.push(pg);
   });
   /* The default page, filled in for any notebook without one — including
@@ -296,9 +300,16 @@ const bookName = (id) => db.books.find((b) => b.id === id)?.name || BOOK_FIRST;
    further — see journalBuckets. */
 const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
 
-/* The pages of one notebook, in order. The first is its default. */
+/* The pages of one notebook, in order. */
 const pagesIn = (book) => db.pages.filter((p) => p.book === book);
-const defPage = (book) => pagesIn(book)[0];
+/* Its default: the page that says it is, else the first. `def` is absent on
+   every page of a notebook nobody has chosen for, which is how a journal
+   written before the default could be moved reads back exactly as it did —
+   the same trick as `book`, `page` and `group`, one level along. */
+const defPage = (book) => {
+  const here = pagesIn(book);
+  return here.find((p) => p.def) || here[0];
+};
 /* The groups of one notebook, in the order their first page appears. This is
    the whole existence of a group: write the name on a page and the group is
    there, take it off the last page carrying it and the group is gone. There is
@@ -1985,8 +1996,13 @@ composer.addEventListener("submit", (ev) => {
     created: Date.now(),
   };
   if (db.book !== db.books[0].id) e.book = db.book;
-  /* Only a task has a page; an event belongs to the notebook. */
-  if (type === "task") putPage(e, db.page);
+  /* Only a task has a page; an event belongs to the notebook. Written on
+     Today it goes to the notebook's default page rather than to whichever
+     page the Journal happens to be left on: Today belongs to no page, so the
+     page it was last showing is an accident of where you were, not an
+     answer to where this line goes. The default is the answer, which is what
+     makes it worth being able to choose. */
+  if (type === "task") putPage(e, isTodayPage() ? defPage(db.book).id : db.page);
   // written on Today, so it is wanted today — nothing else would put it there
   if (isTodayPage()) e.today = TODAY();
   if (type === "event") e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
@@ -2542,6 +2558,27 @@ const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e
 const pendingOn = (id) =>
   db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
 
+/* Make a page the default one. Every line that had no page of its own was
+   on the old default by that very absence, so before the flag moves they are
+   each written down where they already are — `putPage` then re-encodes the
+   lot, which leaves the new default's lines absent and everyone else's
+   explicit. Nothing moves; what changes is only which page the silence
+   means. This is the one place an entry is rewritten by something other than
+   an edit to that entry, and it is why: the alternative is a journal where
+   choosing a default quietly empties one page into another. */
+function setDefaultPage(id) {
+  const pg = db.pages.find((x) => x.id === id);
+  if (!pg || defPage(pg.book).id === id) return;
+  buzz(6);
+  mutate(`${pg.name} is the default page`, () => {
+    const here = db.entries.filter((e) => e.type === "task" && bookOf(e) === pg.book);
+    const was = new Map(here.map((e) => [e.id, pageOf(e)]));
+    pagesIn(pg.book).forEach((p) => delete p.def);
+    pg.def = true;
+    here.forEach((e) => putPage(e, was.get(e.id)));
+  });
+}
+
 /* Put a page under a group, or take it out of the one it is under. The sheet
    closes on the way out, which commits any rename typed above it in the same
    breath — the two are one visit to the page. */
@@ -2668,8 +2705,22 @@ function openPage(id) {
       })
     );
 
-    /* Any page can go, the default one included — the next page along takes
-       the role, and the lines that were on it go with it the same way a
+    /* The default page: where a line written on Today lands, and where a
+       notebook opens. Offered on every page but the one that already is it,
+       which says so in the subtitle above instead. */
+    if (!first) {
+      acts.append(el("div", "sep", "Default page"));
+      acts.append(
+        actRow(ICON.page, `Make ${pg.name} the default`, () => {
+          setDefaultPage(pg.id);
+          closeSheet();
+        })
+      );
+    }
+
+    /* Any page can go, the default one included — the first of the pages
+       left takes the role, since the flag goes with the page that carried
+       it, and the lines that were on it go with it the same way a
        notebook's do. The one page a notebook cannot be without is its last:
        delete that and there would be nowhere for the next line to land. */
     if (!only) {
@@ -2678,7 +2729,7 @@ function openPage(id) {
           ICON.trash,
           "Delete page",
           () => {
-            const next = first ? pagesIn(pg.book)[1].name : null;
+            const next = first ? pagesIn(pg.book).find((x) => x.id !== pg.id).name : null;
             if (
               !confirm(
                 `Delete ${pg.name} and its ${n} ${n === 1 ? "line" : "lines"}?` +
