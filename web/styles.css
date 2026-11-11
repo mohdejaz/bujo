@@ -318,9 +318,9 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 }
 
 /* A section heading in the list: a day on the Calendar, Today's own bucket,
-   one of the Backlog and Done folds on the Journal, and inside Done a day
-   again — the one it was settled on. The Journal's live work has no heading;
-   it is what the page is. */
+   the Done fold on the Journal, and inside Done a day again — the one it was
+   settled on. The Journal's live work has no heading; it is what the page
+   is. */
 .sep {
   list-style: none;
   padding: 16px 14px 6px;
@@ -358,9 +358,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   letter-spacing: 0.04em;
 }
 
-/* A heading you can fold, which on the Journal means the two piles below the
-   work: Done starts open and can be put away, the backlog starts closed
-   because it is not what you came to the page to read. The chevron stands in
+/* A heading you can fold, which on the Journal means the one pile below the
+   work: Done, which starts open and can be put away. The chevron stands in
    the 14px that `.sep` spends on left padding, so the word lands in the one
    column every heading in the app reads down and the mark sits outside it,
    in the page's own margin.
@@ -549,22 +548,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
-/* A task set aside: a circle filled half way. It says what the backlog is in
-   one shape — a line begun and put down, somewhere between the task's filled
-   dot and the nothing it would be if you had never started. Full ink, not
-   grey: the heading above it is what says it is quiet, and three dots that
-   differed only by how pale they were asked the eye to compare greys that
-   are never side by side.
-   One gradient rather than a pseudo-element: `border-radius` clips the
-   background to the circle, so the straight edge down the middle and the
-   round outside both come free, at any text size. */
-.b-backlog {
-  width: 0.7rem;
-  height: 0.7rem;
-  border-radius: 50%;
-  border: 2px solid currentColor;
-  background: linear-gradient(90deg, currentColor 50%, transparent 50%);
-}
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -631,9 +614,6 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   from { text-decoration-color: transparent; }
   to { text-decoration-color: currentColor; }
 }
-/* set aside, not finished: dim the line but leave it unstruck */
-.row.is-backlog .row-text { color: var(--ink-2); }
-
 /* under a task's words: the day it is due by */
 .row-meta {
   display: flex;
@@ -689,13 +669,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .qa svg { width: 1rem; height: 1rem; }
 .qa-today.on { color: var(--accent); }
 
-/* The tray under the row's right edge: everything you do to a line, in the
-   order you would reach for it — finish, strike out, set aside, copy. On a
-   quiet ground rather than a coloured one, because a coloured ground is what
-   says a swipe is about to do something, and opening the tray does nothing
-   yet. Three, because finishing is the bullet's tap and the right swipe and
-   does not need a third door — and because every one of them costs a thumb's
-   width of the words still showing beside the tray. */
+/* The tray under the row's right edge: what you do to a line, in the order
+   you would reach for it — strike out, copy. On a quiet ground rather than a
+   coloured one, because a coloured ground is what says a swipe is about to
+   do something, and opening the tray does nothing yet. Two, because
+   finishing is the bullet's tap and the right swipe and does not need a
+   third door — and because every one of them costs a thumb's width of the
+   words still showing beside the tray. */
 .qa-tray {
   position: absolute;
   top: 0;
@@ -714,7 +694,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 .row.has-tray.sw-l .row-under .u-r { opacity: 0; }
 .row.has-tray.sw-l .qa-tray { opacity: 1; }
 .row.tray-open .qa-tray { pointer-events: auto; }
-/* past the tray, the swipe is setting the line aside again */
+/* past the tray, the swipe strikes the line out */
 .row.has-tray.sw-full .row-under { background: var(--accent-soft); color: var(--accent); }
 .row.has-tray.sw-full .row-under .u-r { opacity: 1; }
 .row.has-tray.sw-full .qa-tray { opacity: 0; }

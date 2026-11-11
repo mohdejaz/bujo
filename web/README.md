@@ -11,7 +11,7 @@ No build step, no dependencies, no account. The journal lives in
 
 | Today | Journal | Calendar | Index | A line, opened |
 | :-: | :-: | :-: | :-: | :-: |
-| ![Today: an event that falls on it, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then every live task by deadline, with the Backlog and Done folded at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
+| ![Today: an event that falls on it, then what is due or marked for today, each line naming the notebook and page it lives on](../docs/screens/today.png) | ![The Journal: the page it is reading named beside the date, today's event at the head, then every open task by deadline, with the Done fold and its days at the foot](../docs/screens/journal.png) | ![The Calendar: events under the day they fall on, reading back from the furthest](../docs/screens/calendar.png) | ![The Index: every page of the notebook with how many lines are still open on it, and a field to name a new one](../docs/screens/index.png) | ![A task's sheet: its words, its notes, the day it is due by, and everything you can do to it](../docs/screens/entry.png) |
 
 All five are the light theme — paper; there is a dark one too, the same page
 at night. The screenshots are taken from a seeded journal, not a real one.
@@ -21,7 +21,6 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 ```
   •  a task        something to do, whenever — or by a day
   ○  an event      something that happens, on a day
-  ◐  set aside     a task in the backlog, begun and put down
   ×  done
   ≡  carries notes
 ```
@@ -60,15 +59,6 @@ the thing it is about rather than floating loose on the page. A line that
 holds notes is marked `≡`; the notes themselves never appear in the list,
 because a line stays one line.
 
-A task set aside in the backlog is marked `◐`, a circle filled half way. The
-Backlog heading says where it is on the Journal, but a line is also read away
-from that fold — in Search most of all — and there the mark is the only thing
-that says it is not being worked on. Half filled because that is what the
-backlog is: a line begun and put down, between the task's filled dot and the
-nothing it would be if you had never started. In full ink rather than grey —
-a shape carries across a list, a shade does not, and the heading above it is
-what says the pile is quiet.
-
 ## Using it
 
 **Writing.** Type at the bottom and press return. There is nothing to pick:
@@ -82,37 +72,36 @@ newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else. Swipe a row **right** to
-finish it. Swipe it **left** a short way and it stops against a tray of three
-actions; carry the swipe **all the way left** and
-it goes straight past them to setting the line aside, so the tray is a stop on
-the journey and takes no gesture away. A row with a tray open is shut by
-tapping it, or by touching any other row — only one is ever open.
+finish it. Swipe it **left** a short way and it stops against a tray of two
+actions; carry the swipe **all the way left** and it goes straight past them
+and strikes the line out — which is the tray's own first button, so the swipe
+is the quick way to it and the tray the deliberate one, the same pairing the
+bullet and the right swipe already make for finishing. A row with a tray open
+is shut by tapping it, or by touching any other row — only one is ever open.
 
 **The tray.** Under the right edge of every line on the two lists you work
 from — the Journal's live work and Today's wanted lines — in the order you
 reach for them:
 
 ```
-  ⊘  strike out      ▣  set aside      ⧉  duplicate
+  ⊘  strike out      ⧉  duplicate
 ```
 
 Finishing is not among them: the bullet's tap says it and so does the right
 swipe, and a third door onto it here would read as one more thing the left
-swipe might be about to do. Three also leaves more of the words showing
+swipe might be about to do. Two also leaves more of the words showing
 beside the open tray — each button costs a thumb's width of them.
 
 **Quick actions.** A task you are working on carries a **sun** at the head of
 the row, before its mark, which puts the line on Today (lit while it is on;
-tap again to take it off). Only the work in progress: a line you have set
-aside is not one you are deciding the day of — Today drops a backlogged line
-whatever its mark says — and a line already finished has no next day.
+tap again to take it off). Only the open lines: one already finished has no
+next day.
 
-A row without a sun holds nothing in its place, so the Backlog and the Done
-begin at the edge of their cards and the work in progress is the one bucket
-indented. That indent is the sun, not decoration: the rows you can still do
-something about are the rows that step in. The mark itself is always the
-same step from the words it belongs to, which is why the sun leads rather
-than sitting between them.
+A row without a sun holds nothing in its place, so the rows in Done begin at
+the edge of their cards and the work in progress is the one bucket indented. That indent
+is the sun, not decoration: the rows you can still do something about are the
+rows that step in. The mark itself is always the same step from the words it
+belongs to, which is why the sun leads rather than sitting between them.
 
 The sun says whether the line is on Today, not whether you put it there — so
 it is lit on every line of the **Today** page, and tapping it takes that line
@@ -123,40 +112,47 @@ still true and would simply put it back, so the tap records that you said
 touched**. The dismissal keeps the day it was made, the same way the mark
 does, so midnight ends it and a line still owed is back tomorrow.
 
-**The work has no heading.** Open the Journal and every live task on the page
+**The work has no heading.** Open the Journal and every open task on the page
 is simply there, under the date, in deadline order — naming that pile would
 only have told you the lines under the name were the lines you were already
 reading, and a fold over it would have hidden the one thing you came for.
 Today's events still lead, with a hairline closing them off from the work
 where both are on the page.
 
+**One stack of open work.** There is no second pile for the lines you are not
+getting to yet. A task you have not finished with is a task you have, whatever
+you think of your chances this week, and a bucket for the ones you had admitted
+that about only moved the deciding from the line to the pile — where it
+stopped being read at all. So the page is the open work and then what you have
+finished with, and the ways out of the first are the real ones: finish it,
+strike it out, or give it a day.
+
 **One line to a row.** Lines are divided by a hairline rather than by a gap,
 the way a mail list does it: it starts where the words start — after the sun
 and the mark, not under them — and runs flush to the other edge, so the
 column of marks stays clear down the page and the rule divides only the text
 it is dividing. The inset follows the row, so it sits further in on the work
-in progress, which leads with a sun, than on the Backlog and the Done, which
-do not. Only between — never above the first
-line under a heading, which the heading has already closed off, and never
-below the last. A row is the same paper as the page it sits on, so without
-the rule a column of one-line rows had nothing but space saying where one
-line ended, and space is the first thing a long list takes back.
+in progress, which leads with a sun, than on the Done, which does not. Only
+between — never above the first line under a heading, which the heading has
+already closed off, and never below the last. A row is the same paper as the
+page it sits on, so without the rule a column of one-line rows had nothing but
+space saying where one line ended, and space is the first thing a long list
+takes back.
 
-**Folding.** The two headings below the work — *Backlog* and *Done* — are
-folds: tap the word to put their lines away, and the chevron beside it turns
-to say which way it is set. The count stays either way, so a closed bucket
-still says how much is in it. Done opens each time you come back and the
-Backlog starts closed, because it is not what you came to the page to read;
-what you fold away is forgotten when you leave, since a fold you did not set
-this session is a trap. Today's own heading does not fold — what is on that
-page is there because of the day, which is not a pile to put away.
+**Folding.** The one heading below the work — *Done* — is a fold: tap the word
+to put its lines away, and the chevron beside it turns to say which way it is
+set. The count stays either way, so a closed bucket still says how much is in
+it. Done opens each time you come back; what you fold away is forgotten when
+you leave, since a fold you did not set this session is a trap. Today's own
+heading does not fold — what is on that page is there because of the day,
+which is not a pile to put away.
 
 **Due dates.** A task does not need one — most are just things to do — but
 open a line and you can give it a day it is wanted **by**, and take it off
 again with *Clear*. The row then prints that day under its words, in orange
-once it is past. The work and the Backlog read by deadline — anything
-overdue at the top, then the soonest day, then the rest, with every undated
-task below the dated ones. A date is the one order on the page you do not set
+once it is past. The work reads by deadline — anything overdue at the top,
+then the soonest day, then the rest, with every undated task below the dated
+ones. A date is the one order on the page you do not set
 by hand: a line climbs as its day comes. Done is the record rather than the
 work, so neither the star nor the deadline sorts it — what arranges it is the
 day each line was settled on.
@@ -171,12 +167,12 @@ went in. A line finished before the app recorded settling dates is filed under
 the day it was written, which is where it already sorted.
 
 **Reordering.** Hold a task still for a moment until it lifts, then drag it up
-or down. A line moves within its own bucket — the work, Backlog, Done — and
-only among the rows the sort would leave it beside, since anything that crossed
-a line the sort draws would be put straight back. In the two buckets that read
-by deadline those lines are the star and the day, so a dated task drags among
-the tasks due the same day and a starred one among the starred. In Done the
-line the sort draws is the day, so a finished task drags among the ones settled
+or down. A line moves within its own bucket — the work, or Done — and only
+among the rows the sort would leave it beside, since anything that crossed a
+line the sort draws would be put straight back. In the work those lines are
+the star and the day, so a dated task drags among the tasks due the same day
+and a starred one among the starred. In Done the line the sort draws is the
+day, so a finished task drags among the ones settled
 beside it — carrying one across a day heading would say it was finished on a
 day it was not. A line you write afterwards still lands at the top.
 
@@ -200,9 +196,10 @@ and their dates in orange, then a folded *Done* — what the day came to.
 
 **Only the overdue carry over.** A deadline is a claim on every day after it
 until it is met, so a late task follows you onto Today from whichever notebook
-and page it lives on, and stays until you finish it, strike it out or set it
-aside. Finished today, it moves to Today's *Done* and is gone tomorrow. A hand
-mark does not carry over: a task you marked yesterday and did not finish
+and page it lives on, and stays until you finish it, strike it out or take it
+off for the day. Finished today, it moves to Today's *Done* and is gone
+tomorrow. A hand mark does not carry over: a task you marked yesterday and did
+not finish
 starts today off the page — you put back what you still mean to do, one tap
 from its sheet.
 
@@ -223,10 +220,7 @@ expires: it counts only while it still reads as today, so midnight takes it off
 by itself. Taking a line off records a day in just the same way, which is what
 lets a line held there by a deadline be dismissed for the day without the
 deadline being rewritten — tomorrow the date speaks again and the line is
-back. A line set aside in the backlog drops off Today whatever its mark
-says — the backlog is the word for *not now* — and keeps the mark, so pulling
-it back puts it straight back on the page. Marking a line that was set aside
-pulls it back out: that is the plainer of the two statements, so it wins.
+back.
 
 **Today, at the top of the Journal.** Whatever is on the Calendar for today is
 also printed at the head of the Journal, under the date stamp that names the day, with a
@@ -234,18 +228,11 @@ hairline below it closing it off from the undated work. The event still lives
 on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
 
-**The backlog.** Tasks you are not doing now but have not given up on. It sits
-folded at the foot of the Journal with a count — the one bucket that starts
-closed; tap the heading to open it. A line is set aside from its tray, from a
-long left swipe or from its sheet, and pulled back out from the sheet. A
-finished task has no backlog to go to.
-
 **The Index.** The first tab is the notebook's contents, and the only place
 pages are handled: every page of the notebook in order, each with what is
-still open on it — the work in progress and the backlog together, since at
-the distance of picking a page a line you set aside is still a line you
-have — and nothing at all beside a page with none. Tap a page to turn to it — you land on the Journal,
-reading that page — or the pencil beside it to rename or delete it. The field
+still open on it — and nothing at all beside a page with none. Tap a page to
+turn to it — you land on the Journal, reading that page — or the pencil beside
+it to rename or delete it. The field
 at the foot names a new page rather than writing a line, because pages are what
 this page is made of; you land on the new one, ready to write. It is the same
 move the notebook button in the header makes, one level down.
@@ -254,7 +241,7 @@ move the notebook button in the header makes, one level down.
 them, so a page can be put under one from its own sheet — *Group*, then a group
 that already exists or *New group*. The Index then lists the ungrouped pages
 first, the default among them, and each group under a heading you can fold away
-like the Backlog.
+like Done.
 
 A group is only a **name written on the pages that carry it**. There is no
 group to make before you can use one and none left over when the last page
@@ -384,8 +371,8 @@ absent when it has none. `today` is the hand mark for the Today page and stores
 **the day the mark was made** rather than `true`, which is how it expires on
 its own at midnight with nothing written back; it is absent on a task that was
 never marked and on every event, since an event's `date` already says which day
-it is on. `backlog: true` marks a task set aside. `settled` is when a line was
-finished or struck out, and is both what orders the Done stack, most recent
+it is on. `settled` is when a line was finished or struck out, and is both
+what orders the Done stack, most recent
 first, and the day its heading there prints; it is absent while a line is open,
 and absent as well on a journal written before the field existed — such a line
 falls back to `created`, exactly as it did then. The days themselves are
@@ -412,7 +399,7 @@ migrates it once and shows a summary of what moved. The rules:
 | a free-standing note | becomes a task, words and notes intact |
 | event with a date | Calendar — the date is kept, the time of day is dropped |
 | event with no date | becomes a task; a calendar has nowhere to put it |
-| Someday tasks | the backlog, which is what that collection was for |
+| Someday tasks | ordinary tasks on the page — there is no pile here for what you are not doing yet |
 | `moved` stubs (`›`) | discarded — they pointed at dated pages that no longer exist |
 | `doing` | `open`; board pages were the only place it could be set |
 | repeating rules | the rule is stripped and the line stays as one ordinary task |
