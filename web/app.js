@@ -23,7 +23,6 @@
  *           and the Calendar reads `date`. A task with no due date is not late
  *           and never will be, so it sorts below the dated ones.
  *   state = open | done | dropped  (dropped = struck out, still on the record)
- *   backlog = true on a task set aside; absent means it is on the page
  *   notes = long-form scratch hung off any entry, absent when empty — the
  *           questions and the detail behind a line. Never rendered in the
  *           list — a line stays one line — only marked with a glyph. This is
@@ -425,7 +424,10 @@ function load() {
  *                  task. Generated occurrences were never stored, so most of a
  *                  series simply evaporates; the ones you had actually touched
  *                  are real entries and are kept.
- *   Someday tasks → the backlog, which is what that collection was for.
+ *   Someday tasks → ordinary tasks on the page. The old collection was a
+ *                  place to put what you were not doing yet, and this app
+ *                  has no such place: an open task is an open task, and the
+ *                  page is where it waits.
  *   tags         → dropped. A tag was a group to read on a page this app no
  *                  longer has, so the label goes and the words of the line —
  *                  the part anyone would miss — stay.
@@ -458,7 +460,7 @@ function migrateV1(old) {
   }));
   const books = new Set(next.books.map((b) => b.id));
 
-  const counts = { tasks: 0, notes: 0, events: 0, backlog: 0, undatedEvents: 0, stubs: 0 };
+  const counts = { tasks: 0, notes: 0, events: 0, undatedEvents: 0, stubs: 0 };
   /* One line per repeating series is enough: every occurrence of a repeat
      carries the same words, and undated they would land on the page as a pile
      of identical tasks. Finished ones are real history and all stay. */
@@ -516,11 +518,6 @@ function migrateV1(old) {
           seenSeries.add(series);
         }
       }
-      // the old Someday collection is exactly what the backlog is for
-      if (type === "task" && !dated && state === "open") {
-        e.backlog = true;
-        counts.backlog++;
-      }
       counts.tasks++;
     }
     out.push(e);
@@ -574,7 +571,6 @@ function adopt(raw, i, books) {
        page for it — so it lands on today rather than vanishing. */
     e.date = isDate(raw.date) ? raw.date : TODAY();
     delete e.time; // an event is placed by its day, never by a clock
-    delete e.backlog;
     /* An event already says which day it is on. A hand mark for today would
        either repeat its date or contradict it, so only a task carries one —
        and neither, then, the mark that takes one off. */
@@ -600,11 +596,8 @@ function adopt(raw, i, books) {
        which is what a deadline that is still unmet should do. */
     if (isDate(raw.notToday)) e.notToday = raw.notToday;
     else delete e.notToday;
-    // only a task can be set aside, and only while it is still open
     delete e.date;
     delete e.time;
-    if (raw.backlog && e.state === "open") e.backlog = true;
-    else delete e.backlog;
   }
   if (typeof raw.notes === "string" && raw.notes.trim()) e.notes = raw.notes.trim();
   else delete e.notes;
@@ -616,11 +609,14 @@ function adopt(raw, i, books) {
      work, where nothing reads it anyway. */
   if (!Number.isFinite(raw.settled) || e.state === "open") delete e.settled;
   if (e.type === "event") delete e.due;
-  /* Fields of two features this app no longer has: the goal a task was a step
-     towards, and the tag that put a line in a group. Dropped on load rather
-     than carried along unread, so an export says what the app does. */
+  /* Fields of three features this app no longer has: the goal a task was a
+     step towards, the tag that put a line in a group, and the backlog a task
+     could be set aside in — every open task is now simply on its page.
+     Dropped on load rather than carried along unread, so an export says what
+     the app does. */
   delete e.goal;
   delete e.tag;
+  delete e.backlog;
   return e;
 }
 
@@ -658,7 +654,6 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 /* ── view state ────────────────────────────────────────────────────── */
 
 const S = {
-  backlogOpen: false,
   doneOpen: true, // starts open, as Done always was; folding it is per session
   todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
   foldedGroups: new Set(), // group headings put away this session, by name
@@ -700,26 +695,24 @@ const byDeadline = (a, b) =>
   (a.due ? 0 : 1) - (b.due ? 0 : 1) ||
   (a.due && b.due ? (a.due < b.due ? -1 : a.due > b.due ? 1 : 0) : 0);
 
-/* The Journal: every task in this notebook, in three buckets — what is in
-   progress (open, on the page), what is set aside (the backlog), and what is
-   settled (done or struck out). Live work reads by deadline: starred lines
-   lead, then due date, then the order you dragged them into. Done is the
-   record rather than the work, so neither of those sorts it: a star says what
-   to do next and a deadline says when by, and a finished line has no next and
-   nothing left to be late for. What orders it is the day it was settled on:
+/* The Journal: every task in this notebook, in two buckets — what is in
+   progress (every open line on the page) and what is settled (done or struck
+   out). Two, because those are the only two things a task can be to you: you
+   have not finished with it, or you have. Live work reads by deadline:
+   starred lines lead, then due date, then the order you dragged them into.
+   Done is the record rather than the work, so neither of those sorts it: a
+   star says what to do next and a deadline says when by, and a finished line
+   has no next and nothing left to be late for. What orders it is the day it was settled on:
    the record reads back from the most recent day, and within a day from the
    line settled last — the order it actually happened in, unless you have
    dragged one somewhere else. */
 function journalBuckets() {
   const tasks = mine().filter(onJournal).filter(onPage);
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
-  const live = (f) =>
-    tasks
-      .filter((e) => isLive(e) && f(e))
-      .sort((a, b) => star(a, b) || byDeadline(a, b) || rankOf(b) - rankOf(a));
   return {
-    progress: live((e) => !e.backlog),
-    backlog: live((e) => e.backlog),
+    progress: tasks
+      .filter(isLive)
+      .sort((a, b) => star(a, b) || byDeadline(a, b) || rankOf(b) - rankOf(a)),
     done: db.hideLogged
       ? []
       : tasks.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
@@ -787,14 +780,10 @@ const todayEvents = () => {
    settled today — finishing it is what the day came to, so it lands in Done
    with the rest, and tomorrow it is gone. A hand mark is different and still
    does not roll forward: it is an intention for one day, and yesterday's is
-   yesterday's. A task set aside is none of the above, whatever its mark or
-   its date says: the backlog is the word for *not now*, and it has to beat
-   both. The mark survives the trip, so pulling the line back puts it straight
-   back on the page. */
+   yesterday's. */
 function onToday(e) {
   const t = TODAY();
   if (e.type === "event") return e.date === t;
-  if (e.backlog) return false;
   /* Taken off by hand, today. It beats the deadline because it is the newer
      statement and the more specific one: the date says the line is owed, you
      say not on this day, and tomorrow the date says it again. */
@@ -953,11 +942,7 @@ function toggleDone(id) {
   if (!e) return;
   S.anim.add(id);
   buzz(e.state === "done" ? 6 : 11);
-  mutate(null, () => {
-    setState(e, e.state === "done" ? "open" : "done");
-    // finishing a task is also the end of its time in the backlog
-    if (e.state === "done") delete e.backlog;
-  });
+  mutate(null, () => setState(e, e.state === "done" ? "open" : "done"));
 }
 
 /* The same line again, beside where it lives: same notebook, same page, same
@@ -986,27 +971,7 @@ function toggleDropped(id) {
   S.anim.add(id);
   buzz(9);
   const back = e.state === "dropped";
-  mutate(back ? "Restored" : "Struck out", () => {
-    setState(e, back ? "open" : "dropped");
-    if (!back) delete e.backlog;
-  });
-}
-
-/* To the backlog and back. Only a task has one — an event happens whether you
-   set it aside or not — and only while it is still open. */
-function toggleBacklog(id) {
-  const e = byId(id);
-  if (!e || e.type !== "task") return;
-  const was = !!e.backlog;
-  buzz(9);
-  mutate(was ? "Back on the page" : "Set aside", () => {
-    if (was) delete e.backlog;
-    else {
-      e.backlog = true;
-      setState(e, "open"); // the backlog only holds live work
-    }
-  });
-  if (!was) S.backlogOpen = true;
+  mutate(back ? "Restored" : "Struck out", () => setState(e, back ? "open" : "dropped"));
 }
 
 /* On Today and off it. The mark is stamped with the day it was made, so
@@ -1033,10 +998,6 @@ function toggleToday(id) {
     } else {
       delete e.notToday;
       e.today = TODAY();
-      /* A line set aside is not something you are doing today. Putting it on
-         Today is the plainer of the two statements, so it wins and the line
-         comes back onto the page. */
-      delete e.backlog;
     }
   });
 }
@@ -1071,7 +1032,6 @@ function removeEntry(id) {
 
 const ICON = {
   check: '<svg viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5"/></svg>',
-  back: '<svg viewBox="0 0 24 24"><path d="M19 12H6M12 5l-7 7 7 7"/></svg>',
   star: '<svg viewBox="0 0 24 24" class="fill"><path d="M12 2.5l2.9 6.1 6.6.9-4.8 4.7 1.2 6.6L12 17.7 6.1 20.8l1.2-6.6L2.5 9.5l6.6-.9z"/></svg>',
   trash: '<svg viewBox="0 0 24 24"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>',
   cal: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M8 3v4M16 3v4"/></svg>',
@@ -1101,8 +1061,6 @@ const ICON = {
   /* a phone throwing light, rays off its corners as well as its sides — two
      bars alone read as a phone buzzing, which is a thing this app also does */
   awake: '<svg viewBox="0 0 24 24"><rect x="7.5" y="3.5" width="9" height="17" rx="2.5"/><path d="M3.1 7.4l1.5 1.5M20.9 7.4l-1.5 1.5M2.4 12.5h2.1M19.5 12.5h2.1M3.1 17.6l1.5-1.5M20.9 17.6l-1.5-1.5"/></svg>',
-  /* the backlog: a tray to set something down in */
-  tray: '<svg viewBox="0 0 24 24"><path d="M3 13.5h4l1.5 2.5h7l1.5-2.5h4"/><path d="M3 13.5L6 5h12l3 8.5V19H3z"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
 };
 
@@ -1114,22 +1072,15 @@ const bwrap = (cls) => {
 };
 
 /* A struck-out entry keeps its own bullet (dimmed) — what it *was* is still
-   part of the record. Done and set-aside each get their own mark.
-   A task set aside gets a half-filled circle: the Backlog heading only says
-   where it is on the one page that has that heading, and in Search — or
-   anywhere a line is read away from its fold — the mark is the only thing
-   that says it is not being worked on. Half filled because that is what the
-   backlog is, a line begun and put down, and because a shape carries across
-   a list where a shade does not.
+   part of the record. Done is the one state that takes a mark of its own,
+   because it is the one that is no longer about the kind of line this is: a
+   × says the thing was carried out, where a struck dot still says what the
+   line was before you decided against it.
    Every line carries one, the ordinary task included: the dot is what the
-   column is for, and the marks that are not a dot only read as departures
+   column is for, and the mark that is not a dot only reads as a departure
    from it if the dot is there to depart from. It is also the tap that
-   finishes a line, which a column with nothing in it cannot be.
-   Done is tested first because it is the only state that can arrive on a line
-   that was in the backlog; setting one aside is undone the moment it is
-   finished, so past that test `backlog` always means an open task. */
-const bulletClass = (e) =>
-  e.state === "done" ? "b b-done" : e.backlog ? "b b-backlog" : `b b-${e.type}`;
+   finishes a line, which a column with nothing in it cannot be. */
+const bulletClass = (e) => (e.state === "done" ? "b b-done" : `b b-${e.type}`);
 
 
 /* ── render ────────────────────────────────────────────────────────── */
@@ -1177,7 +1128,7 @@ function renderHead() {
 /* A bucket heading that does not fold, and the only one left: Today's own.
    Everything on that page is there because of the day, which is not a pile
    you put away — and it carries no chevron for the same reason the Journal's
-   two do, that the mark means a fold and nothing else. */
+   Done does, that the mark means a fold and nothing else. */
 function bucketHeading(label, n) {
   const h = el("li", "sep sep-bucket");
   h.append(el("span", null, label), el("span", "sep-n", String(n)));
@@ -1196,9 +1147,9 @@ function dayHeading(d, n) {
 
 /* A bucket heading that folds its lines away. `key` names the S flag.
    The chevron is the state and nothing else — it says which way this heading
-   is turned and turns with it — which is why only Backlog and Done have one.
-   They are the two piles you put away; the work itself has no heading at all
-   and cannot be folded, so there is nothing for a third mark to say. */
+   is turned and turns with it — which is why only Done has one. It is the
+   one pile you put away; the work itself has no heading at all and cannot be
+   folded, so there is nothing for a second mark to say. */
 function foldHeading(label, n, key) {
   const h = el("li");
   const b = el("button", "sep-fold" + (S[key] ? " open" : ""), ICON.chev);
@@ -1217,7 +1168,7 @@ function renderJournal() {
   list.textContent = "";
 
   const today = todayEvents();
-  const { progress, backlog, done } = journalBuckets();
+  const { progress, done } = journalBuckets();
 
   /* Today's events lead the page, directly under the date stamp that names the
      day they fall on — so they read as that heading's content and need no
@@ -1226,12 +1177,11 @@ function renderJournal() {
 
   /* Every bucket row can be lifted and dragged — but only among the rows the
      sort would leave it beside, because it would be put straight back if it
-     crossed a line the sort draws. In the two buckets that read by deadline
-     those lines are the star and the due date; undated tasks share the one
-     empty date, so the ordinary page still drags end to end. In Done the line
-     is the day: a row drags among the ones settled beside it and no further,
-     because carrying it across a heading would say it was finished on a day it
-     was not. */
+     crossed a line the sort draws. In the work those lines are the star and
+     the due date; undated tasks share the one empty date, so the ordinary
+     page still drags end to end. In Done the line is the day: a row drags
+     among the ones settled beside it and no further, because carrying it
+     across a heading would say it was finished on a day it was not. */
   const put = (e, bucket, sorted = true) => {
     const li = row(e, bucket === "progress" ? { tray: true, sun: true } : { sun: true });
     li.dataset.group =
@@ -1243,20 +1193,18 @@ function renderJournal() {
   /* The work itself carries no heading and no fold. It is what the page is —
      naming it only told you that the lines under the name were the lines you
      were already looking at, and a fold over it was a way to hide the one
-     thing you opened the Journal to see. So it leads, always, every live line
-     of it, and the two headings below are the exceptions to it rather than
-     its equals: what you have put down, and what you have finished.
+     thing you opened the Journal to see. So it leads, always, every open line
+     of the page, in one stack: a task you are not getting to this week is
+     still a task you have, and a second bucket for the ones you had admitted
+     that about only ever moved the deciding from the line to the pile. The
+     one heading below it is the exception to it rather than its equal: what
+     you have finished with.
      A hairline stands in for the heading where today's events run into it,
      because without one the day's events and the undated work would read as
      a single stack. Where there are no events the page simply starts with
      the work, and where there is no work the next heading closes them off. */
   if (today.length && progress.length) list.append(el("li", "sep-rule"));
   progress.forEach((e) => put(e, "progress"));
-
-  if (backlog.length) {
-    list.append(foldHeading("Backlog", backlog.length, "backlogOpen"));
-    if (S.backlogOpen) backlog.forEach((e) => put(e, "backlogOpen"));
-  }
 
   /* Done reads as the days it happened on: one fold over the whole record, and
      a dated heading inside it for each day, most recent first. The day is the
@@ -1273,7 +1221,7 @@ function renderJournal() {
   }
 
   const empty = $("#empty");
-  const bare = !progress.length && !backlog.length && !done.length && !today.length;
+  const bare = !progress.length && !done.length && !today.length;
   empty.hidden = !bare;
   if (bare) {
     /* The page says its own name: with several in a notebook, "empty" on its
@@ -1424,12 +1372,11 @@ function groupHeading(name, open) {
 /* One page of the notebook, as a row the width of the list: its name and a
    pencil. Shaped like the notebook rows in the sheets, because it is the same
    move one level down — turn to one of a short list, or rename it in place.
-   What the row says beside the name is what is still open on the page — the
-   work in progress and the backlog together — because choosing a page is
-   choosing where there is work left: how many lines it holds in total is not
-   that, and which one is the default is something you want while you are on
-   a page rather than while you are picking one, both of which are said on
-   the page's own sheet. A page with nothing open prints no number at all; an
+   What the row says beside the name is what is still open on the page,
+   because choosing a page is choosing where there is work left: how many
+   lines it holds in total is not that, and which one is the default is
+   something you want while you are on a page rather than while you are
+   picking one, both of which are said on the page's own sheet. A page with nothing open prints no number at all; an
    empty end of the row says it better than a nought. */
 function pageLink(pg) {
   const n = pendingOn(pg.id);
@@ -1482,30 +1429,29 @@ function row(e, opts = {}) {
   li.dataset.id = e.id;
   if (e.state === "done") li.classList.add("is-done");
   if (e.state === "dropped") li.classList.add("is-dropped");
-  if (e.backlog) li.classList.add("is-backlog");
   if (S.anim.has(e.id)) li.classList.add("anim");
 
   const under = el("div", "row-under");
-  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon(e)));
+  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon()));
   li.append(under);
 
   /* The lists you work from — the Journal's live work and Today's wanted
      lines — keep what you do to a line under its right edge: strike it out,
-     set it aside, copy it. They live under the face rather than on it, so
-     the words have the row to themselves until a left swipe slides it open;
-     a long swipe carries straight past the tray to setting the line aside,
-     so the tray is a stop on the way and takes no gesture away.
-     Finishing is not among the three. The bullet's own tap says it, and so
-     does the right swipe, and a third way to say it here would read as one
-     more thing the left swipe might be about to do. */
+     copy it. They live under the face rather than on it, so the words have
+     the row to themselves until a left swipe slides it open; a long swipe
+     carries straight past the tray and strikes the line out, which is the
+     tray's own first button — the swipe is the quick way to it and the tray
+     the deliberate one, exactly as the bullet and the right swipe both
+     finish a line.
+     Finishing is not among them, for that same reason: it already has two
+     doors of its own, and a third here would read as one more thing the left
+     swipe might be about to do. */
   const open = e.type === "task" && e.state === "open";
   if (opts.tray && open) {
     li.classList.add("has-tray");
     const tray = el("span", "qa-tray");
     tray.append(
       qa("qa-strike", ICON.strike, "Strike out", () => toggleDropped(e.id), true),
-      qa("qa-aside", e.backlog ? ICON.back : ICON.tray,
-        e.backlog ? "Back on the page" : "Set aside in backlog", () => toggleBacklog(e.id), true),
       qa("qa-dup", ICON.copy, "Duplicate", () => duplicateEntry(e.id), true)
     );
     under.append(tray);
@@ -1513,17 +1459,16 @@ function row(e, opts = {}) {
 
   const face = el("div", "row-face");
 
-  /* The sun first, on the work in progress, and on nothing else: a line you
-     have set aside is not one you are deciding the day of — Today drops a
-     backlogged line whatever its mark says, so a sun there would be a switch
-     that did nothing — and a line already finished has no next day.
+  /* The sun first, on the open lines and on nothing else: a line already
+     finished has no next day, so a sun there would be a switch that did
+     nothing.
      A row without one holds nothing in its place. The column was reserved
      for a while, to keep every line on the page starting its words in one
-     column, but an empty indent is a cost paid on every row of the Backlog
-     and the Done for a tidiness only visible when you look for it. The
-     buckets read as buckets, and a line with no sun begins at the edge of
-     its card like the Calendar's and Search's do. */
-  if (opts.sun && open && !e.backlog) {
+     column, but an empty indent is a cost paid on every row of the Done for
+     a tidiness only visible when you look for it. The buckets read as
+     buckets, and a line with no sun begins at the edge of its card like the
+     Calendar's and Search's do. */
+  if (opts.sun && open) {
     const on = onToday(e);
     face.append(
       qa("qa-today" + (on ? " on" : ""), ICON.today, on ? "On Today" : "Put on Today", () =>
@@ -1609,20 +1554,15 @@ function qa(cls, icon, label, fn, direct = false) {
   return b;
 }
 
-/* Whether a line can be set aside. Only a live task has a backlog to go to;
-   setting a *done* line aside would quietly un-complete it, and an event is
-   due on its day or not at all. */
-const canBacklog = (e) => e.type === "task" && e.state === "open";
-
-/* What a left swipe means for this line, once it has gone past the tray. A
-   live task is set aside; everything else — an event, a task already
-   finished — has no backlog to go to, so the gesture strikes it out
-   instead. */
-const swipeLeftIcon = (e) => (canBacklog(e) ? (e.backlog ? ICON.back : ICON.tray) : ICON.strike);
+/* What a left swipe means, and it means the same thing on every row: the line
+   is struck out. An event, a task in hand and a task already finished all
+   answer it alike, so the only thing the gesture asks you to know is how far
+   it has to go — which is what leaves the tray free to be the slower, named
+   way to the same move and to the one thing it does not say. */
+const swipeLeftIcon = () => ICON.strike;
 
 function swipeLeft(e) {
-  if (canBacklog(e)) toggleBacklog(e.id);
-  else toggleDropped(e.id);
+  toggleDropped(e.id);
 }
 
 /* ── gestures ──────────────────────────────────────────────────────── */
@@ -1633,8 +1573,8 @@ function swipeLeft(e) {
    the same gesture, is one too many.
    How far a swipe has to travel before it means something. The tray makes
    the left-hand journey longer than this: past the tray, and then this far
-   again, which is what keeps a tray-open from ever turning into a set-aside
-   by accident. */
+   again, which is what keeps a tray-open from ever striking a line out by
+   accident. */
 const COMMIT = 76;
 
 /* The one row whose tray is slid open, as the function that shuts it. Only
@@ -1649,7 +1589,7 @@ function swipeable(li, face, e) {
     dx = 0,
     base = 0, // where the face rests: 0, or -W while the tray is open
     W = 0, // how far the tray slides the face
-    full = COMMIT, // how far left a swipe must go to set the line aside
+    full = COMMIT, // how far left a swipe must go to strike the line out
     tapShut = false,
     active = false,
     decided = false,
@@ -1723,7 +1663,7 @@ function swipeable(li, face, e) {
     face.style.transform = `translateX(${dx}px)`;
     li.classList.toggle("sw-r", dx > 12);
     li.classList.toggle("sw-l", dx < -12);
-    // with a tray, the set-aside colour waits until the swipe is past it
+    // with a tray, the strike-out colour waits until the swipe is past it
     if (tray) li.classList.toggle("sw-full", dx <= -full + 4);
   });
 
@@ -2177,14 +2117,6 @@ function openEntry(id) {
         : actRow(ICON.check, "Mark done", () => { toggleDone(id); closeSheet(); })
     );
 
-    if (canBacklog(e)) {
-      acts.append(
-        e.backlog
-          ? actRow(ICON.back, "Back on the page", () => { toggleBacklog(id); closeSheet(); })
-          : actRow(ICON.tray, "Set aside in backlog", () => { toggleBacklog(id); closeSheet(); })
-      );
-    }
-
     acts.append(
       e.state === "dropped"
         ? actRow(ICON.undo, "Un-strike", () => { toggleDropped(id); closeSheet(); })
@@ -2548,13 +2480,11 @@ function openBook(id) {
 /* How many tasks are on one page. Only tasks, because only a task has a page
    — an event is counted by the notebook that holds it. */
 const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
-/* And how many of them are still open: the work in progress and the backlog
-   together, which is everything on the page you have not finished with. The
-   backlog counts because the number is read while you are choosing a page,
-   and at that distance a line you set aside is still a line you have — the
-   distinction between now and not-now is one you want once you are on the
-   page, where the fold already makes it. A finished or struck line is the
-   only thing behind you, and that is what the number leaves out. */
+/* And how many of them are still open, which is everything on the page you
+   have not finished with: the number is read while you are choosing a page,
+   and at that distance every line you have not dealt with counts the same.
+   A finished or struck line is the only thing behind you, and that is what
+   the number leaves out. */
 const pendingOn = (id) =>
   db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
 
@@ -2812,7 +2742,6 @@ function openSearch() {
           e.type === "event" ? dayLabel(e.date) : e.due ? `by ${dayLabel(e.due)}` : writtenLabel(e.created),
           bookOf(e) !== db.book ? bookName(bookOf(e)) : null,
           e.type === "task" && pageOf(e) !== db.page ? pageName(pageOf(e)) : null,
-          e.backlog ? "backlog" : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -2831,7 +2760,6 @@ function openSearch() {
                page is simply where the Journal will be when you get back to
                it. */
             db.page = e.type === "task" ? pageOf(e) : defPage(bookOf(e)).id;
-            if (e.backlog) S.backlogOpen = true;
           });
           openEntry(e.id);
         };
@@ -2895,7 +2823,6 @@ function openMigrated(fromMenu = false) {
     line(ICON.check, "Tasks", c.tasks || 0);
     line('<i class="b b-event" style="margin:0 3px"></i>', "Events", c.events || 0);
     if (c.notes) line(ICON.notes, "Notes → tasks", c.notes);
-    if (c.backlog) line(ICON.tray, "Someday → backlog", c.backlog);
     if (c.undatedEvents) line(ICON.notes, "Undated events → notes", c.undatedEvents);
     if (c.stubs) line(ICON.strike, "Migration stubs dropped", c.stubs);
     b.append(acts);
