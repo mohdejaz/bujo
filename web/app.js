@@ -45,9 +45,11 @@
  *           Absent on an older journal too, and that is the whole
  *           migration — such a line falls back to `created`, the way it
  *           sorted before this field existed.
- *   pos   = where a task sits on the page after it has been dragged, absent
- *           until then. It shares a scale with `created` and `settled` (see
- *           rankOf), so a line written after a reorder still lands on top.
+ *   pos   = where a task sits after it has been dragged, absent until then.
+ *           One order per line, not one per page: the Journal and Today both
+ *           read it, so arranging a day arranges the page too. It shares a
+ *           scale with `created` and `settled` (see rankOf), so a line
+ *           written after a reorder still lands on top.
  */
 
 const KEY = "bujo.v2";
@@ -764,9 +766,11 @@ const todayEvents = () => {
    kinds it is. Today narrows it by *when*, and so it reads straight across all
    of them: a day is one day whichever journal a line was written in, and
    having to visit four pages of two notebooks to find out what today holds
-   would be a worse notebook, not a tidier one. It is still only a read. No
-   line moves here, nothing is copied, and the mark that puts one here is
-   written by you rather than by the page.
+   would be a worse notebook, not a tidier one. It is still only a read of
+   where lines live: nothing is copied and no line changes notebook or page
+   here. What this page does write is yours either way — the mark that puts a
+   line on the day, and the order you drag the day into, which is the line's
+   one order and not a second one kept for this page.
    Archived notebooks are left out. Archiving is putting a journal away, and a
    page that reached in and lifted lines back out of it would make the one
    thing archiving promises untrue. */
@@ -1236,17 +1240,34 @@ function renderJournal() {
    names the day — the same arrangement the Journal uses, and for the same
    reason: they read as that heading's content and need no heading of their
    own. Then what is wanted, then what the day came to.
-   Nothing here lifts and drags. The order is the deadline, and a deadline is
-   the one order in this app you do not set by hand. */
+   A task lifts and drags here as it does on the Journal, and for the same
+   reason: the deadline is still not yours to set, but among the lines a
+   deadline does not separate — the ones you marked by hand, the ones owed on
+   the same day — the order is the plan for the day, and this is the page you
+   make that plan on. What it writes is the line's own `pos`, the one order a
+   line has anywhere, so an afternoon spent arranging the day is not undone by
+   turning to the page the line lives on. Events are left out: they drag on no
+   page, because a day's events are ordered by the day. */
 function renderToday() {
   const list = $("#list");
   list.textContent = "";
 
   const { events, now, done } = todayBuckets();
 
-  // every row says where it lives: this is the one page that reads across
-  // notebooks, so a line without its address here would be anonymous
-  const put = (e, opts = {}) => list.append(row(e, { where: true, ...opts }));
+  /* Every row says where it lives: this is the one page that reads across
+     notebooks, so a line without its address here would be anonymous. A row
+     given a `group` can be lifted and dragged within it — the group is the
+     run of rows the sort would leave it beside, so nothing can be dropped
+     across a line the sort draws and be put straight back. */
+  const put = (e, opts = {}) => {
+    const { group, ...rest } = opts;
+    const li = row(e, { where: true, ...rest });
+    if (group) {
+      li.dataset.group = group;
+      liftable(li);
+    }
+    list.append(li);
+  };
 
   events.forEach((e) => put(e, { sun: true }));
 
@@ -1259,14 +1280,30 @@ function renderToday() {
      page cannot otherwise tell you, and tapping it is how you choose or
      unchoose. A line held here only by its mark does leave when you take
      the mark off; that is the honest result, and the sheet has always done
-     the same. */
+     the same.
+     The runs a drag stays inside are the star and the due date, the same two
+     the Journal's work draws — so the lines you marked by hand, carrying no
+     date between them, drag end to end. */
   if (now.length) {
     list.append(bucketHeading("Today", now.length));
-    now.forEach((e) => put(e, { tray: true, sun: true }));
+    now.forEach((e) =>
+      put(e, {
+        tray: true,
+        sun: true,
+        group: "now" + (e.star ? ":star" : "") + (e.due ? ":" + e.due : ""),
+      })
+    );
   }
+  /* Done drags within the day it was settled on, as the Journal's does, even
+     though there is no heading here to show the day: `pos` and the settled
+     stamp share one scale, and a rank carried over from another day would sort
+     a line outside the day heading it prints under back on the Journal. Nearly
+     always it is one day anyway — the day you are standing in — and then the
+     whole stack drags end to end. */
   if (done.length) {
     list.append(foldHeading("Done", done.length, "todayDoneOpen"));
-    if (S.todayDoneOpen) done.forEach((e) => put(e, { sun: true }));
+    if (S.todayDoneOpen)
+      done.forEach((e) => put(e, { sun: true, group: "tdone:" + settledDay(e) }));
   }
 
   const empty = $("#empty");
