@@ -176,6 +176,12 @@ day, so a finished task drags among the ones settled
 beside it — carrying one across a day heading would say it was finished on a
 day it was not. A line you write afterwards still lands at the top.
 
+The same hold and drag works on **Today**, among the same runs: the lines you
+marked by hand carry no date between them, so they drag end to end, and a
+dated line moves among the ones owed on its day. A line has one order wherever
+it is read, so arranging the day arranges the page the line lives on too —
+which is the point, not a side effect: you ordered that work once.
+
 **Notes on a line.** Tap a line to open it and write underneath — links, the
 detail, the questions behind it. Strike a line out when it stops being worth
 keeping; delete it when it was never worth writing.
@@ -210,8 +216,11 @@ the same goes for a page when the notebook has only one.
 
 Nothing moves here and nothing is copied. A line keeps living on its own page
 in its own notebook; Today is a read of it, so completing or striking it here
-and there are the same act. There is no dragging, because the order is the
-deadline and a deadline is the one order in this app you do not set by hand.
+and there are the same act — and dragging one here sets the order it has
+everywhere, rather than a second order kept for this page. What the drag cannot
+do is argue with a deadline: the day a line is owed is the one order in this
+app you do not set by hand, so a dated line still sorts by its date and drags
+only among the lines owed on the same day.
 Archived notebooks are left out — archiving is putting a journal away.
 
 **Marking a line for today.** Open it and press *Put on Today*. The mark
