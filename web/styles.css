@@ -552,10 +552,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
-/* ? for a question, where the kinds of line mix: the Index's page rows and a
-   search. A page of questions prints no mark at all — see row() — so this is
-   never a column, only a one-off beside a dot or a ring, which is exactly
-   where a shape would have had to be learnt and a letter does not. */
+/* – for a note, the dash the line is written with. Wider than it is tall, so
+   it can never read as a dot half-drawn. */
+.b-note { width: 0.6rem; height: 2px; border-radius: 2px; background: currentColor; }
+/* ? for a question. A page of questions prints no mark at all — see row() — so
+   this is never a column, only a one-off against a dot, a ring or a dash,
+   which is exactly where a shape would have had to be learnt and a letter does
+   not. */
 .b-ask { width: 0.7rem; height: 0.8rem; }
 .b-ask::before {
   content: "?";
