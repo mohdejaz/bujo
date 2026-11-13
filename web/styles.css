@@ -664,9 +664,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-overflow: ellipsis;
   color: var(--ink-2);
 }
-/* Prose rows wrap instead of clamping. The q:/a: tag hangs in the margin of
-   its own paragraph so a wrapped second line returns to the tag's edge and the
-   two letters line up down the page. */
+/* Prose rows wrap instead of clamping. The q:/a: tag is its own flex column,
+   so a wrapped second line returns to the text's edge and not under the tag. */
 .row-line.wrap, .row-answer.wrap {
   white-space: normal;
   overflow: visible;
@@ -674,15 +673,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   overflow-wrap: anywhere;
 }
 .row-tag {
-  display: inline-block;
-  width: 1.5em;
+  flex: none;
+  margin-right: 0.4em;
   color: var(--dim);
   font-weight: 600;
 }
-.row-line.wrap:has(.row-tag), .row-answer.wrap {
-  padding-left: 1.5em;
-  text-indent: -1.5em;
-}
+.row-body { min-width: 0; }
+.row-line.wrap:has(.row-tag), .row-answer.wrap:has(.row-tag) { display: flex; }
 /* where a line actually lives, on the one page that reads across notebooks.
    The same ink as the deadline beside it, a weight lighter: it is the second
    thing you read on the line, not a hairline — --hair is for rules, and at
