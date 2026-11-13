@@ -72,16 +72,23 @@ instead of writing a line, and grows a segment saying which `kind` that page wil
 the way the Calendar's grows a date — so page handling lives in one view rather than
 being spread across a header strip and a sheet. A page's kind is settled when it is
 named and can only change while the page is empty: the two kinds are read by different
-renders, so switching a page that holds lines would not move them, it would hide them. Groups are read there and nowhere else, and they are
+renders, so switching a page that holds lines would not move them, it would hide them.
+A page is also archived from there — `archived` is the notebook's own filter one level
+down, gated by `canArchive` on there being no open task left (`openWorkOn`), which is
+why a page of notes is always free to go. `livePages` is what every reader but the
+Index's own archive fold means by "the pages of this notebook". Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
 is untouched, because the default page is unaffected by it. That default is the
-page of work carrying `def`, falling back to the notebook's first page of work when no
-page carries one — so an old journal reads back unchanged. It is never a page of notes,
+live page of work carrying `def`, falling back to the notebook's first live page of work
+when no page carries one — so an old journal reads back unchanged. It is never a page of notes,
 because the lines written down by absence are tasks and a page of notes cannot show
-one; `withPages` guarantees every notebook has a page of work, creating one past
-`PAGE_MAX` if it must, because the invariant outranks the ceiling. `setDefaultPage` is
+one, and never an archived one, because you cannot turn to it; `withPages` guarantees
+every notebook has a live page of work, creating one past `PAGE_MAX` if it must,
+because the invariant outranks the ceiling. A page carrying `def` never keeps
+`archived` — dropping `def` instead would leave every page-less task pointing at a page
+nobody can turn to. `setDefaultPage` is
 the only thing that moves it, and it writes every page-less task in that notebook down on the
 page it was already on before it flips the flag: absence means the default, so moving
 the default without that would quietly empty one page into another.
@@ -106,7 +113,7 @@ where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
 notebook's default page, `group` for a page under no group, `kind` for a page of work,
-`due`/`backlog` when they do not apply. This is the migration
+`archived` for a page you have not put away, `due`/`backlog` when they do not apply. This is the migration
 strategy, not an optimisation: a journal written before notebooks or pages existed gains
 a record and not one entry is rewritten. Writing an explicit default (`putPage` guards
 this) breaks the invariant that makes old files load untouched.

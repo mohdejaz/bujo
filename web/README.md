@@ -237,7 +237,8 @@ everywhere, rather than a second order kept for this page. What the drag cannot
 do is argue with a deadline: the day a line is owed is the one order in this
 app you do not set by hand, so a dated line still sorts by its date and drags
 only among the lines owed on the same day.
-Archived notebooks are left out — archiving is putting a journal away.
+Archived notebooks are left out — archiving is putting a journal away — and so
+are archived pages, one level down and for the same reason.
 
 **Marking a line for today.** Open it and press *Put on Today*. The mark
 records the **day you made it**, not a flag, and that is the whole of how it
@@ -262,6 +263,15 @@ page — or the pencil beside it to rename or delete it. The field at the foot
 names a new page rather than writing a line, because pages are what this page
 is made of; you land on the new one, ready to write. It is the same move the
 notebook button in the header makes, one level down.
+
+Pages you have put away sit under an **Archived** fold at the foot, below the
+groups, because a page in the archive is in no group and is not one of the
+pages you are working with. It is the one fold in the app that starts closed —
+every other fold is about what you did this session, and this one is about what
+you deliberately put away, from the page's own sheet, with the heading printing
+how many there are. Tapping an archived page opens its sheet rather than
+turning to it, because that is where *Restore* is and it is the only thing left
+to do with it.
 
 Above that field the Index grows a row the other pages do not have: **page of
 tasks**, or **page of notes**. A page has to say what it holds before it can
@@ -297,6 +307,30 @@ time, named in the header. A notebook is a *filter*, not a container:
 archiving one keeps every line it holds and only takes it out of the picker. Up
 to six open at once; archived ones don't count. Move a single line between them
 from its entry sheet.
+
+**Archiving a page.** A page whose work is finished can step aside: *Archive
+page* on its sheet puts it away, and it leaves the Index for the fold at the
+foot. Nothing moves and nothing is deleted — every line it holds stays exactly
+where it was, the way an archived notebook keeps everything in it. An archived
+page stops counting against the sixteen, so a notebook can go on having pages
+after it, and *Restore page* brings it back whole, provided there is still room
+among the sixteen for it.
+
+It is offered **only when no task on the page is still open**. A task you
+struck out counts as finished with — you decided against it, which is an
+answer — so what stands in the way is only the work you have not dealt with,
+which is exactly the number the Index already prints beside the page: **a page
+with no number beside it can be archived.** Press it with work still open and
+it tells you how much, rather than hiding the row and leaving you to guess the
+rule. A page of notes has no work on it at all, so it can always go — a note is
+not something you finish, and waiting for every one of them to be struck out
+would be waiting for the page to become worthless rather than done.
+
+The **default page** can never be archived, for the reason it can never be
+deleted while it is the last of the work: a line that names no page lives
+there, so it has to stay somewhere you can read it. An archived page is also
+the one page you cannot turn to, and its lines drop out of **Today** and out of
+the move-a-line rows — putting a page away means putting it away.
 
 **Pages of work, pages of notes.** A page holds tasks or it holds notes, never
 both — because the field at the foot asks nothing, and a page holding both
@@ -399,7 +433,8 @@ back — that's also how you move between phone and desktop.
   "book": "b1",
   "pages": [{ "id": "p1", "book": "b1", "name": "log" },
             { "id": "p2", "book": "b1", "name": "ideas", "group": "side projects" },
-            { "id": "p3", "book": "b1", "name": "people", "kind": "notes" }],
+            { "id": "p3", "book": "b1", "name": "people", "kind": "notes" },
+            { "id": "p4", "book": "b1", "name": "q2", "archived": true }],
   "page": "p1",
   "entries": [
     { "id": "k3f9a1", "type": "task", "text": "Book the flights",
@@ -436,15 +471,20 @@ notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks and
 notes, never on events, and is absent for its notebook's default page,
 whichever page that currently is — a page says it is the default by carrying
-`def`, and absent on all of them means the first page of work, so a journal
-written before the default could be moved reads back unchanged. A note is
-always written down explicitly, because the default page is a page of work and
-a note is never on one. `kind` is the field that says so: absent on a page of
-work, which is what a page has always been and so what it still means to say
-nothing, and `"notes"` on a page of notes. Only a page of work can carry
-`def`, and every notebook is guaranteed one — a notebook whose pages are all
-notes gains a page of work on the next load, because absence has to go on
-meaning exactly one page and that page has to be able to show a task. `group` is the trick one level
+`def`, and absent on all of them means the first live page of work, so a
+journal written before the default could be moved reads back unchanged. A note
+is always written down explicitly, because the default page is a page of work
+and a note is never on one.
+
+`kind` is the field that says which a page is: absent on a page of work, which
+is what a page has always been and so what it still means to say nothing, and
+`"notes"` on a page of notes. `archived` is the notebook's own flag one level
+down and the same kind of filter: absent on a page you are working with, `true`
+on one you have put away — never on the default page, and not counted against
+the sixteen. Only a live page of work can carry `def`, and every notebook is
+guaranteed one: a notebook whose pages are all notes, or all archived, gains a
+page of work on the next load, because absence has to go on meaning exactly one
+page and that page has to be one a task can be read on. `group` is the trick one level
 down again: a page carries the name of the group it is under, and absent means
 it is under none, so there is no list of groups anywhere in the file — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.

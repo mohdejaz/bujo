@@ -147,12 +147,21 @@ function writtenLabel(ms) {
 
 /* And one level down, pages — the tabs down the edge of a paper notebook.
  *
- *   page = { id, book, name, group? }
+ *   page = { id, book, name, kind?, group?, def?, archived? }
  *
  * The same filter trick a third time: a task carries an optional `page`, and
- * its absence means the notebook's *default* page — the first one in the list
- * for that book, which always exists. So a journal written before pages
+ * its absence means the notebook's *default* page — the first live page of
+ * work for that book, which always exists. So a journal written before pages
  * existed gains a page record per notebook and not one entry is rewritten.
+ *
+ * `kind` says what the page holds: absent for the page of work it has always
+ * been, "notes" for a page of notes. And `archived` is the notebook's own
+ * trick one level down — a filter on the page list rather than a deletion. An
+ * archived page keeps every line it holds, leaves the Index for a fold at its
+ * foot, drops out of the move-a-line rows and out of Today, and stops counting
+ * against PAGE_MAX, so a project that is finished can step aside without being
+ * emptied first. It is the one page you cannot turn to: restore it and it is
+ * an ordinary page again.
  *
  * Only the Journal narrows to a page. The Calendar reads the whole notebook,
  * because a day is something you want to see across every page at once —
@@ -278,9 +287,13 @@ function withPages(raw) {
     if (!p || typeof p !== "object" || !known.has(p.book)) return;
     const name = cleanPage(p.name);
     if (!name) return;
+    /* An archived page does not count against the ceiling, for the reason an
+       archived notebook does not count against its own: stepping aside is the
+       whole point of it, and a page you have put away is not one of the pages
+       you are working with. The list as a whole is still capped. */
     const c = count.get(p.book) || 0;
-    if (c >= PAGE_MAX || kept.length >= PAGE_KEEP_MAX) return;
-    count.set(p.book, c + 1);
+    if ((!p.archived && c >= PAGE_MAX) || kept.length >= PAGE_KEEP_MAX) return;
+    if (!p.archived) count.set(p.book, c + 1);
     const pg = { id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name };
     /* What the page holds, absent for the ordinary page of work. */
     if (PAGE_KINDS.has(p.kind)) pg.kind = p.kind;
@@ -298,6 +311,12 @@ function withPages(raw) {
        claiming it loses the flag rather than leaving every page-less task in
        the notebook pointing somewhere it cannot be read. */
     if (p.def === true && !pg.kind && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
+    /* Put away — but never the default page, which is where a line that names
+       no page lives and so has to stay readable. A file claiming both loses
+       the archive rather than the flag: dropping `def` instead would leave
+       every page-less task in the notebook pointing at a page nobody can turn
+       to. This is also why `defPage` can trust what it finds. */
+    if (p.archived === true && !pg.def) pg.archived = true;
     kept.push(pg);
   });
   /* A page of work for any notebook without one — the notebook of a journal
@@ -308,10 +327,13 @@ function withPages(raw) {
      PAGE_KEEP_MAX on purpose — a notebook with nowhere to put the lines it
      already holds is worse than a notebook over the ceiling. */
   raw.books.forEach((b) => {
-    if (!kept.some((p) => p.book === b.id && !p.kind)) kept.push(newPage(b.id, PAGE_FIRST));
+    if (!kept.some((p) => p.book === b.id && !p.kind && !p.archived))
+      kept.push(newPage(b.id, PAGE_FIRST));
   });
   raw.pages = kept;
-  const here = kept.filter((p) => p.book === raw.book);
+  /* And db.page naming a page you can actually be on: an archived one is not,
+     which is what makes archiving the page you are reading safe. */
+  const here = kept.filter((p) => p.book === raw.book && !p.archived);
   if (!here.some((p) => p.id === raw.page)) raw.page = here[0].id;
   return raw;
 }
@@ -327,8 +349,12 @@ const bookName = (id) => db.books.find((b) => b.id === id)?.name || BOOK_FIRST;
    further — see journalBuckets. */
 const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
 
-/* The pages of one notebook, in order. */
+/* The pages of one notebook, in order — archived ones included, because the
+   Index has to list those too and withPages has to count them. */
 const pagesIn = (book) => db.pages.filter((p) => p.book === book);
+/* The ones that are not put away: what every reader but the Index's own
+   archive fold means by "the pages of this notebook". */
+const livePages = (book) => pagesIn(book).filter((p) => !p.archived);
 /* Its default: where a line that names no page lives. Only a page of work can
    be it, because a task is the only line ever written down that way and a
    page of notes could not show one — so the role is the page of work that
@@ -338,7 +364,7 @@ const pagesIn = (book) => db.pages.filter((p) => p.book === book);
    `book`, `page`, `group` and `kind`, one level along. withPages guarantees
    there is a page of work to find. */
 const defPage = (book) => {
-  const work = pagesIn(book).filter((p) => !isNotes(p));
+  const work = livePages(book).filter((p) => !isNotes(p));
   return work.find((p) => p.def) || work[0];
 };
 /* The groups of one notebook, in the order their first page appears. This is
@@ -346,9 +372,12 @@ const defPage = (book) => {
    there, take it off the last page carrying it and the group is gone. There is
    nothing to create first and nothing left behind, which is why a group can
    never be empty and never needs deleting. */
-const groupsIn = (book) => [...new Set(pagesIn(book).map((p) => p.group).filter(Boolean))];
-/* The pages of one group — `null` for the ones in no group at all. */
-const inGroup = (book, g) => pagesIn(book).filter((p) => (p.group || null) === g);
+const groupsIn = (book) => [...new Set(livePages(book).map((p) => p.group).filter(Boolean))];
+/* The pages of one group — `null` for the ones in no group at all. An archived
+   page is in none of them: a heading over a page you cannot turn to would be a
+   heading over nothing, and the archive is one list at the foot rather than a
+   thing scattered through the groups. */
+const inGroup = (book, g) => livePages(book).filter((p) => (p.group || null) === g);
 /* A task with no `page` is on its notebook's default page — which is how a
    journal written before pages needed no migration. A page that belongs to
    another notebook is no page of this entry's, so it falls back too. */
@@ -360,6 +389,15 @@ const pageOf = (e) => {
 const curPage = () => db.pages.find((p) => p.id === db.page) || defPage(db.book);
 const pageName = (id) => db.pages.find((p) => p.id === id)?.name || PAGE_FIRST;
 const onPage = (e) => pageOf(e) === db.page;
+/* A line on an archived page is put away with it, the way a line in an
+   archived notebook is. Only a line that names a page can be: an event has
+   none, and the page a bare task falls back to is the default, which is never
+   archived — so the question is always about an explicit `page`. */
+const onArchivedPage = (e) => {
+  if (e.type === "event" || !e.page) return false;
+  const p = db.pages.find((x) => x.id === e.page);
+  return !!p && !!p.archived;
+};
 /* Where a line goes when it lands on a page: absent for the default one, so
    the stored shape stays the same whether or not anyone made a second page.
    A note always comes out explicit, because the default is a page of work and
@@ -735,6 +773,12 @@ const S = {
   doneOpen: true, // starts open, as Done always was; folding it is per session
   todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
   struckOpen: true, // and a page of notes its own, over what it has struck out
+  /* The Index's archive, and the one fold in the app that starts closed. The
+     rule the others follow — never persist a fold, because a fold you did not
+     set this session is a trap — is about hiding something by accident. This
+     hides nothing by accident: every page under it is one you deliberately put
+     away, from its own sheet, and the heading prints how many there are. */
+  archivedOpen: false,
   newPageKind: null, // what the Index's composer is about to name: notes, or work
   foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
@@ -905,7 +949,9 @@ function onToday(e) {
    from the most recently settled line. */
 function todayBuckets() {
   const live = new Set(liveBooks().map((b) => b.id));
-  const here = db.entries.filter((e) => live.has(bookOf(e)) && onToday(e));
+  const here = db.entries.filter(
+    (e) => live.has(bookOf(e)) && !onArchivedPage(e) && onToday(e)
+  );
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
   const byAge = (a, b) =>
     star(a, b) || (isLive(b) ? 1 : 0) - (isLive(a) ? 1 : 0) || b.created - a.created;
@@ -1511,6 +1557,17 @@ function renderIndex() {
     if (open) inGroup(db.book, g).forEach(put);
   });
 
+  /* And the pages put away, under a fold at the foot — below the groups,
+     because they are below everything: a page in the archive is in no group
+     and is not one of the pages you are working with. The heading carries the
+     count the way every other fold does, so an archive you have closed still
+     says how much is in it. */
+  const away = pagesIn(db.book).filter((p) => p.archived);
+  if (away.length) {
+    list.append(foldHeading("Archived", away.length, "archivedOpen"));
+    if (S.archivedOpen) away.forEach(put);
+  }
+
   /* Printed under the list rather than as an empty state, because the Index is
      never empty: a notebook always has at least one page. */
   list.append(
@@ -1561,8 +1618,11 @@ function groupHeading(name, open) {
    picking one, both of which are said on the page's own sheet. A page with nothing open prints no number at all; an
    empty end of the row says it better than a nought. */
 function pageLink(pg) {
-  const n = pendingOn(pg.id);
-  const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
+  /* An archived page prints no number. It has no work left open on it by the
+     rule that let it go, and on a page of notes a count there would read as
+     something waiting — which is the one thing an archived page never has. */
+  const n = pg.archived ? 0 : pendingOn(pg.id);
+  const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : "") + (pg.archived ? " is-away" : ""));
   const pick = el("button", "pagelink-pick");
   /* The row leads with the mark the page's lines are written in: a dot for a
      page of work, a dash for a page of notes. Choosing a page is choosing
@@ -1574,7 +1634,10 @@ function pageLink(pg) {
   pick.append(bwrap("b b-" + typeOn(pg)));
   pick.append(el("span", "pagelink-name", safeHtml(pg.name)));
   if (n) pick.append(el("span", "pagelink-n", String(n)));
-  pick.onclick = () => goPage(pg.id);
+  /* The archived page is the one page you cannot turn to, so its row opens its
+     sheet instead — where Restore is, which is the only thing left to do with
+     it. Turning to it would be undoing the archive without saying so. */
+  pick.onclick = () => (pg.archived ? openPage(pg.id) : goPage(pg.id));
   const edit = el("button", "pagelink-edit", ICON.pencil);
   edit.setAttribute("aria-label", "Edit " + pg.name);
   edit.onclick = () => openPage(pg.id);
@@ -1589,7 +1652,7 @@ function pageLink(pg) {
 function whereOf(e) {
   const out = [];
   if (liveBooks().length > 1) out.push(bookName(bookOf(e)));
-  if (e.type !== "event" && pagesIn(bookOf(e)).length > 1) out.push(pageName(pageOf(e)));
+  if (e.type !== "event" && livePages(bookOf(e)).length > 1) out.push(pageName(pageOf(e)));
   return out.join(" · ");
 }
 
@@ -2387,7 +2450,7 @@ function openEntry(id) {
     const elsewhere =
       e.type === "event"
         ? []
-        : pagesIn(bookOf(e)).filter((p) => p.id !== pageOf(e) && typeOn(p) === e.type);
+        : livePages(bookOf(e)).filter((p) => p.id !== pageOf(e) && typeOn(p) === e.type);
     if (elsewhere.length) {
       acts.append(el("div", "sep", "Move to page"));
       /* The group rides along on the label rather than splitting this into
@@ -2407,7 +2470,7 @@ function openEntry(id) {
        page, which every notebook has. A note needs a page of notes, which not
        every notebook has — so a notebook without one is left out of the list
        rather than offered and then refused. */
-    const landing = (bk) => (e.type === "note" ? pagesIn(bk.id).find(isNotes) : null);
+    const landing = (bk) => (e.type === "note" ? livePages(bk.id).find(isNotes) : null);
     const others = liveBooks().filter(
       (bk) => bk.id !== bookOf(e) && (e.type !== "note" || landing(bk))
     );
@@ -2571,7 +2634,7 @@ function openMenu() {
     const here = mine();
     const done = here.filter((e) => e.state === "done").length;
     const evs = here.filter((e) => e.type === "event").length;
-    const pgs = pagesIn(db.book).length;
+    const pgs = livePages(db.book).length;
     const foot = el(
       "div",
       "s-sub",
@@ -2601,7 +2664,7 @@ function openBooks() {
 
     db.books.forEach((bk) => {
       const n = db.entries.filter((e) => bookOf(e) === bk.id).length;
-      const pgs = pagesIn(bk.id).length;
+      const pgs = livePages(bk.id).length;
       const rowEl = el("div", "s-book " + (bk.id === db.book ? "on" : bk.archived ? "off" : ""));
       const pick = el("button", "s-book-pick");
       pick.append(
@@ -2655,7 +2718,7 @@ function openBook(id) {
   openSheet((b) => {
     b.append(el("div", "s-title", bk.name));
     const n = db.entries.filter((e) => bookOf(e) === bk.id).length;
-    const pgs = pagesIn(bk.id).length;
+    const pgs = livePages(bk.id).length;
     b.append(
       el("div", "s-sub", `${n} ${n === 1 ? "line" : "lines"} · ${pgs} ${pgs === 1 ? "page" : "pages"}`)
     );
@@ -2759,6 +2822,58 @@ const pageCount = (id) => linesOn(id, () => true);
    nothing is ever finished: what is left is what the page still says. */
 const pendingOn = (id) => linesOn(id, isLive);
 
+/* What stands in the way of putting a page away: the work on it you have not
+   finished with. A task you struck out is one you *have* finished with — you
+   decided against it, which is an answer — so it blocks a page no more than a
+   ticked one does. On a page of work this is the very number the Index prints
+   beside the page, so the rule reads straight off the screen: a page with no
+   number beside it can go.
+   A page of notes has no work on it at all and so never has anything in the
+   way. That is not an exception to the rule but the rule read honestly: a note
+   is not something you finish, and waiting for every one of them to be struck
+   out would be waiting for the page to become worthless rather than done. */
+const openWorkOn = (id) =>
+  db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
+
+/* And whether it can go at all — the whole rule, in the one place that
+   decides. Never the default page: a line that names no page lives there, so
+   it has to stay somewhere you can read it, which is the same reason the
+   default page cannot be deleted while it is the last of the work. And never
+   while work on it is still open, because a page you put away is one you have
+   finished with, and the archive would otherwise be the second pile for the
+   lines you are not getting to — which this journal does not have. The sheet
+   asks this before it acts and `openWorkOn` again for the words, but the gate
+   is here: a caller that forgets to ask still cannot get past it. */
+const canArchive = (pg) => !!pg && !pg.archived && defPage(pg.book).id !== pg.id && !openWorkOn(pg.id);
+
+/* Put a page away, and take it back out. The lines on it do not move and are
+   not touched: this is a filter on the page list, exactly as archiving a
+   notebook is a filter on the shelf, and it is why a page can step aside
+   without being emptied first. Archiving the page you are reading moves you to
+   the default one in the same change, because an archived page is the one page
+   you cannot be standing on. */
+function archivePage(id) {
+  const pg = db.pages.find((x) => x.id === id);
+  if (!canArchive(pg)) return;
+  buzz(6);
+  mutate(`Archived ${pg.name}`, () => {
+    pg.archived = true;
+    if (db.page === pg.id) db.page = defPage(pg.book).id;
+  });
+}
+
+/* Coming back costs a place among the pages you are working with, so the
+   ceiling is checked here and nowhere else — an archived page does not count
+   against it, which is the whole reason there was room to put it away. */
+function restorePage(id) {
+  const pg = db.pages.find((x) => x.id === id);
+  if (!pg || !pg.archived) return;
+  if (livePages(pg.book).length >= PAGE_MAX)
+    return toast(`${PAGE_MAX} pages in ${bookName(pg.book)} already`);
+  buzz(6);
+  mutate(`Restored ${pg.name}`, () => delete pg.archived);
+}
+
 /* Make a page the default one. Every line that had no page of its own was
    on the old default by that very absence, so before the flag moves they are
    each written down where they already are — `putPage` then re-encodes the
@@ -2840,7 +2955,7 @@ function openGroup(name) {
    can be written to. */
 function addPage(bookId, name, kind) {
   const bk = db.books.find((x) => x.id === bookId) || curBook();
-  if (pagesIn(bk.id).length >= PAGE_MAX) return toast(`${PAGE_MAX} pages in ${bk.name} already`);
+  if (livePages(bk.id).length >= PAGE_MAX) return toast(`${PAGE_MAX} pages in ${bk.name} already`);
   const pg = newPage(bk.id, name, kind);
   mutate(null, () => db.pages.push(pg));
   buzz(7);
@@ -2862,7 +2977,8 @@ function openPage(id) {
   /* A page of notes can always go. A page of work can go while the notebook
      has another, for the reason the last page of all cannot: absence has to
      go on meaning a page a task can be read on. */
-  const canGo = isNotes(pg) || pagesIn(pg.book).filter((x) => !isNotes(x)).length > 1;
+  const canGo =
+    isNotes(pg) || pg.archived || livePages(pg.book).filter((x) => !isNotes(x)).length > 1;
   openSheet((b) => {
     b.append(el("div", "s-title", pg.name));
     b.append(
@@ -2887,7 +3003,7 @@ function openPage(id) {
     };
 
     const acts = el("div", "s-acts");
-    if (pg.id !== db.page) {
+    if (pg.id !== db.page && !pg.archived) {
       acts.append(
         actRow(ICON.eye, "Open this page", () => {
           closeSheet();
@@ -2957,6 +3073,34 @@ function openPage(id) {
       );
     }
 
+    /* Putting the page away, which is the gentler sibling of the delete below:
+       the lines stay, and the page comes back whole. The row is offered even
+       when the page cannot go yet, and says what is in the way when you press
+       it — hiding it would have left you to work out the rule for yourself,
+       and the rule is the point. The default page is offered nothing, for the
+       reason it is offered no delete: a line that names no page lives there. */
+    if (pg.archived) {
+      acts.append(el("div", "sep", "Archived"));
+      acts.append(
+        actRow(ICON.undo, "Restore page", () => {
+          restorePage(pg.id);
+          closeSheet();
+        })
+      );
+    } else if (!first) {
+      acts.append(
+        actRow(ICON.archive, "Archive page", () => {
+          const left = openWorkOn(pg.id);
+          if (left)
+            return toast(
+              `${left} ${left === 1 ? "task is" : "tasks are"} still open on ${pg.name}`
+            );
+          archivePage(pg.id);
+          closeSheet();
+        })
+      );
+    }
+
     /* Any page can go, the default one included — the first of the pages
        left takes the role, since the flag goes with the page that carried
        it, and the lines that were on it go with it the same way a
@@ -2971,7 +3115,7 @@ function openPage(id) {
             /* The role goes to the first page of work left, which is what
                defPage will pick once this one is gone. */
             const next = first
-              ? pagesIn(pg.book).find((x) => x.id !== pg.id && !isNotes(x)).name
+              ? livePages(pg.book).find((x) => x.id !== pg.id && !isNotes(x)).name
               : null;
             if (
               !confirm(
@@ -3072,7 +3216,15 @@ function openSearch() {
             /* Only a task is on a page; for an event the notebook's default
                page is simply where the Journal will be when you get back to
                it. */
-            db.page = e.type === "event" ? defPage(bookOf(e)).id : pageOf(e);
+            /* Search reads every page, the archived ones included — you are
+               searching because you forgot where a line is, and whether you
+               put its page away is part of what you forgot. But an archived
+               page is one you cannot stand on, so the Journal behind the sheet
+               is left on the default; the line itself opens all the same,
+               which is what you came for. */
+            const pg = db.pages.find((x) => x.id === e.page);
+            db.page =
+              e.type === "event" || (pg && pg.archived) ? defPage(bookOf(e)).id : pageOf(e);
           });
           openEntry(e.id);
         };
@@ -3317,10 +3469,12 @@ function slide(back) {
 function goPage(id) {
   const pg = db.pages.find((x) => x.id === id);
   if (!pg || (pg.id === db.page && db.view === "journal")) return;
-  const here = pagesIn(db.book);
+  // put away, and read through its sheet — the same answer an archived notebook gives
+  if (pg.archived) return toast(`${pg.name} is archived`);
+  const here = livePages(db.book);
   const back =
     pg.book === db.book &&
-    pagesIn(pg.book).findIndex((x) => x.id === pg.id) < here.findIndex((x) => x.id === db.page);
+    livePages(pg.book).findIndex((x) => x.id === pg.id) < here.findIndex((x) => x.id === db.page);
   db.book = pg.book;
   db.page = pg.id;
   save();
