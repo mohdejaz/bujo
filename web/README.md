@@ -60,7 +60,9 @@ which day the bins go out. It lives on a **page of q&a**, and it carries its
 own **answer** — so the row prints the question
 with the answer directly beneath it, in the same type, because the two are one
 line of the notebook rather than a line and a footnote. Only the ink steps back
-a shade, which is enough to let the questions lead the scan. Nothing can pull
+a shade, which is enough to let the questions lead the scan. The question is
+prefixed `q:` and the answer `a:`, and both wrap in full, as do the lines of a
+page of notes, rather than being cut off with an ellipsis. Nothing can pull
 the pair apart: they are one entry, and an unanswered question is simply a line
 on its own with nothing under it yet. Nothing is stored for being answered:
 having an answer *is* being answered.

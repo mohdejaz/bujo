@@ -653,8 +653,8 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
    type: the two are one line of the notebook, and a smaller, quieter face
    would have made the answer read as a note about the question rather than the
    thing it was asked for. Only the ink steps back a shade, which is enough to
-   let the questions lead the scan. It clamps to one line like the words above
-   it — a row stays a fixed height whatever is typed into it. */
+   let the questions lead the scan. Notes, questions and answers wrap
+   (`.wrap`, below); tasks and events still clamp to one line. */
 .row-answer {
   display: block;
   min-width: 0;
@@ -663,6 +663,25 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   white-space: nowrap;
   text-overflow: ellipsis;
   color: var(--ink-2);
+}
+/* Prose rows wrap instead of clamping. The q:/a: tag hangs in the margin of
+   its own paragraph so a wrapped second line returns to the tag's edge and the
+   two letters line up down the page. */
+.row-line.wrap, .row-answer.wrap {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+}
+.row-tag {
+  display: inline-block;
+  width: 1.5em;
+  color: var(--dim);
+  font-weight: 600;
+}
+.row-line.wrap:has(.row-tag), .row-answer.wrap {
+  padding-left: 1.5em;
+  text-indent: -1.5em;
 }
 /* where a line actually lives, on the one page that reads across notebooks.
    The same ink as the deadline beside it, a weight lighter: it is the second
