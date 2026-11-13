@@ -1911,13 +1911,21 @@ function row(e, opts = {}) {
   }
 
   const txt = el("button", "row-text");
-  /* The words get one line and an ellipsis past it. A list is read by running
+  /* Tasks and events get one line and an ellipsis past it (notes and
+     questions are the exception, below). A list is read by running
      down the left of it, and a line that wrapped to three pushed the next one
      out of that scan — so what a row costs no longer depends on how much was
      typed into it, and a page of long lines reads as a page rather than as
      paragraphs. The whole of it is one tap away in the sheet, which is where
      a line you have to read properly belongs. */
   const line = el("span", "row-line");
+  /* Notes and questions are prose, not a checklist, so they wrap in full
+     rather than clamping: there is no scan down a column of marks to protect,
+     and a cut-off thought is not a note. A question and its answer are
+     lettered q: and a: in place of the bullet they do not carry. */
+  const prose = e.type === "note" || e.type === "question";
+  if (prose) line.classList.add("wrap");
+  if (e.type === "question") line.append(el("span", "row-tag", "q:"));
   line.append(document.createTextNode(e.text));
   txt.append(line);
   /* The answer, directly under the question that asked it and in the same
@@ -1925,10 +1933,15 @@ function row(e, opts = {}) {
      smaller, quieter face would have made it look like a note about the
      question rather than the thing the question was asked for. Only the ink
      steps back, by a shade, so the questions still lead the scan down the
-     page. It clamps to one line of its own like the words above it, since an
-     answer you have to read properly is a tap away in the sheet. */
+     page. It wraps, like the question above it, and both are lettered
+     q: and a:. */
   if (e.type === "question" && e.answer)
-    txt.append(el("span", "row-answer", safeHtml(e.answer)));
+  {
+    const ans = el("span", "row-answer wrap");
+    ans.append(el("span", "row-tag", "a:"));
+    ans.append(document.createTextNode(e.answer));
+    txt.append(ans);
+  }
   // only a task carries a deadline, and most of them do not
   const meta = rowMeta(e, opts.where ? whereOf(e) : "");
   if (meta) txt.append(meta);
