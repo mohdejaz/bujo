@@ -58,29 +58,39 @@ Syntax check: `node --check web/app.js`.
 
 **One array, three filters.** The whole journal is a flat `entries` array in
 `localStorage` under `bujo.v2`. What is on screen is decided by, in order: the notebook
-(`db.book`), then the *type* of an entry (`task` → Journal, `event` → Calendar), then —
-on the Journal only — the page of that notebook (`db.page`). Nothing else filters
-anything, and **no filter ever rewrites an entry**. That is why a notebook can be
-archived without touching what it holds.
+(`db.book`), then the *type* of an entry (`event` → Calendar; `task` and `note` →
+Journal), then — on the Journal only — the page of that notebook (`db.page`), which
+also settles which of those two types it is showing: a page carries `kind`, absent for
+the pages of work that hold tasks and `"notes"` for a page of notes (`isNotes`,
+`typeOn`). Nothing else filters anything, and **no filter ever rewrites an entry**.
+That is why a notebook can be archived without touching what it holds.
 
 Two of the four pages are the exceptions that prove it. The **Index** holds no entries
 at all, listing `db.pages` for the current notebook so you can turn to one. It is also
 the only place a page is made, renamed or deleted — its composer names a new page
-instead of writing a line — so page handling lives in one view rather than being spread
-across a header strip and a sheet. Groups are read there and nowhere else, and they are
+instead of writing a line, and grows a segment saying which `kind` that page will be,
+the way the Calendar's grows a date — so page handling lives in one view rather than
+being spread across a header strip and a sheet. A page's kind is settled when it is
+named and can only change while the page is empty: the two kinds are read by different
+renders, so switching a page that holds lines would not move them, it would hide them. Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
 is untouched, because the default page is unaffected by it. That default is the
-page carrying `def`, falling back to `pagesIn(book)[0]` when no page of the notebook
-carries one — so an old journal reads back unchanged. `setDefaultPage` is the only
-thing that moves it, and it writes every page-less task in that notebook down on the
+page of work carrying `def`, falling back to the notebook's first page of work when no
+page carries one — so an old journal reads back unchanged. It is never a page of notes,
+because the lines written down by absence are tasks and a page of notes cannot show
+one; `withPages` guarantees every notebook has a page of work, creating one past
+`PAGE_MAX` if it must, because the invariant outranks the ceiling. `setDefaultPage` is
+the only thing that moves it, and it writes every page-less task in that notebook down on the
 page it was already on before it flips the flag: absence means the default, so moving
 the default without that would quietly empty one page into another.
 
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
-notebook (bar archived ones) and every page, both types at once. That is also why it
+notebook (bar archived ones) and every page, tasks and events alike — never a
+note, which carries no deadline and no hand mark, because nothing on a page of notes is
+owed on a day. That is also why it
 has no tab: the tab strip switches between pages *of the notebook*, and Today belongs
 to none, so it is reached by tapping the date in the header instead — the one other
 thing up there that no notebook owns. It is still only a
@@ -95,8 +105,8 @@ being rewritten, and tomorrow the date speaks again. Outside Search it is the on
 where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
-notebook's default page, `group` for a page under no group, `due`/`backlog` when they do
-not apply. This is the migration
+notebook's default page, `group` for a page under no group, `kind` for a page of work,
+`due`/`backlog` when they do not apply. This is the migration
 strategy, not an optimisation: a journal written before notebooks or pages existed gains
 a record and not one entry is rewritten. Writing an explicit default (`putPage` guards
 this) breaks the invariant that makes old files load untouched.
@@ -104,7 +114,12 @@ this) breaks the invariant that makes old files load untouched.
 **The invariant funnel.** `load()` → `normalise()` → `withBooks()` / `withPages()` /
 `adopt()` per entry / `linkPages()`. Import runs the same path, so the two can never
 drift. `withBooks`/`withPages` guarantee what every reader assumes: at least one
-notebook, at least one page per notebook, and `db.book`/`db.page` naming real ones.
+notebook, at least one page *of work* per notebook, and `db.book`/`db.page` naming real
+ones. `linkPages` is where a line and its page are reconciled: a task naming a page of
+notes loses the field and falls back to the default, and a note naming anything else is
+carried to its notebook's first page of notes — or becomes a task when the notebook has
+none, which is also how a free-standing note from the v1 journal still lands. Nothing
+is ever left somewhere it cannot be read.
 `adopt()` spreads `...raw` first, so **unknown keys survive** — a file from a newer build
 round-trips through an older one without losing fields.
 
