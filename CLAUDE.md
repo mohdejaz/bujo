@@ -62,7 +62,7 @@ Syntax check: `node --check web/app.js`.
 `question` → Journal), then — on the Journal only — the page of that notebook
 (`db.page`), which also settles which of those three types it is showing. A page carries
 `kind`: absent for the page of work that holds tasks, `"notes"` for a page of notes,
-`"qa"` for a page of q & a — `isWorkPage` / `isNotesPage` / `isQuestionPage`, with
+`"qa"` for a page of q&a — `isWorkPage` / `isNotesPage` / `isQuestionPage`, with
 `typeOn` mapping a page to the one type it is written in.
 
 **`isWorkPage` is the one to reach for**, not `!isQuestionPage`. Most rules here care
@@ -97,7 +97,7 @@ the default page when there is none.
 
 A page is also archived from there — `archived` is the notebook's own filter one level
 down, gated by `canArchive` on there being no open task left (`openWorkOn`), which is
-why a page of notes or of q & a is always free to go. `livePages` is what every reader but the
+why a page of notes or of q&a is always free to go. `livePages` is what every reader but the
 Index's own archive fold means by "the pages of this notebook". Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook

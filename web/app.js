@@ -1715,7 +1715,7 @@ function renderIndex() {
      leaving a blank page under a segment nobody has noticed moving. Only the
      q&a side can reach this: the pages of work always have the default. */
   if (!here.length && !away.length) {
-    const what = S.indexKind === "qa" ? "q & a" : "notes";
+    const what = S.indexKind === "qa" ? "q&a" : "notes";
     list.append(
       el("li", "index-note", `No ${what} pages in ${curBook().name} yet. Name one below.`)
     );
@@ -3263,7 +3263,7 @@ function openPage(id) {
           [
             ["", "tasks"],
             ["notes", "notes"],
-            ["qa", "q & a"],
+            ["qa", "q&a"],
           ],
           pg.kind || "",
           (v) =>

@@ -5,7 +5,7 @@ holds, from every notebook at once; tasks sit on a page of the **Journal** and
 may carry a due date; events have a date and live on the **Calendar**; the
 **Index** lists the pages of the notebook and turns to any of them. A page of
 the notebook can also be a **page of notes**, for the things you want to keep
-rather than do, or a **page of q & a**, where you write what you want to know
+rather than do, or a **page of q&a**, where you write what you want to know
 and the answer goes on the same line when you have it. Switching between the
 four is the only navigation there is.
 
@@ -32,7 +32,7 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 
 Every row starts with the same one-rem column holding that mark, so the words
 line up down the whole page whichever list you are reading, and the mark is
-always a thumb away. A page of q & a is the exception and drops the column
+always a thumb away. A page of q&a is the exception and drops the column
 altogether — every line on it is a question, so a column of identical marks
 would say nothing, and the `?` at the end of the words has already said it. Its
 mark is for where the kinds mix: beside a page's name in the Index, and against
@@ -56,7 +56,7 @@ it lives on a **page of notes**, carrying its own notes underneath if it wants
 them, the way any line does.
 
 A **question** is the other: where the water shut-off is, what the wifi is,
-which day the bins go out. It lives on a **page of q & a**, and it carries its
+which day the bins go out. It lives on a **page of q&a**, and it carries its
 own **answer** — so the row prints the question
 with the answer directly beneath it, in the same type, because the two are one
 line of the notebook rather than a line and a footnote. Only the ink steps back
@@ -74,7 +74,7 @@ The two are close enough that choosing between them is about how you will read
 it back. A note says what it is; a question says what you were looking for when
 you come back needing it. *Bin night is Wednesday* and *Bin night? —
 Wednesday* hold the same fact, and the second is the one you scan for. Notes
-when the page is a list; q & a when the page is something you consult.
+when the page is a list; q&a when the page is something you consult.
 
 A task is something to do whenever, or by a day; an event is something that
 happens on a day; a note is something you keep; a question is something you
@@ -104,7 +104,7 @@ it. So a question never carries the `≡` either.
 ## Using it
 
 **Writing.** Type at the bottom and press return. There is nothing to pick:
-a page of work writes a task, a page of notes writes a note, a page of q & a
+a page of work writes a task, a page of notes writes a note, a page of q&a
 writes a question, the Calendar
 writes an event and asks for the day it falls on, because an event without one
 is not an event, and Today writes a task already marked for today — onto the notebook's **default page**, since Today
@@ -286,7 +286,7 @@ striking it there and here are the same act. Nothing on today, nothing shown.
 **The Index.** The first tab is the notebook's contents, and the only place
 pages are handled: every page of the notebook in order — of one kind at a time, see the segment below — each led by
 the mark its lines are written in, a dot for a page of work and a `?` for a
-page of q & a, and each with what is still open on it, nothing at all beside a page
+page of q&a, and each with what is still open on it, nothing at all beside a page
 with none. Tap a page to turn to it — you land on the Journal, reading that
 page — or the pencil beside it to rename or delete it. The field at the foot
 names a new page rather than writing a line, because pages are what this page
@@ -303,9 +303,9 @@ turning to it, because that is where *Restore* is and it is the only thing left
 to do with it.
 
 Above that field the Index grows a row the other pages do not have: **tasks**,
-**notes**, or **q & a**. It says which kind of page the Index is about — both the pages it
+**notes**, or **q&a**. It says which kind of page the Index is about — both the pages it
 lists and the kind the field below will make, because those are the same
-statement. You are working with the pages of work, or the notes, or the q & a;
+statement. You are working with the pages of work, or the notes, or the q&a;
 a list that showed one kind while the field made another would be two controls
 disagreeing within a thumb's reach.
 
@@ -367,7 +367,7 @@ answer — so what stands in the way is only the work you have not dealt with,
 which is exactly the number the Index already prints beside the page: **a page
 with no number beside it can be archived.** Press it with work still open and
 it tells you how much, rather than hiding the row and leaving you to guess the
-rule. A page of notes or of q & a has no work on it at all, so either can
+rule. A page of notes or of q&a has no work on it at all, so either can
 always go — an unanswered question is not an unfinished job, and waiting for
 every line to be struck would be waiting for the page to have nothing left to
 say rather than nothing left to do.
@@ -403,7 +403,7 @@ be without is its last page of work: a line that names no page lives there, and
 that line is always a task, so there has to be somewhere it can be read. A page
 of notes can always go.
 
-A page of notes or of q & a is reached and read exactly like any other: it is a page of
+A page of notes or of q&a is reached and read exactly like any other: it is a page of
 the notebook, it sits in the Index among the rest, it can go under a group, and
 a notebook can hold as many of them as it likes within the sixteen — so long as
 one page of work remains. Pages split the **Journal** and nothing else, and the
@@ -536,7 +536,7 @@ and a question is never on one.
 
 `kind` is the field that says which a page is: absent on a page of work, which
 is what a page has always been and so what it still means to say nothing, and
-`"notes"` on a page of notes and `"qa"` on a page of q & a.
+`"notes"` on a page of notes and `"qa"` on a page of q&a.
 `archived` is the notebook's own flag one level
 down and the same kind of filter: absent on a page you are working with, `true`
 on one you have put away — never on the default page, and not counted against
