@@ -58,19 +58,17 @@ Syntax check: `node --check web/app.js`.
 
 **One array, three filters.** The whole journal is a flat `entries` array in
 `localStorage` under `bujo.v2`. What is on screen is decided by, in order: the notebook
-(`db.book`), then the *type* of an entry (`event` → Calendar; `task` and `note` →
-Journal), then — on the Journal only — the page of that notebook (`db.page`), which
-also settles which of those two types it is showing: a page carries `kind`, absent for
-the pages of work that hold tasks and `"notes"` for a page of questions
-(`isQuestionPage`, `typeOn`).
+(`db.book`), then the *type* of an entry (`event` → Calendar; `task`, `note` and
+`question` → Journal), then — on the Journal only — the page of that notebook
+(`db.page`), which also settles which of those three types it is showing. A page carries
+`kind`: absent for the page of work that holds tasks, `"notes"` for a page of notes,
+`"qa"` for a page of q & a — `isWorkPage` / `isNotesPage` / `isQuestionPage`, with
+`typeOn` mapping a page to the one type it is written in.
 
-**The stored spellings lag the words on purpose.** A page of questions stores
-`kind: "notes"` and its lines store `type: "note"`, because the journal is read on two
-phones that each cache their own copy of the app, and a build that has not updated still
-knows those two words — so it round-trips a file of questions losing nothing, `answer`
-riding along on `adopt`'s `...raw` spread, which is exactly what that spread is for. A
-new spelling would have had the older build fall every question back to a task and
-`linkPages` strip it off its page. Rename the code freely; do not rename the file. Nothing else filters anything, and **no filter ever rewrites an entry**.
+**`isWorkPage` is the one to reach for**, not `!isQuestionPage`. Most rules here care
+only whether a page can hold a *task* — the default page, the last page a notebook
+cannot lose, where a stray line falls back — and asking "not a page of questions" let a
+page of notes through every one of them. That was a real bug, caught by a test. Nothing else filters anything, and **no filter ever rewrites an entry**.
 That is why a notebook can be archived without touching what it holds.
 
 Two of the four pages are the exceptions that prove it. The **Index** holds no entries
@@ -81,19 +79,25 @@ list to one `kind` and sets the kind a new page will be — one statement, not t
 controls — so page handling lives in one view rather than being spread across a header
 strip and a sheet. That filter is on the *page list* only: `db.pages` keeps its order,
 the default keeps its place, and no entry is touched. It initialises from `curPage()`
-so the Index never opens hiding the page you came from. A page's kind is settled when it is
-named and can only change while the page is empty: the two kinds are read by different
-renders, so switching a page that holds lines would not move them, it would hide them.
-A question's `answer` is its own field and absent means unanswered, so the state is
+so the Index never opens hiding the page you came from. A page's kind is settled when it
+is named and can only change while the page is empty: the three kinds are read by
+different renders, so switching a page that holds lines would not move them, it would
+hide them.
+
+A question's `answer` is its own field and absent means unanswered, so that state is
 derived rather than stored and nothing can drift from the words. It prints under the
 question in the same type — the pair is one line of the notebook, not a line and a
 footnote — and a question row carries no bullet at all, because every line on that page
-is one; the mark survives only where the kinds mix, in the Index and in Search, so
-`.row + .row:not(:has(.bul))` is what pulls the divider inset back. and a question carries no `notes` at all: any that arrive are folded into
-the answer by `adopt` and the field dropped. A page is also
-archived from there — `archived` is the notebook's own filter one level
+is one; its mark survives only where the kinds mix, in the Index and in Search, so
+`.row + .row:not(:has(.bul))` is what pulls the divider inset back. A question carries
+no `notes`: any that arrive are folded into the answer by `adopt`. A note is the mirror,
+carrying `notes` and never an `answer`, folded the other way. `linkPages` then carries
+any line to the first page of its own kind in its notebook, falling back to a task on
+the default page when there is none.
+
+A page is also archived from there — `archived` is the notebook's own filter one level
 down, gated by `canArchive` on there being no open task left (`openWorkOn`), which is
-why a page of questions is always free to go. `livePages` is what every reader but the
+why a page of notes or of q & a is always free to go. `livePages` is what every reader but the
 Index's own archive fold means by "the pages of this notebook". Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
