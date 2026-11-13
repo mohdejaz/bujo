@@ -1345,3 +1345,40 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
   45%, 78% { transform: rotate(0deg); }
   100% { transform: rotate(90deg); }
 }
+
+/* The passphrase screen: the journal is not drawn behind it, so it covers the
+   page whole instead of dimming it. */
+.vault {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--paper);
+  color: var(--ink);
+}
+.vault h1 { margin: 0; font-size: 1.5rem; }
+.vault p { margin: 0; font-size: 0.9375rem; line-height: 1.4; color: var(--ink-2); }
+.vault form { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.vault input {
+  font: inherit;
+  font-size: 1rem;
+  padding: 12px;
+  border: 1px solid var(--hair);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--ink);
+}
+.vault button {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+.vault-msg { min-height: 1.2em; font-size: 0.8125rem; color: var(--accent); }

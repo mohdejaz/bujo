@@ -627,3 +627,14 @@ filter ever rewrites an entry, which is why a notebook can be archived without
 touching what it holds, why a page is four fields and a convention about
 absence, why a mark for today is a date rather than a flag that would need
 sweeping, and why the whole store is small enough to read in one sitting.
+
+## Encryption
+
+On first run over https or `localhost`, bujo asks you to choose a passphrase. It
+then makes a random AES-256 key on the device and seals the whole journal with
+it; the key is itself stored only wrapped by a key derived from the passphrase
+(PBKDF2, 600k rounds). `localStorage` holds ciphertext, and the passphrase is
+asked for once per session (a reload keeps it open; closing the app locks it). There is no recovery: forget it and the journal is
+gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
+Over plain-http LAN the browser has no WebCrypto, so there the journal stays
+unencrypted (and an already-encrypted one cannot be opened).

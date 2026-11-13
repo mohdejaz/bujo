@@ -812,8 +812,142 @@ function normalise(raw) {
   return raw;
 }
 
-let db = load();
-const save = () => localStorage.setItem(KEY, JSON.stringify(db));
+/* ── the vault ─────────────────────────────────────────────────────── */
+
+/* The whole journal is one JSON blob, so it is sealed as one: AES-GCM under a
+   random 256-bit key made the first time the app runs. That key is never
+   stored bare — it is wrapped by a second key derived (PBKDF2) from the
+   passphrase, and only the wrapped form touches localStorage. Without the
+   passphrase the stored value is noise; there is no recovery, by design.
+   `localStorage` then holds an *envelope* (`enc: 1`) where it used to hold the
+   journal, and nothing else about the data model changes: `db` in memory is
+   still the plain object, `save()` still takes no arguments, and every
+   reader downstream is untouched. WebCrypto exists only in a secure context,
+   so over the plain-http LAN URL the vault is simply absent and the journal
+   stays as it was — the same rule the wake lock follows. */
+const VAULT_ITER = 600000;
+const vault = {
+  can: !!(globalThis.crypto && crypto.subtle),
+  key: null, // the unwrapped data key, non-extractable, held for the session
+  salt: null,
+  wrapped: null, // base64 of the data key sealed under the passphrase key
+  wiv: null,
+  ready: false, // false until the page is allowed to draw the journal
+};
+const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
+const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
+const utf8 = new TextEncoder();
+function readEnvelope() {
+  try {
+    const o = JSON.parse(localStorage.getItem(KEY));
+    return o && o.enc === 1 && o.ct ? o : null;
+  } catch {
+    return null;
+  }
+}
+async function passKey(pass, salt) {
+  const base = await crypto.subtle.importKey("raw", utf8.encode(pass), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: VAULT_ITER, hash: "SHA-256" },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["wrapKey", "unwrapKey"],
+  );
+}
+const unwrapData = (wrap, extractable = false) =>
+  crypto.subtle.unwrapKey("raw", unb64(vault.wrapped), wrap, { name: "AES-GCM", iv: vault.wiv }, "AES-GCM", extractable, [
+    "encrypt",
+    "decrypt",
+  ]);
+/* The passphrase is asked once per session. Once it has opened the journal the
+   data key (not the passphrase) is kept in sessionStorage, which the browser
+   drops when the tab or installed app is closed: a reload or a return from the
+   background opens straight in, a fresh launch asks again. It is the trade the
+   word "session" makes — whoever holds the open session can read the journal. */
+const SESSION_KEY = "bujo.sk";
+async function rememberKey(key) {
+  try {
+    sessionStorage.setItem(SESSION_KEY, b64(await crypto.subtle.exportKey("raw", key)));
+  } catch {}
+}
+async function recallKey(env) {
+  try {
+    const raw = sessionStorage.getItem(SESSION_KEY);
+    if (!raw) return null;
+    const key = await crypto.subtle.importKey("raw", unb64(raw), "AES-GCM", false, ["encrypt", "decrypt"]);
+    const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
+    vault.salt = unb64(env.salt);
+    vault.wiv = unb64(env.wiv);
+    vault.wrapped = env.wk;
+    vault.key = key;
+    return JSON.parse(new TextDecoder().decode(plain));
+  } catch {
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {}
+    return null;
+  }
+}
+// first run: make the data key and seal it under the passphrase
+async function vaultCreate(pass) {
+  const key = await crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
+  vault.salt = crypto.getRandomValues(new Uint8Array(16));
+  vault.wiv = crypto.getRandomValues(new Uint8Array(12));
+  const wrap = await passKey(pass, vault.salt);
+  vault.wrapped = b64(await crypto.subtle.wrapKey("raw", key, wrap, { name: "AES-GCM", iv: vault.wiv }));
+  // hold it again non-extractable, so script can use the key but never read it
+  const open = await unwrapData(wrap, true);
+  await rememberKey(open);
+  vault.key = await crypto.subtle.importKey("raw", await crypto.subtle.exportKey("raw", open), "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
+}
+// returns the journal object, or throws on a wrong passphrase
+async function vaultOpen(env, pass) {
+  vault.salt = unb64(env.salt);
+  vault.wiv = unb64(env.wiv);
+  vault.wrapped = env.wk;
+  const open = await unwrapData(await passKey(pass, vault.salt), true);
+  const key = await crypto.subtle.importKey("raw", await crypto.subtle.exportKey("raw", open), "AES-GCM", false, [
+    "encrypt",
+    "decrypt",
+  ]);
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
+  await rememberKey(open);
+  vault.key = key;
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+/* Writes are queued and the newest wins: `save()` is called synchronously from
+   `mutate`, sealing is not, so a burst of edits seals once, the last state. */
+let sealing = false;
+let sealAgain = false;
+async function seal() {
+  if (sealing) return void (sealAgain = true);
+  sealing = true;
+  try {
+    do {
+      sealAgain = false;
+      const iv = crypto.getRandomValues(new Uint8Array(12));
+      const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, vault.key, utf8.encode(JSON.stringify(db)));
+      localStorage.setItem(
+        KEY,
+        JSON.stringify({ enc: 1, salt: b64(vault.salt), wiv: b64(vault.wiv), wk: vault.wrapped, iv: b64(iv), ct: b64(ct) }),
+      );
+    } while (sealAgain);
+  } finally {
+    sealing = false;
+  }
+}
+
+/* A sealed journal cannot be read here, so `db` starts as a blank one that is
+   never drawn or saved; the gate swaps the real one in before `start`. */
+let db = readEnvelope() ? fresh() : load();
+const save = () => {
+  if (!vault.can) return localStorage.setItem(KEY, JSON.stringify(db));
+  if (vault.key) seal();
+};
 
 /* ── view state ────────────────────────────────────────────────────── */
 
@@ -3801,17 +3935,98 @@ document.addEventListener("keydown", (e) => {
 // the page may have been open across midnight — the date stamp and the
 // Calendar's marker for the current day both go stale, so redraw on return
 document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) {
+  if (!document.hidden && vault.ready) {
     render();
     applyWake(); // the lock was handed back while we were away
   }
 });
 
-applyTheme();
-applyText();
-applyWake();
-render();
-if (db.migrated && !db.migrated.seen) setTimeout(() => openMigrated(), 420);
+function start() {
+  vault.ready = true;
+  applyTheme();
+  applyText();
+  applyWake();
+  render();
+  if (db.migrated && !db.migrated.seen) setTimeout(() => openMigrated(), 420);
+}
+
+/* The gate. A sealed journal asks for the passphrase; an open one on a device
+   that can seal is asked to choose one (its lines are sealed as soon as it
+   does, so nothing is left readable beside the envelope). Where there is no
+   WebCrypto the journal opens as it always did. */
+async function vaultGate() {
+  const env = readEnvelope();
+  if (!vault.can) {
+    if (env)
+      return vaultScreen(
+        "Needs a secure page",
+        "This journal is encrypted. Open bujo from its https address, or localhost, to read it.",
+      );
+    return start();
+  }
+  if (env) {
+    const again = await recallKey(env);
+    if (again) {
+      db = normalise(again);
+      return start();
+    }
+    vaultScreen("bujo is locked", "Enter your passphrase.", async (pass) => {
+      db = normalise(await vaultOpen(env, pass));
+      start();
+    });
+  } else {
+    vaultScreen(
+      "Choose a passphrase",
+      "Your journal is encrypted with a key made on this device, locked by this passphrase. There is no way to recover it: forget it and the journal is gone.",
+      async (pass) => {
+        await vaultCreate(pass);
+        await seal();
+        start();
+      },
+      true,
+    );
+  }
+}
+function vaultScreen(title, blurb, go, confirmIt) {
+  const wrap = el("div", "vault");
+  wrap.append(el("h1", "", safeHtml(title)), el("p", "", safeHtml(blurb)));
+  document.body.append(wrap);
+  if (!go) return;
+  const form = el("form");
+  const mk = (ph, ac) => {
+    const i = el("input");
+    i.type = "password";
+    i.placeholder = ph;
+    i.autocomplete = ac;
+    return i;
+  };
+  const p1 = mk("Passphrase", confirmIt ? "new-password" : "current-password");
+  const p2 = confirmIt ? mk("Again", "new-password") : null;
+  const msg = el("div", "vault-msg");
+  const label = confirmIt ? "Encrypt" : "Unlock";
+  const btn = el("button", "", label);
+  btn.type = "submit";
+  form.append(p1, ...(p2 ? [p2] : []), msg, btn);
+  form.onsubmit = async (ev) => {
+    ev.preventDefault();
+    msg.textContent = "";
+    if (confirmIt && p1.value.length < 8) return void (msg.textContent = "Use at least 8 characters.");
+    if (confirmIt && p1.value !== p2.value) return void (msg.textContent = "The two don't match.");
+    btn.disabled = true;
+    btn.textContent = "…";
+    try {
+      await go(p1.value);
+      wrap.remove();
+    } catch {
+      msg.textContent = confirmIt ? "Couldn't encrypt." : "That passphrase doesn't open it.";
+      btn.disabled = false;
+      btn.textContent = label;
+    }
+  };
+  wrap.append(form);
+  p1.focus();
+}
+vaultGate();
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});
