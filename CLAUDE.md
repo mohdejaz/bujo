@@ -61,29 +61,47 @@ Syntax check: `node --check web/app.js`.
 (`db.book`), then the *type* of an entry (`event` → Calendar; `task` and `note` →
 Journal), then — on the Journal only — the page of that notebook (`db.page`), which
 also settles which of those two types it is showing: a page carries `kind`, absent for
-the pages of work that hold tasks and `"notes"` for a page of notes (`isNotes`,
-`typeOn`). Nothing else filters anything, and **no filter ever rewrites an entry**.
+the pages of work that hold tasks and `"notes"` for a page of questions
+(`isQuestionPage`, `typeOn`).
+
+**The stored spellings lag the words on purpose.** A page of questions stores
+`kind: "notes"` and its lines store `type: "note"`, because the journal is read on two
+phones that each cache their own copy of the app, and a build that has not updated still
+knows those two words — so it round-trips a file of questions losing nothing, `answer`
+riding along on `adopt`'s `...raw` spread, which is exactly what that spread is for. A
+new spelling would have had the older build fall every question back to a task and
+`linkPages` strip it off its page. Rename the code freely; do not rename the file. Nothing else filters anything, and **no filter ever rewrites an entry**.
 That is why a notebook can be archived without touching what it holds.
 
 Two of the four pages are the exceptions that prove it. The **Index** holds no entries
 at all, listing `db.pages` for the current notebook so you can turn to one. It is also
 the only place a page is made, renamed or deleted — its composer names a new page
-instead of writing a line, and grows a segment saying which `kind` that page will be,
-the way the Calendar's grows a date — so page handling lives in one view rather than
-being spread across a header strip and a sheet. A page's kind is settled when it is
+instead of writing a line, and grows a segment (`S.indexKind`) that both narrows the
+list to one `kind` and sets the kind a new page will be — one statement, not two
+controls — so page handling lives in one view rather than being spread across a header
+strip and a sheet. That filter is on the *page list* only: `db.pages` keeps its order,
+the default keeps its place, and no entry is touched. It initialises from `curPage()`
+so the Index never opens hiding the page you came from. A page's kind is settled when it is
 named and can only change while the page is empty: the two kinds are read by different
 renders, so switching a page that holds lines would not move them, it would hide them.
-A page is also archived from there — `archived` is the notebook's own filter one level
+A question's `answer` is its own field and absent means unanswered, so the state is
+derived rather than stored and nothing can drift from the words. It prints under the
+question in the same type — the pair is one line of the notebook, not a line and a
+footnote — and a question row carries no bullet at all, because every line on that page
+is one; the mark survives only where the kinds mix, in the Index and in Search, so
+`.row + .row:not(:has(.bul))` is what pulls the divider inset back. and a question carries no `notes` at all: any that arrive are folded into
+the answer by `adopt` and the field dropped. A page is also
+archived from there — `archived` is the notebook's own filter one level
 down, gated by `canArchive` on there being no open task left (`openWorkOn`), which is
-why a page of notes is always free to go. `livePages` is what every reader but the
+why a page of questions is always free to go. `livePages` is what every reader but the
 Index's own archive fold means by "the pages of this notebook". Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
 is untouched, because the default page is unaffected by it. That default is the
 live page of work carrying `def`, falling back to the notebook's first live page of work
-when no page carries one — so an old journal reads back unchanged. It is never a page of notes,
-because the lines written down by absence are tasks and a page of notes cannot show
+when no page carries one — so an old journal reads back unchanged. It is never a page of questions,
+because the lines written down by absence are tasks and such a page cannot show
 one, and never an archived one, because you cannot turn to it; `withPages` guarantees
 every notebook has a live page of work, creating one past `PAGE_MAX` if it must,
 because the invariant outranks the ceiling. A page carrying `def` never keeps
@@ -96,8 +114,8 @@ the default without that would quietly empty one page into another.
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
 notebook (bar archived ones) and every page, tasks and events alike — never a
-note, which carries no deadline and no hand mark, because nothing on a page of notes is
-owed on a day. That is also why it
+question, which carries no deadline and no hand mark, because nothing on a page of
+questions is owed on a day. That is also why it
 has no tab: the tab strip switches between pages *of the notebook*, and Today belongs
 to none, so it is reached by tapping the date in the header instead — the one other
 thing up there that no notebook owns. It is still only a
@@ -124,7 +142,7 @@ drift. `withBooks`/`withPages` guarantee what every reader assumes: at least one
 notebook, at least one page *of work* per notebook, and `db.book`/`db.page` naming real
 ones. `linkPages` is where a line and its page are reconciled: a task naming a page of
 notes loses the field and falls back to the default, and a note naming anything else is
-carried to its notebook's first page of notes — or becomes a task when the notebook has
+carried to its notebook's first page of questions — or becomes a task when the notebook has
 none, which is also how a free-standing note from the v1 journal still lands. Nothing
 is ever left somewhere it cannot be read.
 `adopt()` spreads `...raw` first, so **unknown keys survive** — a file from a newer build

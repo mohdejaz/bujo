@@ -155,7 +155,8 @@ function writtenLabel(ms) {
  * existed gains a page record per notebook and not one entry is rewritten.
  *
  * `kind` says what the page holds: absent for the page of work it has always
- * been, "notes" for a page of notes. And `archived` is the notebook's own
+ * been, `"notes"` for a page of questions — a spelling kept for the reason
+ * given beside PAGE_KINDS. And `archived` is the notebook's own
  * trick one level down — a filter on the page list rather than a deletion. An
  * archived page keeps every line it holds, leaves the Index for a fold at its
  * foot, drops out of the move-a-line rows and out of Today, and stops counting
@@ -205,16 +206,27 @@ const PAGE_FIRST = "log";
 
 /* What a page holds. Absent means tasks — the page of work a page has always
    been, so the field is one more thing that means the default by not being
-   there, and no journal ever written needs touching to gain it. "notes" is
-   the other kind: lines you wrote down to keep rather than lines you mean to
-   do. A page holds one or the other and never both, because the field at the
-   foot of the screen asks nothing — the page you are on is what decides what
-   you are writing, and a page holding both would have to start asking. */
+   there, and no journal ever written needs touching to gain it. The other
+   kind is the page of questions: you write what you want to know, and the
+   answer goes on the same line when you have it. A page holds one or the
+   other and never both, because the field at the foot of the screen asks
+   nothing — the page you are on is what decides what you are writing, and a
+   page holding both would have to start asking.
+   The stored spellings are `"notes"` on the page and `"note"` on the line,
+   and they stay that way deliberately. A page of questions is what a page of
+   notes was before answers existed, and this journal is read on two phones
+   that each cache their own copy of the app: a build that has not updated yet
+   still knows those two words, so it round-trips a file full of questions
+   without losing one — `answer` rides along untouched on the spread in
+   `adopt`, which is the whole reason that spread is there. A new spelling
+   would have had the older build fall every question back to a task and strip
+   it off its page. The words the app says are question and answer; the words
+   the file keeps are the ones an older build can still read. */
 const PAGE_KINDS = new Set(["notes"]);
-const isNotes = (pg) => !!pg && pg.kind === "notes";
+const isQuestionPage = (pg) => !!pg && pg.kind === "notes";
 /* The kind of line a page is written in: the one thing its composer writes,
    its render reads and its count counts. */
-const typeOn = (pg) => (isNotes(pg) ? "note" : "task");
+const typeOn = (pg) => (isQuestionPage(pg) ? "note" : "task");
 
 const newBook = (name) => ({ id: uid(), name });
 const newPage = (book, name, kind) => {
@@ -306,8 +318,8 @@ function withPages(raw) {
     /* One default to a notebook. A file claiming two has the first of them
        honoured and the rest dropped, rather than leaving `defPage` to pick
        by an order that is not the question being asked.
-       A page of notes cannot carry it at all: the lines written down by
-       absence are tasks, and a page of notes could not show one, so a file
+       A page of questions cannot carry it at all: the lines written down by
+       absence are tasks, and a page of questions could not show one, so a file
        claiming it loses the flag rather than leaving every page-less task in
        the notebook pointing somewhere it cannot be read. */
     if (p.def === true && !pg.kind && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
@@ -357,14 +369,14 @@ const pagesIn = (book) => db.pages.filter((p) => p.book === book);
 const livePages = (book) => pagesIn(book).filter((p) => !p.archived);
 /* Its default: where a line that names no page lives. Only a page of work can
    be it, because a task is the only line ever written down that way and a
-   page of notes could not show one — so the role is the page of work that
+   page of questions could not show one — so the role is the page of work that
    says it is, else the notebook's first. `def` is absent on every page of a
    notebook nobody has chosen for, which is how a journal written before the
    default could be moved reads back exactly as it did — the same trick as
    `book`, `page`, `group` and `kind`, one level along. withPages guarantees
    there is a page of work to find. */
 const defPage = (book) => {
-  const work = livePages(book).filter((p) => !isNotes(p));
+  const work = livePages(book).filter((p) => !isQuestionPage(p));
   return work.find((p) => p.def) || work[0];
 };
 /* The groups of one notebook, in the order their first page appears. This is
@@ -401,7 +413,7 @@ const onArchivedPage = (e) => {
 /* Where a line goes when it lands on a page: absent for the default one, so
    the stored shape stays the same whether or not anyone made a second page.
    A note always comes out explicit, because the default is a page of work and
-   a note is never on one — which is what it should be: a note left to absence
+   a question is never on one — which is right: one left to absence
    would resolve to a page that cannot show it. */
 const putPage = (e, pid) => {
   if (pid === defPage(bookOf(e)).id) delete e.page;
@@ -649,9 +661,9 @@ function adopt(raw, i, books) {
     delete e.today;
     delete e.notToday;
   } else if (e.type === "note") {
-    /* A note is not owed on a day. Nothing a deadline brings with it belongs
-       to one, and that includes both marks for Today — the hand mark, which
-       would be saying a line you keep is a line you are doing, and the
+    /* A question is not owed on a day. Nothing a deadline brings with it
+       belongs to one, and that includes both marks for Today — the hand mark,
+       which would be saying a line you keep is a line you are doing, and the
        dismissal, which only exists to argue with a deadline that is not
        there. */
     delete e.due;
@@ -659,11 +671,11 @@ function adopt(raw, i, books) {
     delete e.notToday;
     delete e.date;
     delete e.time;
-    /* Done is a task's ending. A note is struck out when it stops being worth
-       keeping and deleted when it was never worth writing — there is no third
-       thing to have been carried out. A file saying one was done has the line
-       put back among the notes on its page, which is the only state it can be
-       read in. */
+    /* Done is a task's ending. A question is struck out when it stops being
+       worth asking and deleted when it was never worth writing — there is no
+       third thing to have been carried out, and answering one is filling it in
+       rather than finishing it. A file saying one was done has the line put
+       back on its page, which is the only state it can be read in. */
     if (e.state === "done") e.state = "open";
   } else {
     // a task's deadline is optional — most tasks are just things to do
@@ -690,6 +702,29 @@ function adopt(raw, i, books) {
   }
   if (typeof raw.notes === "string" && raw.notes.trim()) e.notes = raw.notes.trim();
   else delete e.notes;
+  /* The answer to the question a line asks, and only a question has one.
+     Absent means it has not been answered, which is the whole of how that
+     state is kept: there is no flag to set and nothing that can fall out of
+     step with the words, because the answer being there *is* the line being
+     answered.
+     It is its own field rather than the line's notes. `notes` means the same
+     thing on every line in this app — the detail behind it — and a question
+     can want both, the answer and something about the answer. Putting the
+     answer in `notes` would also light the `≡` on every answered line, which
+     is noise when the answer is already printed on the row beneath it. */
+  if (e.type === "note" && typeof raw.answer === "string" && raw.answer.trim())
+    e.answer = raw.answer.trim();
+  else delete e.answer;
+  /* A question has no notes of its own. It had them for as long as it was a
+     note, so any that arrive are carried into the answer rather than dropped —
+     on a page of questions the detail behind a line and the answer to it were
+     always the same text in two places. An answer already written wins, and
+     the notes go the way `goal` and `tag` went: out on load rather than along
+     unread, so an export says what the app does. */
+  if (e.type === "note") {
+    if (!e.answer && e.notes) e.answer = e.notes;
+    delete e.notes;
+  }
   if (!(books && books.has(e.book))) delete e.book;
   if (!Number.isFinite(raw.pos)) delete e.pos;
   /* Only a settled line has a time it was settled. An open one that arrives
@@ -710,13 +745,13 @@ function adopt(raw, i, books) {
 }
 
 /* A `page` only means something on a line that lives on one — a task or a
-   note — and only when it names a page of that line's own notebook that can
-   show it. Checked once every entry is adopted, because that is when the
+   question — and only when it names a page of that line's own notebook that
+   can show it. Checked once every entry is adopted, because that is when the
    notebook a bare entry falls back to is known.
-   A task that names a page of notes loses the field and lands on the default
-   page, exactly as a task naming a page that no longer exists always has.
-   A note has no such fallback: absence means the default page and the default
-   page is work, so a note is carried to the first page of notes in its
+   A task that names a page of questions loses the field and lands on the
+   default page, exactly as a task naming a page that no longer exists always
+   has. A question has no such fallback: absence means the default page and the
+   default page is work, so it is carried to the first page of questions in its
    notebook instead, and becomes a task on the default page when the notebook
    has none — which is also what a free-standing note from the dated journal
    does, since that journal had no pages to arrive on. Either way nothing is
@@ -735,7 +770,7 @@ function linkPages(entries, pages, first) {
     }
     const pg = home.get(e.page);
     const book = e.book || first;
-    if (pg && pg.book === book && isNotes(pg) === (e.type === "note")) return;
+    if (pg && pg.book === book && isQuestionPage(pg) === (e.type === "note")) return;
     if (e.type !== "note") {
       delete e.page;
       return;
@@ -772,14 +807,23 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 const S = {
   doneOpen: true, // starts open, as Done always was; folding it is per session
   todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
-  struckOpen: true, // and a page of notes its own, over what it has struck out
+  struckOpen: true, // and a page of questions its own, over what it struck out
   /* The Index's archive, and the one fold in the app that starts closed. The
      rule the others follow — never persist a fold, because a fold you did not
      set this session is a trap — is about hiding something by accident. This
      hides nothing by accident: every page under it is one you deliberately put
      away, from its own sheet, and the heading prints how many there are. */
   archivedOpen: false,
-  newPageKind: null, // what the Index's composer is about to name: notes, or work
+  /* Which kind of page the Index is about: the pages it lists, and the kind
+     the field at its foot will make. One control for both, because they are
+     the same statement — you are working with the pages of work, or with the
+     q&a pages — and a list that showed one kind while the field made the other
+     would have been two controls disagreeing in the space of a thumb.
+     It starts on the kind of page you are reading, so the Index opens showing
+     the page you came from rather than hiding it behind a filter you did not
+     know was there. After that it is yours for the session, like every other
+     thing in S. */
+  indexKind: curPage().kind || null,
   foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
@@ -794,7 +838,8 @@ const isTodayPage = () => db.view === "today";
 
 const isLive = (e) => e.state === "open";
 /* What the Journal shows is whatever the page it is reading is written in:
-   the pages of work hold tasks, a page of notes holds notes. It was only ever
+   the pages of work hold tasks, a page of questions holds questions. It was
+   only ever
    "the tasks" because a page could only be the one thing. */
 const onJournal = (e) => e.type === typeOn(curPage());
 
@@ -846,22 +891,30 @@ function journalBuckets() {
   };
 }
 
-/* A page of notes, in two buckets again — but the line between them is not
-   the one the Journal draws. A note is never done, so what the fold holds is
-   what you struck off the page: no longer true, no longer worth keeping, and
-   still part of what the page said. Above it the notes read starred first and
-   then newest, or whatever order you dragged them into. There is no deadline
-   here to climb, which is the whole difference: on a page of work the dates
-   arrange the page for you, and on a page of notes the only order is the one
-   you gave it. */
-function notesBuckets() {
-  const notes = mine().filter((e) => e.type === "note" && onPage(e));
+/* A page of questions, in two runs and a fold. What leads is what you have
+   not answered — the same instinct the Journal has, that the lines still
+   wanting something from you come first, and the reason a page like this is
+   worth having open rather than filed away. Under them the answered, which is
+   what the page is *for* once the asking is done: the reference it settles
+   into. The fold at the foot holds what you struck off, as it does on a page
+   of work.
+   Being answered is the outer order and the star sits inside it, which is the
+   one place this page parts with the Journal. There a star lifts a line above
+   every unstarred one; here a starred answer jumping the unanswered would put
+   something you already know above something you do not. The star still leads
+   its own run.
+   No deadline enters any of it, which is the whole difference from a page of
+   work: nothing here is owed on a day, so inside a run the only order is the
+   one you dragged it into. */
+function questionBuckets() {
+  const qs = mine().filter((e) => e.type === "note" && onPage(e));
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
+  const by = (a, b) => star(a, b) || rankOf(b) - rankOf(a);
+  const live = qs.filter(isLive);
   return {
-    live: notes.filter(isLive).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
-    struck: db.hideLogged
-      ? []
-      : notes.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
+    asked: live.filter((e) => !e.answer).sort(by),
+    answered: live.filter((e) => e.answer).sort(by),
+    struck: db.hideLogged ? [] : qs.filter((e) => !isLive(e)).sort(by),
   };
 }
 
@@ -1089,7 +1142,7 @@ function setState(e, state) {
 /* Flip done. The same gesture both ways, so nothing can get stranded. */
 function toggleDone(id) {
   const e = byId(id);
-  // a note has no done to flip — its mark is not a button and nothing calls this
+  // a question has no done to flip — its mark answers it instead
   if (!e || e.type === "note") return;
   S.anim.add(id);
   buzz(e.state === "done" ? 6 : 11);
@@ -1231,7 +1284,12 @@ const bwrap = (cls) => {
    column is for, and the mark that is not a dot only reads as a departure
    from it if the dot is there to depart from. It is also the tap that
    finishes a line, which a column with nothing in it cannot be. */
-const bulletClass = (e) => (e.state === "done" ? "b b-done" : `b b-${e.type}`);
+/* A note's mark is a `?` rather than the dash its type is named after: the
+   lines are questions now, and the one place a mark for one still appears is
+   where the kinds mix — a search — where `?` against `•` and `○` says what it
+   is and a dash would have left you guessing. */
+const bulletClass = (e) =>
+  e.state === "done" ? "b b-done" : e.type === "note" ? "b b-ask" : `b b-${e.type}`;
 
 
 /* ── render ────────────────────────────────────────────────────────── */
@@ -1242,7 +1300,7 @@ function render() {
   if (isTodayPage()) renderToday();
   else if (isCal()) renderCalendar();
   else if (isIndex()) renderIndex();
-  else if (isNotes(curPage())) renderNotes();
+  else if (isQuestionPage(curPage())) renderQuestions();
   else renderJournal();
   S.anim.clear();
 }
@@ -1384,22 +1442,31 @@ function renderJournal() {
   }
 }
 
-/* A page of notes. Nothing at the head of it: what is on today is work, and
-   this is the page you keep things on rather than one you work from — an
-   event printed over a page of notes would be the day interrupting the one
-   place in the notebook that is not about a day at all.
+/* A page of questions. Nothing at the head of it: what is on today is work,
+   and this is the page you keep things on rather than one you work from — an
+   event printed over it would be the day interrupting the one place in the
+   notebook that is not about a day at all.
+   Neither run carries a heading. Naming them would have told you that the
+   lines under "Unanswered" were the ones without answers beside them, which
+   the mark at the head of every row and the empty line beneath it already
+   say twice over — so a hairline closes the first run off from the second,
+   the same stroke the Journal uses where today's events run into the work.
    The one heading is the struck-out fold, where Done sits on a page of work:
    the same shape in the same place, because it is the same thing — what the
-   page used to say, put away but not thrown out. */
-function renderNotes() {
+   page used to ask, put away but not thrown out. */
+function renderQuestions() {
   const list = $("#list");
   list.textContent = "";
 
-  const { live, struck } = notesBuckets();
+  const { asked, answered, struck } = questionBuckets();
 
-  /* A note lifts and drags like any other line, among the rows the sort would
-     leave it beside — which here is only the star, since no note carries a
-     date for the sort to draw a line at. */
+  /* A question lifts and drags like any other line, among the rows the sort
+     would leave it beside — here whether it is answered and whether it is
+     starred, since nothing on this page carries a date for the sort to draw a
+     line at. Dragging an answer up among the unanswered would be saying you
+     do not know a thing you wrote down the answer to. The question and its
+     answer are one line and one rank, so there is nothing a drag could pull
+     apart. */
   const put = (e, bucket) => {
     const li = row(e, { tray: true });
     li.dataset.group = bucket + (e.star ? ":star" : "");
@@ -1407,7 +1474,9 @@ function renderNotes() {
     list.append(li);
   };
 
-  live.forEach((e) => put(e, "notes"));
+  asked.forEach((e) => put(e, "asked"));
+  if (asked.length && answered.length) list.append(el("li", "sep-rule"));
+  answered.forEach((e) => put(e, "answered"));
 
   if (struck.length) {
     list.append(foldHeading("Struck out", struck.length, "struckOpen"));
@@ -1415,7 +1484,7 @@ function renderNotes() {
   }
 
   const empty = $("#empty");
-  const bare = !live.length && !struck.length;
+  const bare = !asked.length && !answered.length && !struck.length;
   empty.hidden = !bare;
   if (bare) {
     /* The page says its own name here for the same reason the Journal's does:
@@ -1423,7 +1492,7 @@ function renderNotes() {
        one you are looking at. */
     empty.innerHTML =
       `<b>${safeHtml(curPage().name)} is empty</b>` +
-      "Write a note below. Nothing here is owed on a day — it is what you want to keep.";
+      "Write a question below. The answer goes on the same line when you have it.";
   }
 }
 
@@ -1541,35 +1610,56 @@ function renderIndex() {
   const list = $("#list");
   list.textContent = "";
 
-  /* Grouping regroups the *reading* of db.pages and never the array. Its first
-     page is the notebook's default and goPage takes the direction it slides
-     from index order, so a page keeps the mark and the place it really has —
-     which is also why a group can be made and dissolved without a line moving
-     anywhere. */
+  /* One kind at a time, the one the segment at the foot is set to. The two
+     kinds are read by different renders and written in different lines, and
+     they are the only thing in this notebook that a page cannot be halfway
+     between — so a list holding both was a list you had to read twice, once
+     for the dots and once for the question marks. This narrows the *reading*
+     of db.pages and nothing else: the array keeps its order, every page keeps
+     its place and its default mark, and no line moves. A page you cannot see
+     is one segment-tap away, which is the whole of what the filter costs.
+     Grouping regroups the reading the same way, one level in. */
+  const ofKind = (pg) => (pg.kind || null) === S.indexKind;
   const put = (pg) => list.append(pageLink(pg));
 
-  /* The ungrouped first: the default page is among them, and the Index should
-     open on the page a line lands on when it is told nothing. */
-  inGroup(db.book, null).forEach(put);
-  groupsIn(db.book).forEach((g) => {
+  /* The ungrouped first: on the pages of work the default is among them, and
+     the Index should open on the page a line lands on when it is told
+     nothing. */
+  const here = livePages(db.book).filter(ofKind);
+  inGroup(db.book, null).filter(ofKind).forEach(put);
+  /* The groups of this kind only. A heading whose every page is the other kind
+     is a heading over nothing, so it does not print — but the group itself is
+     untouched and comes back with its pages when the segment does. */
+  [...new Set(here.map((pg) => pg.group).filter(Boolean))].forEach((g) => {
     const open = !S.foldedGroups.has(g);
     list.append(groupHeading(g, open));
-    if (open) inGroup(db.book, g).forEach(put);
+    if (open) inGroup(db.book, g).filter(ofKind).forEach(put);
   });
 
   /* And the pages put away, under a fold at the foot — below the groups,
      because they are below everything: a page in the archive is in no group
-     and is not one of the pages you are working with. The heading carries the
+     and is not one of the pages you are working with. It answers the segment
+     too, for the reason the rest of the list does. The heading carries the
      count the way every other fold does, so an archive you have closed still
      says how much is in it. */
-  const away = pagesIn(db.book).filter((p) => p.archived);
+  const away = pagesIn(db.book).filter((pg) => pg.archived && ofKind(pg));
   if (away.length) {
     list.append(foldHeading("Archived", away.length, "archivedOpen"));
     if (S.archivedOpen) away.forEach(put);
   }
 
-  /* Printed under the list rather than as an empty state, because the Index is
-     never empty: a notebook always has at least one page. */
+  /* The Index is never empty of pages — a notebook always has at least one —
+     but it can be empty of *this* kind, and then it has to say so rather than
+     leaving a blank page under a segment nobody has noticed moving. Only the
+     q&a side can reach this: the pages of work always have the default. */
+  if (!here.length && !away.length) {
+    list.append(
+      el("li", "index-note", `No q&a pages in ${curBook().name} yet. Name one below.`)
+    );
+  }
+
+  /* Printed under the list rather than as an empty state, because the Index
+     always has its composer and its note to show. */
   list.append(
     el(
       "li",
@@ -1619,19 +1709,19 @@ function groupHeading(name, open) {
    empty end of the row says it better than a nought. */
 function pageLink(pg) {
   /* An archived page prints no number. It has no work left open on it by the
-     rule that let it go, and on a page of notes a count there would read as
+     rule that let it go, and on a page of questions a count there would read as
      something waiting — which is the one thing an archived page never has. */
   const n = pg.archived ? 0 : pendingOn(pg.id);
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : "") + (pg.archived ? " is-away" : ""));
   const pick = el("button", "pagelink-pick");
   /* The row leads with the mark the page's lines are written in: a dot for a
-     page of work, a dash for a page of notes. Choosing a page is choosing
-     what you are about to write, so which of the two it is cannot be
-     something you find out by arriving. Both carry one rather than only the
-     page of notes, for the reason every line in this app carries a bullet —
-     a mark that is not a dot only reads as a departure from the dot if the
-     dot is there to depart from. */
-  pick.append(bwrap("b b-" + typeOn(pg)));
+     page of work, a `?` for a page of questions. Choosing a page is choosing
+     what you are about to write, so which of the two it is cannot be something
+     you find out by arriving. Both carry one rather than only the page of
+     questions, for the reason every line in this app carries a bullet — a mark
+     that is not a dot only reads as a departure from the dot if the dot is
+     there to depart from. */
+  pick.append(bwrap(isQuestionPage(pg) ? "b b-ask" : "b b-task"));
   pick.append(el("span", "pagelink-name", safeHtml(pg.name)));
   if (n) pick.append(el("span", "pagelink-n", String(n)));
   /* The archived page is the one page you cannot turn to, so its row opens its
@@ -1704,7 +1794,7 @@ function row(e, opts = {}) {
      doors of its own, and a third here would read as one more thing the left
      swipe might be about to do. */
   /* The tray and the sun are for the lines you can still act on, which means
-     a task or a note: an event is the Calendar's and a settled line has
+     a task or a question: an event is the Calendar's and a settled line has
      nothing left to carry. */
   const open = e.type !== "event" && e.state === "open";
   if (opts.tray && open) {
@@ -1738,18 +1828,18 @@ function row(e, opts = {}) {
   }
 
   /* Then the mark, always the last thing before the words and always the
-     same step from them — so the mark and the line it belongs to read as
-     one wherever that line turns up.
-     On a task and an event it is also the tap that finishes the line. On a
-     note it is only the dash the line is written with: there is no done to
-     toggle, so it is not a button at all rather than a button that answers
-     nothing. It keeps the same box either way, which is what holds the words
-     in one column whichever page you are reading. */
-  if (e.type === "note") {
-    const dash = el("span", "bul");
-    dash.append(el("i", bulletClass(e)));
-    face.append(dash);
-  } else {
+     same step from them, so the mark and the line it belongs to read as one
+     wherever that line turns up. It is also the tap that finishes the line.
+     A question has none, and the column goes with it. A mark says which kind
+     of line this is, and on a page of questions every line is a question — a
+     column of identical marks down the page says nothing, and the `?` at the
+     end of the words you typed has already said it anyway. So the row begins
+     at the edge of its card, the way a row with no sun does, and the words
+     start where the reading starts. A question has no done to toggle either,
+     so there was never a tap for that mark to carry.
+     It still earns its place where the kinds mix: against the other pages in
+     the Index, and against the tasks and events in a search. */
+  if (e.type !== "note") {
     const bul = el("button", "bul");
     bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
     bul.append(el("i", bulletClass(e)));
@@ -1767,13 +1857,29 @@ function row(e, opts = {}) {
   const line = el("span", "row-line");
   line.append(document.createTextNode(e.text));
   txt.append(line);
+  /* The answer, directly under the question that asked it and in the same
+     type: the two are one line of the notebook, and setting the answer in a
+     smaller, quieter face would have made it look like a note about the
+     question rather than the thing the question was asked for. Only the ink
+     steps back, by a shade, so the questions still lead the scan down the
+     page. It clamps to one line of its own like the words above it, since an
+     answer you have to read properly is a tap away in the sheet. */
+  if (e.type === "note" && e.answer)
+    txt.append(el("span", "row-answer", safeHtml(e.answer)));
   // only a task carries a deadline, and most of them do not
   const meta = rowMeta(e, opts.where ? whereOf(e) : "");
   if (meta) txt.append(meta);
-  txt.onclick = () => openEntry(e.id);
+  /* Tapping the words opens the line. On a question with no answer yet it
+     opens onto the answer, keyboard up: that is the one thing the line is
+     waiting for, and with no mark to carry the shortcut the row itself has to.
+     Once it is answered the sheet opens plainly, because then the thing you
+     have come back to change could be either half. */
+  txt.onclick = () =>
+    openEntry(e.id, e.type === "note" && !e.answer ? { answer: true } : {});
   face.append(txt);
 
-  if (e.notes) {
+  // a question holds its answer and nothing else, so it never carries the mark
+  if (e.notes && e.type !== "note") {
     const m = el("span", "notemark", ICON.notes);
     m.setAttribute("aria-label", "Has notes");
     face.append(m);
@@ -1866,7 +1972,7 @@ function swipeable(li, face, e) {
     decided = false,
     id = null;
   const tray = li.querySelector(".qa-tray");
-  /* A right swipe finishes the line, and a note has no finish. So the row
+  /* A right swipe finishes the line, and a question has no finish. So the row
      simply does not move that way — a rubber-band to nowhere would have said
      there was something there and then taken it back. */
   const canDone = e.type !== "note";
@@ -2156,7 +2262,8 @@ const composer = $("#composer");
 const kindSeg = $("#kindSeg");
 
 /* There is nothing to pick any more: the page you are on decides what you are
-   writing. A page of work writes a task, a page of notes writes a note, the
+   writing. A page of work writes a task, a page of questions writes a
+   question, the
    Calendar writes an event and asks for the day it falls on, and the Index
    writes the name of a new page — what a page holds there is pages, so that is
    what the field takes. Today writes a task already marked for today; it reads
@@ -2177,7 +2284,7 @@ function renderComposer() {
   if (isCal() && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
   $("#pageKind").hidden = !isIndex();
   [...kindSeg.children].forEach((b) =>
-    b.classList.toggle("on", (b.dataset.kind || null) === S.newPageKind)
+    b.classList.toggle("on", (b.dataset.kind || null) === S.indexKind)
   );
   input.placeholder = isCal()
     ? "what happens that day?"
@@ -2185,8 +2292,8 @@ function renderComposer() {
       ? "name a new page"
       : isTodayPage()
         ? "what are you doing today?"
-        : isNotes(curPage())
-          ? "what do you want to keep?"
+        : isQuestionPage(curPage())
+          ? "what do you want to know?"
           : "what needs doing?";
   /* The Index is naming a page, which is lower case by rule, so the keyboard
      stops offering a capital it would only have to take back on submit. */
@@ -2195,15 +2302,15 @@ function renderComposer() {
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
 
-/* Which kind of page the name below will make. Session-only, like every other
-   piece of view state, and it goes back to work once a page is made: it is a
-   statement about the page you are naming now, not a mode the Index is left
-   in. */
+/* Which kind of page the Index is about. It redraws the whole view rather than
+   just the composer, because the list above answers to it too — and it stays
+   where you put it for the session, since it is a mode now and not a one-shot
+   answer to "what am I naming". */
 kindSeg.onclick = (ev) => {
   const b = ev.target.closest("button");
   if (!b) return;
-  S.newPageKind = b.dataset.kind || null;
-  renderComposer();
+  S.indexKind = b.dataset.kind || null;
+  render();
 };
 
 input.addEventListener("input", () =>
@@ -2222,8 +2329,7 @@ composer.addEventListener("submit", (ev) => {
     const name = cleanPage(raw);
     input.value = "";
     composer.classList.remove("armed");
-    if (name) addPage(db.book, name, S.newPageKind);
-    S.newPageKind = null;
+    if (name) addPage(db.book, name, S.indexKind);
     return;
   }
 
@@ -2241,7 +2347,7 @@ composer.addEventListener("submit", (ev) => {
     created: Date.now(),
   };
   if (db.book !== db.books[0].id) e.book = db.book;
-  /* A task and a note both live on a page; an event belongs to the notebook.
+  /* A task and a question both live on a page; an event belongs to the notebook.
      Written on Today it goes to the notebook's default page rather than to
      whichever page the Journal happens to be left on: Today belongs to no
      page, so the page it was last showing is an accident of where you were,
@@ -2267,7 +2373,16 @@ const sheet = $("#sheet");
 const sheetBody = $("#sheetBody");
 let onSheetClose = null;
 
+/* A sheet closes over 200ms, and what tidies up afterwards is a timer. Opening
+   another sheet inside that window has to call the timer off: it was going to
+   empty the body and hide the card, and by the time it ran those would belong
+   to the *new* sheet — which went blank with nothing to explain it. Replacing
+   one sheet with another is a thing this app does on purpose (see
+   commitSheet), so the window is reachable with an ordinary thumb. */
+let sheetTimer = null;
 function openSheet(build) {
+  clearTimeout(sheetTimer);
+  sheetTimer = null;
   sheetBody.textContent = "";
   sheet.hidden = false;
   sheet.classList.remove("closing");
@@ -2287,7 +2402,8 @@ function closeSheet() {
   if (sheet.hidden) return;
   commitSheet();
   sheet.classList.add("closing");
-  setTimeout(() => {
+  sheetTimer = setTimeout(() => {
+    sheetTimer = null;
     sheet.hidden = true;
     sheet.classList.remove("closing");
     document.body.classList.remove("sheet-open");
@@ -2312,11 +2428,11 @@ function actRow(icon, label, fn, opts = {}) {
 /* Everything you can do to one line, in one place. The text and the note are
    committed on close rather than per keystroke, so a half-typed word never
    lands in storage and the list does not reflow under the keyboard. */
-function openEntry(id) {
+function openEntry(id, opts = {}) {
   const e = byId(id);
   if (!e) return;
   openSheet((b) => {
-    b.append(el("div", "s-title", { task: "Task", event: "Event", note: "Note" }[e.type]));
+    b.append(el("div", "s-title", { task: "Task", event: "Event", note: "Question" }[e.type]));
     /* The row prints no date, so this is where a line says how old it is. */
     if (Number.isFinite(e.created)) {
       const w = iso(new Date(e.created));
@@ -2328,30 +2444,72 @@ function openEntry(id) {
     ta.value = e.text;
     b.append(ta);
 
-    const note = el("textarea", "s-input s-note");
-    note.rows = 2;
-    note.placeholder = "Notes, links, the detail behind this line…";
-    note.value = e.notes || "";
-    const grow = () => {
-      note.style.height = "auto";
-      note.style.height = Math.min(note.scrollHeight + 2, 240) + "px";
+    /* A field that grows with what is typed into it, to a point. */
+    const autoGrow = (t) => {
+      const fit = () => {
+        t.style.height = "auto";
+        t.style.height = Math.min(t.scrollHeight + 2, 240) + "px";
+      };
+      t.addEventListener("input", fit);
+      setTimeout(fit, 0);
     };
-    note.addEventListener("input", grow);
-    b.append(note);
-    setTimeout(grow, 0);
 
-    /* Committed on close so the row is written once, with both fields. */
+    /* The answer, on a question and nowhere else. It sits directly under the
+       words it answers and above the notes, which is the order the line is
+       read in: what you asked, what you found out, and then anything else
+       about it. Emptying it puts the line back among the unanswered, because
+       that is all being unanswered has ever been. */
+    let ans = null;
+    if (e.type === "note") {
+      ans = el("textarea", "s-input s-answer");
+      ans.rows = 2;
+      ans.placeholder = "The answer, when you have it…";
+      ans.value = e.answer || "";
+      b.append(ans);
+      autoGrow(ans);
+    }
+
+    /* Every other kind of line carries its own notes. A question does not:
+       what it has to say under its words is the answer, and a second box below
+       that would only ever have held a note about the answer — which is the
+       answer, written in a place the row cannot print. */
+    let note = null;
+    if (e.type !== "note") {
+      note = el("textarea", "s-input s-note");
+      note.rows = 2;
+      note.placeholder = "Notes, links, the detail behind this line…";
+      note.value = e.notes || "";
+      b.append(note);
+      autoGrow(note);
+    }
+
+    /* The mark on a question's row opens the sheet straight onto the answer,
+       so the one thing that line is for is one tap away rather than two. */
+    if (opts.answer && ans)
+      setTimeout(() => {
+        ans.focus();
+        ans.setSelectionRange(ans.value.length, ans.value.length);
+      }, 120);
+
+    /* Committed on close so the row is written once, with every field. */
     onSheetClose = () => {
       const text = ta.value.trim();
-      const n = note.value.trim();
+      const n = note ? note.value.trim() : "";
+      const a = ans ? ans.value.trim() : "";
       const live = byId(id);
       if (!live) return;
-      if (!text && !n) return; // emptying the sheet is not a delete
-      if (text === live.text && n === (live.notes || "")) return;
+      if (!text && !n && !a) return; // emptying the sheet is not a delete
+      if (text === live.text && n === (live.notes || "") && a === (live.answer || "")) return;
       mutate(null, () => {
         if (text) live.text = text;
-        if (n) live.notes = n;
-        else delete live.notes;
+        if (note) {
+          if (n) live.notes = n;
+          else delete live.notes;
+        }
+        if (ans) {
+          if (a) live.answer = a;
+          else delete live.answer;
+        }
       });
     };
 
@@ -2416,7 +2574,7 @@ function openEntry(id) {
       }, { on: e.star })
     );
 
-    /* Not on a note: a note is not carried out. It is struck out when it
+    /* Not on a question: it is not carried out. It is struck out when it
        stops being worth keeping, which is the row below, and deleted when it
        was never worth writing, which is the row at the foot. */
     if (e.type !== "note") {
@@ -2435,7 +2593,7 @@ function openEntry(id) {
 
     /* Not an event: one copied onto the same day is the same event twice, and
        one wanted on another day is a new line written on the Calendar. A task
-       and a note both copy, which is how a line that is nearly right again
+       and a question both copy, which is how a line that is nearly right again
        starts from the one you already wrote. */
     if (e.type !== "event") {
       acts.append(
@@ -2467,10 +2625,11 @@ function openEntry(id) {
     }
 
     /* Move a line to another notebook. A task lands on the notebook's default
-       page, which every notebook has. A note needs a page of notes, which not
+       page, which every notebook has. A question needs a page of questions,
+       which not
        every notebook has — so a notebook without one is left out of the list
        rather than offered and then refused. */
-    const landing = (bk) => (e.type === "note" ? livePages(bk.id).find(isNotes) : null);
+    const landing = (bk) => (e.type === "note" ? livePages(bk.id).find(isQuestionPage) : null);
     const others = liveBooks().filter(
       (bk) => bk.id !== bookOf(e) && (e.type !== "note" || landing(bk))
     );
@@ -2486,7 +2645,7 @@ function openEntry(id) {
                   else x.book = bk.id;
                   /* Pages belong to a notebook, so one cannot cross with the
                      line — a task arrives on the new notebook's default page,
-                     and a note on its first page of notes, which is the only
+                     and a question on its first page of questions, the only
                      kind of page that can show one. */
                   const pg = landing(bk);
                   if (pg) x.page = pg.id;
@@ -2818,7 +2977,7 @@ const pageCount = (id) => linesOn(id, () => true);
    have not finished with: the number is read while you are choosing a page,
    and at that distance every line you have not dealt with counts the same.
    A finished or struck line is the only thing behind you, and that is what
-   the number leaves out. It reads the same way on a page of notes, where
+   the number leaves out. It reads the same way on a page of questions, where
    nothing is ever finished: what is left is what the page still says. */
 const pendingOn = (id) => linesOn(id, isLive);
 
@@ -2828,10 +2987,11 @@ const pendingOn = (id) => linesOn(id, isLive);
    ticked one does. On a page of work this is the very number the Index prints
    beside the page, so the rule reads straight off the screen: a page with no
    number beside it can go.
-   A page of notes has no work on it at all and so never has anything in the
-   way. That is not an exception to the rule but the rule read honestly: a note
-   is not something you finish, and waiting for every one of them to be struck
-   out would be waiting for the page to become worthless rather than done. */
+   A page of questions has no work on it at all and so never has anything in
+   the way. That is not an exception to the rule but the rule read honestly: an
+   unanswered question is not an unfinished job, and waiting for every one of
+   them to be answered would be waiting for the page to have nothing left to
+   ask rather than nothing left to do. */
 const openWorkOn = (id) =>
   db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
 
@@ -2884,9 +3044,9 @@ function restorePage(id) {
    choosing a default quietly empties one page into another. */
 function setDefaultPage(id) {
   const pg = db.pages.find((x) => x.id === id);
-  /* Never a page of notes: absence means the default page, and the lines
-     written down by absence are tasks, which a page of notes cannot show. */
-  if (!pg || isNotes(pg) || defPage(pg.book).id === id) return;
+  /* Never a page of questions: absence means the default page, and the lines
+     written down by absence are tasks, which such a page cannot show. */
+  if (!pg || isQuestionPage(pg) || defPage(pg.book).id === id) return;
   buzz(6);
   mutate(`${pg.name} is the default page`, () => {
     const here = db.entries.filter((e) => e.type === "task" && bookOf(e) === pg.book);
@@ -2974,11 +3134,11 @@ function openPage(id) {
   if (!pg) return;
   const first = defPage(pg.book).id === pg.id;
   const n = pageCount(pg.id);
-  /* A page of notes can always go. A page of work can go while the notebook
+  /* A page of questions can always go. A page of work can go while the notebook
      has another, for the reason the last page of all cannot: absence has to
      go on meaning a page a task can be read on. */
   const canGo =
-    isNotes(pg) || pg.archived || livePages(pg.book).filter((x) => !isNotes(x)).length > 1;
+    isQuestionPage(pg) || pg.archived || livePages(pg.book).filter((x) => !isQuestionPage(x)).length > 1;
   openSheet((b) => {
     b.append(el("div", "s-title", pg.name));
     b.append(
@@ -2986,7 +3146,7 @@ function openPage(id) {
         "div",
         "s-sub",
         `${n} ${n === 1 ? "line" : "lines"} in ${bookName(pg.book)}` +
-          (isNotes(pg) ? " · a page of notes" : "") +
+          (isQuestionPage(pg) ? " · a page of questions" : "") +
           (first ? " · the default page" : "")
       )
     );
@@ -3013,14 +3173,14 @@ function openPage(id) {
     }
 
     /* What the page holds — while it still holds nothing. A page of work and
-       a page of notes are read by two different renders and written in two
+       a page of questions are read by two different renders and written in two
        different kinds of line, so turning one that has lines on it into the
        other would not move them anywhere: it would simply stop showing them.
        An empty page has nothing to hide, and that is the one moment the
        choice is still open. Past it the subtitle above says which the page is
        and the way to the other kind is a new page.
        The default page is never offered it either, for the reason it is never
-       offered to a page of notes: a task written down by absence has to have
+       offered to a page of questions: a task written down by absence has to have
        somewhere it can be read. */
     if (!n && !first) {
       acts.append(
@@ -3029,7 +3189,7 @@ function openPage(id) {
           "Page of",
           [
             ["", "tasks"],
-            ["notes", "notes"],
+            ["notes", "q&a"],
           ],
           pg.kind || "",
           (v) =>
@@ -3063,7 +3223,7 @@ function openPage(id) {
     /* The default page: where a line written on Today lands, and where a
        notebook opens. Offered on every page but the one that already is it,
        which says so in the subtitle above instead. */
-    if (!first && !isNotes(pg)) {
+    if (!first && !isQuestionPage(pg)) {
       acts.append(el("div", "sep", "Default page"));
       acts.append(
         actRow(ICON.page, `Make ${pg.name} the default`, () => {
@@ -3115,7 +3275,7 @@ function openPage(id) {
             /* The role goes to the first page of work left, which is what
                defPage will pick once this one is gone. */
             const next = first
-              ? livePages(pg.book).find((x) => x.id !== pg.id && !isNotes(x)).name
+              ? livePages(pg.book).find((x) => x.id !== pg.id && !isQuestionPage(x)).name
               : null;
             if (
               !confirm(
@@ -3181,7 +3341,9 @@ function openSearch() {
       const hits = db.entries
         .filter(
           (e) =>
-            e.text.toLowerCase().includes(term) || (e.notes || "").toLowerCase().includes(term)
+            e.text.toLowerCase().includes(term) ||
+            (e.notes || "").toLowerCase().includes(term) ||
+            (e.answer || "").toLowerCase().includes(term)
         )
         .sort((a, b2) => b2.created - a.created)
         .slice(0, 40);
@@ -3203,6 +3365,15 @@ function openSearch() {
           .filter(Boolean)
           .join(" · ");
         body.append(el("div", "h-d", safeHtml(where)));
+        /* An answer that matched is shown under the question, the way a note
+           that matched is — you searched for a thing you half remember, and
+           half the time what you half remember is the answer rather than the
+           question you filed it under. */
+        if (e.answer && e.answer.toLowerCase().includes(term)) {
+          const a = el("div", "h-n", ICON.check);
+          a.append(el("span", null, mark(snippet(e.answer, term), term)));
+          body.append(a);
+        }
         if (e.notes && e.notes.toLowerCase().includes(term)) {
           const n = el("div", "h-n", ICON.notes);
           n.append(el("span", null, mark(snippet(e.notes, term), term)));
