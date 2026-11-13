@@ -765,6 +765,11 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 /* the page you are on, in the accent that only ever means "this is now" */
 .pagelink.is-on .pagelink-name,
 .pagelink.is-on .b { color: var(--accent); }
+/* A page put away: the same row, quieter, the way an archived notebook reads
+   in the picker. It is still a page and still says what it holds — it is just
+   not one of the pages you are working with. */
+.pagelink.is-away .pagelink-name { color: var(--dim); font-weight: 600; }
+.pagelink.is-away .b { opacity: 0.55; }
 /* What is still waiting on the page, at the end of its row — printed only when
    there is something, so an empty page ends in nothing rather than a nought. */
 .pagelink-n {
