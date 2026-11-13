@@ -445,6 +445,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   background: var(--hair);
 }
 .row + .row:has(.qa-today)::before { left: calc(8px + 1rem + 5px + 1rem + 5px); }
+/* A question carries no mark, so its words start at the row's own padding and
+   the rule starts with them — the inset follows the row, as it does for the
+   sun. */
+.row + .row:not(:has(.bul))::before { left: 8px; }
 /* A swipe slides the face off a coloured ground. The rule belongs to the
    list, not to that ground, and a seam across the top of it would read as
    part of what the swipe is doing. */
@@ -548,10 +552,21 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
-/* – for a note: the dash the line is written with. Wider than it is tall, so
-   it can never read as a dot half-drawn, and the only mark in the column that
-   is not a tap — a note has no done to toggle. */
-.b-note { width: 0.6rem; height: 2px; border-radius: 2px; background: currentColor; }
+/* ? for a question, where the kinds of line mix: the Index's page rows and a
+   search. A page of questions prints no mark at all — see row() — so this is
+   never a column, only a one-off beside a dot or a ring, which is exactly
+   where a shape would have had to be learnt and a letter does not. */
+.b-ask { width: 0.7rem; height: 0.8rem; }
+.b-ask::before {
+  content: "?";
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-size: 0.92rem;
+  font-weight: 700;
+  line-height: 1;
+}
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -631,6 +646,21 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* the lateness is the date's, not the line's — the place beside it on Today
    is not news of any colour */
 .row-meta .is-late { color: var(--accent); }
+/* The answer, directly under the question that asked it and set in the same
+   type: the two are one line of the notebook, and a smaller, quieter face
+   would have made the answer read as a note about the question rather than the
+   thing it was asked for. Only the ink steps back a shade, which is enough to
+   let the questions lead the scan. It clamps to one line like the words above
+   it — a row stays a fixed height whatever is typed into it. */
+.row-answer {
+  display: block;
+  min-width: 0;
+  margin-top: 2px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--ink-2);
+}
 /* where a line actually lives, on the one page that reads across notebooks.
    The same ink as the deadline beside it, a weight lighter: it is the second
    thing you read on the line, not a hairline — --hair is for rules, and at
@@ -987,6 +1017,20 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-note::placeholder { color: var(--dim); }
 .s-note:focus { background: var(--paper); border-color: var(--accent); }
+
+/* The answer, between the question above it and the notes below. The notes'
+   own box, because it belongs with the line rather than being the line — but
+   the words' own ink, because unlike a note it is the thing you came here to
+   read, and the row above it already printed it in the quiet half. */
+.s-answer {
+  margin-top: 10px;
+  background: var(--hair-2);
+  border-color: transparent;
+  font-size: max(16px, 0.9375rem);
+  overflow-y: auto;
+}
+.s-answer::placeholder { color: var(--dim); }
+.s-answer:focus { background: var(--paper); border-color: var(--accent); }
 
 .s-acts { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
 .s-act {

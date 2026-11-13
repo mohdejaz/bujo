@@ -4,9 +4,9 @@ A touch-first bullet journal in four pages. **Today** gathers what this day
 holds, from every notebook at once; tasks sit on a page of the **Journal** and
 may carry a due date; events have a date and live on the **Calendar**; the
 **Index** lists the pages of the notebook and turns to any of them. A page of
-the notebook can be a **page of notes** instead of a page of work, for the
-things you want to keep rather than do. Switching between the four is the only
-navigation there is.
+the notebook can be a **page of questions** instead of a page of work: you
+write what you want to know, and the answer goes on the same line when you have
+it. Switching between the four is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
@@ -23,14 +23,18 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 ```
   •  a task        something to do, whenever — or by a day
   ○  an event      something that happens, on a day
-  –  a note        something to keep, on a page of notes
+  ?  a question    something you want to know; the answer reads under it
   ×  done
   ≡  carries notes
 ```
 
 Every row starts with the same one-rem column holding that mark, so the words
 line up down the whole page whichever list you are reading, and the mark is
-always a thumb away. A task struck out keeps its `•`, dimmed and ruled
+always a thumb away. A page of questions is the exception and drops the column
+altogether — every line on it is a question, so a column of identical marks
+would say nothing, and the `?` at the end of the words has already said it. The
+mark is for where the kinds mix: beside a page's name in the Index, and against
+tasks and events in a search. A task struck out keeps its `•`, dimmed and ruled
 through: that is a line you decided against, not a state of the work.
 
 Three kinds of line, and the page you are on decides which you are writing. A
@@ -44,17 +48,30 @@ always carries a date, and that is what makes it an event; it goes on the
 Calendar. A date and no clock — an event is placed on a day, and the day
 heading it sits under says which.
 
-A **note** is the third, and it is the one line that is not about doing
-anything: a number, a password, what somebody said — written on a **page of
-notes**, which is a page of the notebook you made to hold them. It carries no
-deadline and never reaches Today, because nothing on it is owed on a day. It is
-also the one line with no `×`: a note is struck out when it stops being worth
-keeping and deleted when it was never worth writing, and there is no third
-thing to have carried out, so its mark is a dash you cannot tap.
+A **question** is the third, and it is the one line that is not about doing
+anything: where the water shut-off is, what the wifi is, which day the bins go
+out. It lives on a **page of questions**, a page of the notebook you made to
+hold them, and it carries its own **answer** — so the row prints the question
+with the answer directly beneath it, in the same type, because the two are one
+line of the notebook rather than a line and a footnote. Only the ink steps back
+a shade, which is enough to let the questions lead the scan. Nothing can pull
+the pair apart: they are one entry, and an unanswered question is simply a line
+on its own with nothing under it yet. Nothing is stored for being answered:
+having an answer *is* being answered.
+
+A question carries no deadline and never reaches Today, because nothing on it
+is owed on a day. It is also the one line with no `×`: a question is struck out
+when it stops being worth asking and deleted when it was never worth writing,
+and answering one is filling it in rather than finishing it.
+
+A question with no answer is simply a note — so anything you would have written
+down flat can go here, and usually reads better asked. *Bin night is Wednesday*
+becomes *Bin night? — Wednesday*, which is the form you will be reading it back
+in anyway.
 
 A task is something to do whenever, or by a day; an event is something that
-happens on a day; a note is something you wrote down to keep. A line never
-moves between the pages — changing what kind of thing it is would be writing a
+happens on a day; a question is something you want to know. A line never moves
+between the pages — changing what kind of thing it is would be writing a
 different line — though the Journal does *show* you today's events, at the top,
 where they are hard to miss.
 
@@ -65,19 +82,21 @@ narrows the journal by where a line lives — which notebook, which page, which
 kind of line — and Today narrows it by *when*, so it reads straight across
 all of them.
 
-**Every line carries its own notes** as well — open any line and write
+**Every line carries its own notes** — open a task or an event and write
 underneath it — so the detail behind a thing lives with the thing rather than
 floating loose. A line that holds notes is marked `≡`; the notes themselves
-never appear in the list, because a line stays one line. The two are different
-answers to different questions: a note *on* a line is what you need in order to
-do that line, and a note *of its own* is something worth keeping whether or not
-there is anything to do about it. A note page keeps the second kind off the
-page of work, where it would have sat among the tasks pretending to be one.
+never appear in the list, because a line stays one line.
+
+A question is the exception: it has no notes, and its sheet is its words and
+its answer with nothing between them. What a question has to say under itself
+*is* the answer, and a second box below that would only ever have held a note
+about the answer — which is the answer, written somewhere the row cannot print
+it. So a question never carries the `≡` either.
 
 ## Using it
 
 **Writing.** Type at the bottom and press return. There is nothing to pick:
-a page of work writes a task, a page of notes writes a note, the Calendar
+a page of work writes a task, a page of questions writes a question, the Calendar
 writes an event and asks for the day it falls on, because an event without one
 is not an event, and Today writes a task already marked for today — onto the notebook's **default page**, since Today
 belongs to no page and whichever one the Journal was last showing is where you
@@ -86,9 +105,10 @@ from the furthest day towards the oldest; several events on one day sit
 newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
-to reopen it. Tap the text to open everything else. Swipe a row **right** to
-finish it — a note has no finish, so a note's row does not travel that way at
-all. Swipe it **left** a short way and it stops against a tray of two
+to reopen it. Tap the text to open everything else — on a question with no
+answer yet that opens straight onto the answer, keyboard up, since it is the
+one thing the line is waiting for. Swipe a row **right** to finish it — a question has no finish,
+so its row does not travel that way at all. Swipe it **left** a short way and it stops against a tray of two
 actions; carry the swipe **all the way left** and it goes straight past them
 and strikes the line out — which is the tray's own first button, so the swipe
 is the quick way to it and the tray the deliberate one, the same pairing the
@@ -96,8 +116,8 @@ bullet and the right swipe already make for finishing. A row with a tray open
 is shut by tapping it, or by touching any other row — only one is ever open.
 
 **The tray.** Under the right edge of every line you can still act on — the
-Journal's live work, Today's wanted lines and the notes on a page of notes —
-in the order you reach for them:
+Journal's live work, Today's wanted lines and the questions on a page of
+questions — in the order you reach for them:
 
 ```
   ⊘  strike out      ⧉  duplicate
@@ -255,9 +275,9 @@ on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The Index.** The first tab is the notebook's contents, and the only place
-pages are handled: every page of the notebook in order, each led by the mark
-its lines are written in — a dot for a page of work, a dash for a page of
-notes — and each with what is still open on it, nothing at all beside a page
+pages are handled: every page of the notebook in order — of one kind at a time, see the segment below — each led by
+the mark its lines are written in, a dot for a page of work and a `?` for a
+page of q&a, and each with what is still open on it, nothing at all beside a page
 with none. Tap a page to turn to it — you land on the Journal, reading that
 page — or the pencil beside it to rename or delete it. The field at the foot
 names a new page rather than writing a line, because pages are what this page
@@ -273,12 +293,27 @@ how many there are. Tapping an archived page opens its sheet rather than
 turning to it, because that is where *Restore* is and it is the only thing left
 to do with it.
 
-Above that field the Index grows a row the other pages do not have: **page of
-tasks**, or **page of notes**. A page has to say what it holds before it can
-exist, the way an event has to carry the day it falls on, which is why the
-Calendar's composer grows a date in the same place. It is not a picker for a
-line — on every page what you write at the foot is still the one kind of thing
-that page is made of, and this is the page made of pages.
+Above that field the Index grows a row the other pages do not have: **tasks**,
+or **q&a**. It says which kind of page the Index is about — both the pages it
+lists and the kind the field below will make, because those are the same
+statement. You are working with the pages of work, or with the q&a pages; a
+list that showed one kind while the field made the other would be two controls
+disagreeing within a thumb's reach.
+
+So the Index shows **one kind at a time**. The two are read by different lists
+and written in different lines, and they are the only thing about a page that
+cannot be halfway — a list holding both had to be read twice, once down the
+dots and once down the question marks. Nothing moves: this narrows the reading
+of the page list and nothing else, the order is untouched, the default keeps
+its place, and a page you cannot see is one tap of the segment away. Groups
+narrow with it — a group whose every page is the other kind has no heading to
+print, and comes back whole when the segment does — and so does the Archived
+fold.
+
+The segment opens on the kind of page you are reading, so the Index never hides
+the page you came from behind a filter you did not know was there. After that
+it stays where you put it for the session, like every other view setting. With
+no q&a page yet, that side says so rather than going blank.
 
 **Page groups.** A notebook with a dozen pages reads better with headings over
 them, so a page can be put under one from its own sheet — *Group*, then a group
@@ -322,9 +357,10 @@ answer — so what stands in the way is only the work you have not dealt with,
 which is exactly the number the Index already prints beside the page: **a page
 with no number beside it can be archived.** Press it with work still open and
 it tells you how much, rather than hiding the row and leaving you to guess the
-rule. A page of notes has no work on it at all, so it can always go — a note is
-not something you finish, and waiting for every one of them to be struck out
-would be waiting for the page to become worthless rather than done.
+rule. A page of questions has no work on it at all, so it can always go — an
+unanswered question is not an unfinished job, and waiting for every one of them
+to be answered or struck would be waiting for the page to have nothing left to
+ask rather than nothing left to do.
 
 The **default page** can never be archived, for the reason it can never be
 deleted while it is the last of the work: a line that names no page lives
@@ -332,14 +368,14 @@ there, so it has to stay somewhere you can read it. An archived page is also
 the one page you cannot turn to, and its lines drop out of **Today** and out of
 the move-a-line rows — putting a page away means putting it away.
 
-**Pages of work, pages of notes.** A page holds tasks or it holds notes, never
-both — because the field at the foot asks nothing, and a page holding both
-would have to start asking. A page says which it is when you name it, and can
+**Pages of work, pages of questions.** A page holds tasks or it holds
+questions, never both — because the field at the foot asks nothing, and a page
+holding both would have to start asking. A page says which it is when you name it, and can
 still change its mind **while it is empty**: the two are read by different
 lists and written in different lines, so turning a page that already holds
 something into the other kind would not move anything, it would simply stop
 showing it. Past that, the way to the other kind is a new page. The default
-page is never a page of notes, for the reason below.
+page is never a page of questions, for the reason below.
 
 **Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
 a paper one. The **Index** is where they live: turn to one, rename or delete it
@@ -357,7 +393,7 @@ be without is its last page of work: a line that names no page lives there, and
 that line is always a task, so there has to be somewhere it can be read. A page
 of notes can always go.
 
-A page of notes is reached and read exactly like any other: it is a page of
+A page of questions is reached and read exactly like any other: it is a page of
 the notebook, it sits in the Index among the rest, it can go under a group, and
 a notebook can hold as many of them as it likes within the sixteen — so long as
 one page of work remains. Pages split the **Journal** and nothing else, and the
@@ -433,7 +469,7 @@ back — that's also how you move between phone and desktop.
   "book": "b1",
   "pages": [{ "id": "p1", "book": "b1", "name": "log" },
             { "id": "p2", "book": "b1", "name": "ideas", "group": "side projects" },
-            { "id": "p3", "book": "b1", "name": "people", "kind": "notes" },
+            { "id": "p3", "book": "b1", "name": "flat", "kind": "notes" },
             { "id": "p4", "book": "b1", "name": "q2", "archived": true }],
   "page": "p1",
   "entries": [
@@ -444,7 +480,8 @@ back — that's also how you move between phone and desktop.
     { "id": "k3f9a2", "type": "event", "text": "Flight to Dubai",
       "date": "2026-11-02", "state": "open", "star": false,
       "created": 1756000000001 },
-    { "id": "k3f9a3", "type": "note", "text": "Plumber — Ray, 0491 772 331",
+    { "id": "k3f9a3", "type": "note", "text": "What's the wifi?",
+      "answer": "glasshouse-4417",
       "page": "p3", "state": "open", "star": false,
       "created": 1756000000002 }
   ]}
@@ -452,11 +489,31 @@ back — that's also how you move between phone and desktop.
 
 `state` is `open`, `done` or `dropped`. `type` is `task`, `event` or `note` —
 nothing else, and a `note` is never `done`: a file that says one is has the
-line put back among the notes on its page, which is the only state it can be
-read in. `date` appears on events and only on events; there is no time of day.
+line put back on its page, which is the only state it can be read in.
+
+**The file says `note` and `notes` where the app says question and answer, and
+that is deliberate.** A page of questions is what a page of notes was before
+answers existed, and this journal is read on two phones that each keep their
+own cached copy of the app. A build that has not updated yet still knows those
+two words, so it reads a file full of questions without losing one — `answer`
+is a field it does not recognise, and an unrecognised field is kept exactly as
+it was. A new spelling would have had the older build fall every question back
+to a task and strip it off its page. The words the app says are question and
+answer; the words the file keeps are the ones an older build can still read.
+
+`answer` is the answer to the question a line asks, on a `note` and nothing
+else. Absent means unanswered, which is the whole of how that state is kept —
+there is no flag to set and nothing that can fall out of step with the words,
+because having an answer *is* being answered.
+
+A `note` never carries `notes`. It could while it was a note, so any that
+arrive are **carried into the answer** rather than thrown away — on a page of
+questions the detail behind a line and the answer to it were always the same
+text in two places — and an answer already written wins. After that the field
+goes, the way `goal` and `tag` went, so an export says what the app does. `date` appears on events and only on events; there is no time of day.
 `due` is a deadline rather than a day something falls on: optional on a task,
-absent when it has none, and never on a note — nothing on a page of notes is
-owed on a day. `today` is the hand mark for the Today page and stores
+absent when it has none, and never on a question — nothing on a page of
+questions is owed on a day. `today` is the hand mark for the Today page and stores
 **the day the mark was made** rather than `true`, which is how it expires on
 its own at midnight with nothing written back; it is absent on a task that was
 never marked and on every event, since an event's `date` already says which day
@@ -469,16 +526,17 @@ nowhere in the file: they are read off the lines, so there is no day to go
 stale when the last line settled on one is reopened or deleted. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks and
-notes, never on events, and is absent for its notebook's default page,
+questions, never on events, and is absent for its notebook's default page,
 whichever page that currently is — a page says it is the default by carrying
 `def`, and absent on all of them means the first live page of work, so a
 journal written before the default could be moved reads back unchanged. A note
 is always written down explicitly, because the default page is a page of work
-and a note is never on one.
+and a question is never on one.
 
 `kind` is the field that says which a page is: absent on a page of work, which
 is what a page has always been and so what it still means to say nothing, and
-`"notes"` on a page of notes. `archived` is the notebook's own flag one level
+`"notes"` on a page of questions — a spelling kept deliberately, see below.
+`archived` is the notebook's own flag one level
 down and the same kind of filter: absent on a page you are working with, `true`
 on one you have put away — never on the default page, and not counted against
 the sixteen. Only a live page of work can carry `def`, and every notebook is
@@ -497,7 +555,7 @@ migrates it once and shows a summary of what moved. The rules:
 | old | new |
 |---|---|
 | task | Journal — the date is dropped, `created` already records when it was written |
-| a free-standing note | becomes a task, words and notes intact — a migrating notebook has no page of notes to arrive on |
+| a free-standing note | becomes a task, words and notes intact — a migrating notebook has no page of questions to arrive on |
 | event with a date | Calendar — the date is kept, the time of day is dropped |
 | event with no date | becomes a task; a calendar has nowhere to put it |
 | Someday tasks | ordinary tasks on the page — there is no pile here for what you are not doing yet |
@@ -513,8 +571,8 @@ its default page and every line on it.
 Old notes arrive as ordinary tasks, sitting on the page where you can see
 them: they are not actionable, so expect to strike out or delete a few. That
 is deliberate — filing them somewhere tidy would have meant never reading them
-again. Make a page of notes and move the keepers onto it from their sheets, which
-is the one thing the old journal had nowhere to put them.
+again. Make a page of questions and move the keepers onto it from their sheets,
+which is the one thing the old journal had nowhere to put them.
 
 Repeats generated their occurrences on the fly rather than storing them, so a
 series collapses to a single line; occurrences you had actually completed are
