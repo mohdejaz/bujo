@@ -102,6 +102,19 @@
         <label for="whenDate" id="whenLabel">on</label>
         <input type="date" id="whenDate" class="s-field when-date" />
       </div>
+      <!-- On the Index the field names a page rather than writing a line, and
+           a page has to say what it holds before it exists — so the composer
+           grows a second row there, exactly as it grows a date on the
+           Calendar and for the same reason. It is not a picker for a line:
+           on every page the field below still writes the one kind of thing
+           that page is made of, and this is the page made of pages. -->
+      <div class="when" id="pageKind" hidden>
+        <label>page of</label>
+        <div class="s-seg" id="kindSeg">
+          <button type="button" class="on" data-kind="">tasks</button>
+          <button type="button" data-kind="notes">notes</button>
+        </div>
+      </div>
       <input
         id="input"
         type="text"

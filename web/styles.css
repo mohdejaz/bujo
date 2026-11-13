@@ -548,6 +548,10 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   border-radius: 50%;
   border: 2px solid currentColor;
 }
+/* – for a note: the dash the line is written with. Wider than it is tall, so
+   it can never read as a dot half-drawn, and the only mark in the column that
+   is not a tap — a note has no done to toggle. */
+.b-note { width: 0.6rem; height: 2px; border-radius: 2px; background: currentColor; }
 /* × for complete, drawn as two strokes that sweep in */
 .b-done { width: 0.8rem; height: 0.8rem; color: var(--good); }
 .b-done::before,
@@ -755,8 +759,12 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   font-weight: 600;
   letter-spacing: -0.01em;
 }
+/* The mark the page's lines are written in, quieter than the name it leads —
+   it says what the page is, and the name is still the thing you are reading. */
+.pagelink .b { color: var(--dim); }
 /* the page you are on, in the accent that only ever means "this is now" */
-.pagelink.is-on .pagelink-name { color: var(--accent); }
+.pagelink.is-on .pagelink-name,
+.pagelink.is-on .b { color: var(--accent); }
 /* What is still waiting on the page, at the end of its row — printed only when
    there is something, so an empty page ends in nothing rather than a nought. */
 .pagelink-n {
@@ -899,6 +907,11 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   color: var(--dim);
 }
 .when-date { margin-left: 0; flex: 1 1 auto; min-width: 0; }
+/* The Index's own row: what kind of page the name below will make. Shaped like
+   the date beside it — the full width of the row, so the two rows the composer
+   can grow sit the same way over the field they belong to. */
+.when .s-seg { margin-left: 0; flex: 1 1 auto; min-width: 0; }
+.when .s-seg button { flex: 1; padding: 7px 0; }
 
 /* ── sheet ──────────────────────────────────────────────────────────── */
 

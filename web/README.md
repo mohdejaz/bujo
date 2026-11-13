@@ -3,8 +3,10 @@
 A touch-first bullet journal in four pages. **Today** gathers what this day
 holds, from every notebook at once; tasks sit on a page of the **Journal** and
 may carry a due date; events have a date and live on the **Calendar**; the
-**Index** lists the pages of the notebook and turns to any of them. Switching
-between the four is the only navigation there is.
+**Index** lists the pages of the notebook and turns to any of them. A page of
+the notebook can be a **page of notes** instead of a page of work, for the
+things you want to keep rather than do. Switching between the four is the only
+navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
@@ -21,6 +23,7 @@ at night. The screenshots are taken from a seeded journal, not a real one.
 ```
   •  a task        something to do, whenever — or by a day
   ○  an event      something that happens, on a day
+  –  a note        something to keep, on a page of notes
   ×  done
   ≡  carries notes
 ```
@@ -30,9 +33,9 @@ line up down the whole page whichever list you are reading, and the mark is
 always a thumb away. A task struck out keeps its `•`, dimmed and ruled
 through: that is a line you decided against, not a state of the work.
 
-Two kinds of line, and the page you are on decides which you are writing. A
-**task** goes on the Journal, newest first, until you drag it somewhere else
-or give it a day it is wanted by. The row prints only its words and that day,
+Three kinds of line, and the page you are on decides which you are writing. A
+**task** goes on a page of work in the Journal, newest first, until you drag it
+somewhere else or give it a day it is wanted by. The row prints only its words and that day,
 if it has one; the day the line was written is in its sheet. A row is **one
 line high whatever is on it** — words longer than the width end in `…` rather
 than wrapping, so what a line costs on the page does not depend on how much
@@ -41,30 +44,42 @@ always carries a date, and that is what makes it an event; it goes on the
 Calendar. A date and no clock — an event is placed on a day, and the day
 heading it sits under says which.
 
+A **note** is the third, and it is the one line that is not about doing
+anything: a number, a password, what somebody said — written on a **page of
+notes**, which is a page of the notebook you made to hold them. It carries no
+deadline and never reaches Today, because nothing on it is owed on a day. It is
+also the one line with no `×`: a note is struck out when it stops being worth
+keeping and deleted when it was never worth writing, and there is no third
+thing to have carried out, so its mark is a dash you cannot tap.
+
 A task is something to do whenever, or by a day; an event is something that
-happens on a day. A line never moves between the pages — changing what kind of
-thing it is would be writing a different line — though the Journal does *show*
-you today's events, at the top, where they are hard to miss.
+happens on a day; a note is something you wrote down to keep. A line never
+moves between the pages — changing what kind of thing it is would be writing a
+different line — though the Journal does *show* you today's events, at the top,
+where they are hard to miss.
 
 Two of the four pages hold no lines of their own. The **Index** is the
 notebook's own contents, and the way to turn to another of its pages.
 **Today** is the one page that is not about a place at all: every other page
 narrows the journal by where a line lives — which notebook, which page, which
-of the two kinds — and Today narrows it by *when*, so it reads straight across
+kind of line — and Today narrows it by *when*, so it reads straight across
 all of them.
 
-There is no free-standing note. **Every line carries its own notes** instead —
-open a line and write underneath it — so what you want to remember lives with
-the thing it is about rather than floating loose on the page. A line that
-holds notes is marked `≡`; the notes themselves never appear in the list,
-because a line stays one line.
+**Every line carries its own notes** as well — open any line and write
+underneath it — so the detail behind a thing lives with the thing rather than
+floating loose. A line that holds notes is marked `≡`; the notes themselves
+never appear in the list, because a line stays one line. The two are different
+answers to different questions: a note *on* a line is what you need in order to
+do that line, and a note *of its own* is something worth keeping whether or not
+there is anything to do about it. A note page keeps the second kind off the
+page of work, where it would have sat among the tasks pretending to be one.
 
 ## Using it
 
 **Writing.** Type at the bottom and press return. There is nothing to pick:
-the Journal writes a task, the Calendar writes an event and asks for the day it
-falls on, because an event without one is not an event, and Today writes a task
-already marked for today — onto the notebook's **default page**, since Today
+a page of work writes a task, a page of notes writes a note, the Calendar
+writes an event and asks for the day it falls on, because an event without one
+is not an event, and Today writes a task already marked for today — onto the notebook's **default page**, since Today
 belongs to no page and whichever one the Journal was last showing is where you
 happened to be, not an answer to where the line goes. The Calendar reads back
 from the furthest day towards the oldest; several events on one day sit
@@ -72,16 +87,17 @@ newest-written first.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else. Swipe a row **right** to
-finish it. Swipe it **left** a short way and it stops against a tray of two
+finish it — a note has no finish, so a note's row does not travel that way at
+all. Swipe it **left** a short way and it stops against a tray of two
 actions; carry the swipe **all the way left** and it goes straight past them
 and strikes the line out — which is the tray's own first button, so the swipe
 is the quick way to it and the tray the deliberate one, the same pairing the
 bullet and the right swipe already make for finishing. A row with a tray open
 is shut by tapping it, or by touching any other row — only one is ever open.
 
-**The tray.** Under the right edge of every line on the two lists you work
-from — the Journal's live work and Today's wanted lines — in the order you
-reach for them:
+**The tray.** Under the right edge of every line you can still act on — the
+Journal's live work, Today's wanted lines and the notes on a page of notes —
+in the order you reach for them:
 
 ```
   ⊘  strike out      ⧉  duplicate
@@ -238,13 +254,21 @@ on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The Index.** The first tab is the notebook's contents, and the only place
-pages are handled: every page of the notebook in order, each with what is
-still open on it — and nothing at all beside a page with none. Tap a page to
-turn to it — you land on the Journal, reading that page — or the pencil beside
-it to rename or delete it. The field
-at the foot names a new page rather than writing a line, because pages are what
-this page is made of; you land on the new one, ready to write. It is the same
-move the notebook button in the header makes, one level down.
+pages are handled: every page of the notebook in order, each led by the mark
+its lines are written in — a dot for a page of work, a dash for a page of
+notes — and each with what is still open on it, nothing at all beside a page
+with none. Tap a page to turn to it — you land on the Journal, reading that
+page — or the pencil beside it to rename or delete it. The field at the foot
+names a new page rather than writing a line, because pages are what this page
+is made of; you land on the new one, ready to write. It is the same move the
+notebook button in the header makes, one level down.
+
+Above that field the Index grows a row the other pages do not have: **page of
+tasks**, or **page of notes**. A page has to say what it holds before it can
+exist, the way an event has to carry the day it falls on, which is why the
+Calendar's composer grows a date in the same place. It is not a picker for a
+line — on every page what you write at the foot is still the one kind of thing
+that page is made of, and this is the page made of pages.
 
 **Page groups.** A notebook with a dozen pages reads better with headings over
 them, so a page can be put under one from its own sheet — *Group*, then a group
@@ -274,6 +298,15 @@ archiving one keeps every line it holds and only takes it out of the picker. Up
 to six open at once; archived ones don't count. Move a single line between them
 from its entry sheet.
 
+**Pages of work, pages of notes.** A page holds tasks or it holds notes, never
+both — because the field at the foot asks nothing, and a page holding both
+would have to start asking. A page says which it is when you name it, and can
+still change its mind **while it is empty**: the two are read by different
+lists and written in different lines, so turning a page that already holds
+something into the other kind would not move anything, it would simply stop
+showing it. Past that, the way to the other kind is a new page. The default
+page is never a page of notes, for the reason below.
+
 **Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
 a paper one. The **Index** is where they live: turn to one, rename or delete it
 with the pencil, name a new one in the field at the foot. Every notebook has a
@@ -284,12 +317,17 @@ role until you move it — *Make … the default* on any page's sheet. Moving it
 does not move a single line: every line that had no page of its own is written
 down on the page it was already on first, so what changes is which page the
 silence means, not where anything sits. Any page can be deleted, the default
-one included — the first of the pages left takes the role, and the lines go
+one included — the first page of work left takes the role, and the lines go
 with the page the way they do with a notebook. The one page a notebook cannot
-be without is its last.
+be without is its last page of work: a line that names no page lives there, and
+that line is always a task, so there has to be somewhere it can be read. A page
+of notes can always go.
 
-Pages split the **Journal** and nothing else, and the Journal says which page
-it is reading: the name sits at the end of the date, under a ribbon, so the
+A page of notes is reached and read exactly like any other: it is a page of
+the notebook, it sits in the Index among the rest, it can go under a group, and
+a notebook can hold as many of them as it likes within the sixteen — so long as
+one page of work remains. Pages split the **Journal** and nothing else, and the
+Journal says which page it is reading: the name sits at the end of the date, under a ribbon, so the
 lines below it are never anonymous. The Calendar belongs to the notebook and
 reads every page of it at once, because a day is something you want whole —
 having to check five pages to find out what is on today would be a worse
@@ -360,7 +398,8 @@ back — that's also how you move between phone and desktop.
   "books": [{ "id": "b1", "name": "bujo" }],
   "book": "b1",
   "pages": [{ "id": "p1", "book": "b1", "name": "log" },
-            { "id": "p2", "book": "b1", "name": "ideas", "group": "side projects" }],
+            { "id": "p2", "book": "b1", "name": "ideas", "group": "side projects" },
+            { "id": "p3", "book": "b1", "name": "people", "kind": "notes" }],
   "page": "p1",
   "entries": [
     { "id": "k3f9a1", "type": "task", "text": "Book the flights",
@@ -369,14 +408,20 @@ back — that's also how you move between phone and desktop.
       "notes": "Check the consulate hours first", "created": 1756000000000 },
     { "id": "k3f9a2", "type": "event", "text": "Flight to Dubai",
       "date": "2026-11-02", "state": "open", "star": false,
-      "created": 1756000000001 }
+      "created": 1756000000001 },
+    { "id": "k3f9a3", "type": "note", "text": "Plumber — Ray, 0491 772 331",
+      "page": "p3", "state": "open", "star": false,
+      "created": 1756000000002 }
   ]}
 ```
 
-`state` is `open`, `done` or `dropped`. `type` is `task` or `event` — nothing
-else. `date` appears on events and only on events; there is no time of day.
+`state` is `open`, `done` or `dropped`. `type` is `task`, `event` or `note` —
+nothing else, and a `note` is never `done`: a file that says one is has the
+line put back among the notes on its page, which is the only state it can be
+read in. `date` appears on events and only on events; there is no time of day.
 `due` is a deadline rather than a day something falls on: optional on a task,
-absent when it has none. `today` is the hand mark for the Today page and stores
+absent when it has none, and never on a note — nothing on a page of notes is
+owed on a day. `today` is the hand mark for the Today page and stores
 **the day the mark was made** rather than `true`, which is how it expires on
 its own at midnight with nothing written back; it is absent on a task that was
 never marked and on every event, since an event's `date` already says which day
@@ -388,11 +433,18 @@ falls back to `created`, exactly as it did then. The days themselves are
 nowhere in the file: they are read off the lines, so there is no day to go
 stale when the last line settled on one is reopened or deleted. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
-migration; `page` is the same trick one level down — it appears on tasks only,
-and is absent for its notebook's default page, whichever page that currently
-is — a page says it is the default by carrying `def`, and absent on all of
-them means the first one, so a journal written before the default could be
-moved reads back unchanged. `group` is the trick one level
+migration; `page` is the same trick one level down — it appears on tasks and
+notes, never on events, and is absent for its notebook's default page,
+whichever page that currently is — a page says it is the default by carrying
+`def`, and absent on all of them means the first page of work, so a journal
+written before the default could be moved reads back unchanged. A note is
+always written down explicitly, because the default page is a page of work and
+a note is never on one. `kind` is the field that says so: absent on a page of
+work, which is what a page has always been and so what it still means to say
+nothing, and `"notes"` on a page of notes. Only a page of work can carry
+`def`, and every notebook is guaranteed one — a notebook whose pages are all
+notes gains a page of work on the next load, because absence has to go on
+meaning exactly one page and that page has to be able to show a task. `group` is the trick one level
 down again: a page carries the name of the group it is under, and absent means
 it is under none, so there is no list of groups anywhere in the file — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.
@@ -405,7 +457,7 @@ migrates it once and shows a summary of what moved. The rules:
 | old | new |
 |---|---|
 | task | Journal — the date is dropped, `created` already records when it was written |
-| a free-standing note | becomes a task, words and notes intact |
+| a free-standing note | becomes a task, words and notes intact — a migrating notebook has no page of notes to arrive on |
 | event with a date | Calendar — the date is kept, the time of day is dropped |
 | event with no date | becomes a task; a calendar has nowhere to put it |
 | Someday tasks | ordinary tasks on the page — there is no pile here for what you are not doing yet |
@@ -421,7 +473,8 @@ its default page and every line on it.
 Old notes arrive as ordinary tasks, sitting on the page where you can see
 them: they are not actionable, so expect to strike out or delete a few. That
 is deliberate — filing them somewhere tidy would have meant never reading them
-again.
+again. Make a page of notes and move the keepers onto it from their sheets, which
+is the one thing the old journal had nowhere to put them.
 
 Repeats generated their occurrences on the fly rather than storing them, so a
 series collapses to a single line; occurrences you had actually completed are
@@ -464,10 +517,12 @@ actually see, and one accent that only ever means *this is now*. Dark mode is
 the same page at night, so every colour is a token redefined in one block.
 
 The model is deliberately thin. There is one array of entries; the notebook
-narrows it, the type of a line decides its page, and on the Journal the page
-of the notebook narrows it once more. Today is the one filter that is not a
+narrows it, the type of a line decides its page — the Calendar's, or the one
+the Journal is reading, which is written in tasks or in notes and shows the
+kind it is written in — and on the Journal the page of the notebook narrows it
+once more. Today is the one filter that is not a
 place at all — it narrows by the day, and so it reads past all three. No
 filter ever rewrites an entry, which is why a notebook can be archived without
-touching what it holds, why a page is three fields and a convention about
+touching what it holds, why a page is four fields and a convention about
 absence, why a mark for today is a date rather than a flag that would need
 sweeping, and why the whole store is small enough to read in one sitting.

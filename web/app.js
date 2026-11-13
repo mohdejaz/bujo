@@ -194,8 +194,25 @@ const BOOK_NAME_MAX = 5;
 const BOOK_FIRST = "bujo";
 const PAGE_FIRST = "log";
 
+/* What a page holds. Absent means tasks — the page of work a page has always
+   been, so the field is one more thing that means the default by not being
+   there, and no journal ever written needs touching to gain it. "notes" is
+   the other kind: lines you wrote down to keep rather than lines you mean to
+   do. A page holds one or the other and never both, because the field at the
+   foot of the screen asks nothing — the page you are on is what decides what
+   you are writing, and a page holding both would have to start asking. */
+const PAGE_KINDS = new Set(["notes"]);
+const isNotes = (pg) => !!pg && pg.kind === "notes";
+/* The kind of line a page is written in: the one thing its composer writes,
+   its render reads and its count counts. */
+const typeOn = (pg) => (isNotes(pg) ? "note" : "task");
+
 const newBook = (name) => ({ id: uid(), name });
-const newPage = (book, name) => ({ id: uid(), book, name: cleanPage(name) || PAGE_FIRST });
+const newPage = (book, name, kind) => {
+  const p = { id: uid(), book, name: cleanPage(name) || PAGE_FIRST };
+  if (PAGE_KINDS.has(kind)) p.kind = kind;
+  return p;
+};
 
 /* Display labels, for a notebook and a page both. Trimmed, collapsed and
    never empty; `max` caps the length where there is a ceiling, and a page
@@ -265,6 +282,8 @@ function withPages(raw) {
     if (c >= PAGE_MAX || kept.length >= PAGE_KEEP_MAX) return;
     count.set(p.book, c + 1);
     const pg = { id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name };
+    /* What the page holds, absent for the ordinary page of work. */
+    if (PAGE_KINDS.has(p.kind)) pg.kind = p.kind;
     /* A group is a label a page carries, not a record of its own, so there is
        no list of them to keep straight and nothing here to orphan. Absent
        means ungrouped, which is how a journal written before groups needs no
@@ -273,16 +292,23 @@ function withPages(raw) {
     if (group) pg.group = group;
     /* One default to a notebook. A file claiming two has the first of them
        honoured and the rest dropped, rather than leaving `defPage` to pick
-       by an order that is not the question being asked. */
-    if (p.def === true && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
+       by an order that is not the question being asked.
+       A page of notes cannot carry it at all: the lines written down by
+       absence are tasks, and a page of notes could not show one, so a file
+       claiming it loses the flag rather than leaving every page-less task in
+       the notebook pointing somewhere it cannot be read. */
+    if (p.def === true && !pg.kind && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
     kept.push(pg);
   });
-  /* The default page, filled in for any notebook without one — including
-     every notebook in a journal written before pages existed. This runs past
-     PAGE_KEEP_MAX on purpose: a notebook with no page would have nowhere to
-     put the lines it already holds, and the invariant outranks the ceiling. */
+  /* A page of work for any notebook without one — the notebook of a journal
+     written before pages existed, which has no pages at all, and the one whose
+     pages are all notes, which has nowhere for a line that names no page to
+     live. Both are the same hole: absence has to go on meaning exactly one
+     page, and that page has to be able to show a task. This runs past
+     PAGE_KEEP_MAX on purpose — a notebook with nowhere to put the lines it
+     already holds is worse than a notebook over the ceiling. */
   raw.books.forEach((b) => {
-    if (!count.has(b.id)) kept.push(newPage(b.id, PAGE_FIRST));
+    if (!kept.some((p) => p.book === b.id && !p.kind)) kept.push(newPage(b.id, PAGE_FIRST));
   });
   raw.pages = kept;
   const here = kept.filter((p) => p.book === raw.book);
@@ -303,13 +329,17 @@ const mine = () => db.entries.filter((e) => bookOf(e) === db.book);
 
 /* The pages of one notebook, in order. */
 const pagesIn = (book) => db.pages.filter((p) => p.book === book);
-/* Its default: the page that says it is, else the first. `def` is absent on
-   every page of a notebook nobody has chosen for, which is how a journal
-   written before the default could be moved reads back exactly as it did —
-   the same trick as `book`, `page` and `group`, one level along. */
+/* Its default: where a line that names no page lives. Only a page of work can
+   be it, because a task is the only line ever written down that way and a
+   page of notes could not show one — so the role is the page of work that
+   says it is, else the notebook's first. `def` is absent on every page of a
+   notebook nobody has chosen for, which is how a journal written before the
+   default could be moved reads back exactly as it did — the same trick as
+   `book`, `page`, `group` and `kind`, one level along. withPages guarantees
+   there is a page of work to find. */
 const defPage = (book) => {
-  const here = pagesIn(book);
-  return here.find((p) => p.def) || here[0];
+  const work = pagesIn(book).filter((p) => !isNotes(p));
+  return work.find((p) => p.def) || work[0];
 };
 /* The groups of one notebook, in the order their first page appears. This is
    the whole existence of a group: write the name on a page and the group is
@@ -330,8 +360,11 @@ const pageOf = (e) => {
 const curPage = () => db.pages.find((p) => p.id === db.page) || defPage(db.book);
 const pageName = (id) => db.pages.find((p) => p.id === id)?.name || PAGE_FIRST;
 const onPage = (e) => pageOf(e) === db.page;
-/* Where a task goes when it lands on a page: absent for the default one, so
-   the stored shape stays the same whether or not anyone made a second page. */
+/* Where a line goes when it lands on a page: absent for the default one, so
+   the stored shape stays the same whether or not anyone made a second page.
+   A note always comes out explicit, because the default is a page of work and
+   a note is never on one — which is what it should be: a note left to absence
+   would resolve to a page that cannot show it. */
 const putPage = (e, pid) => {
   if (pid === defPage(bookOf(e)).id) delete e.page;
   else e.page = pid;
@@ -536,7 +569,7 @@ function migrateV1(old) {
    build loads. Unknown keys are kept — a file from a *newer* build is still
    someone's data, and dropping fields we don't recognise would quietly destroy
    it on the next export. */
-const TYPES = new Set(["task", "event"]);
+const TYPES = new Set(["task", "event", "note"]);
 /* The pages, in the order you travel through them: swipes and arrow keys step
    this list, and the slide comes in from the side it says. Today leads — it is
    the only page that answers the question you open a notebook with. Behind it
@@ -559,9 +592,8 @@ function adopt(raw, i, books) {
   const e = {
     ...raw,
     id: typeof raw.id === "string" && raw.id ? raw.id : uid(),
-    /* "note" and "goal" are kinds of line this app no longer has — a note's
-       words moved onto the entry they belonged to, and a goal was a task with
-       a deadline all along. Both arrive as the task they half were. */
+    /* "goal" is a kind of line this app no longer has — it was a task with a
+       deadline all along, and arrives as the task it half was. */
     type: TYPES.has(raw.type) ? raw.type : "task",
     text,
     state: STATES.has(raw.state) ? raw.state : "open",
@@ -578,6 +610,23 @@ function adopt(raw, i, books) {
        and neither, then, the mark that takes one off. */
     delete e.today;
     delete e.notToday;
+  } else if (e.type === "note") {
+    /* A note is not owed on a day. Nothing a deadline brings with it belongs
+       to one, and that includes both marks for Today — the hand mark, which
+       would be saying a line you keep is a line you are doing, and the
+       dismissal, which only exists to argue with a deadline that is not
+       there. */
+    delete e.due;
+    delete e.today;
+    delete e.notToday;
+    delete e.date;
+    delete e.time;
+    /* Done is a task's ending. A note is struck out when it stops being worth
+       keeping and deleted when it was never worth writing — there is no third
+       thing to have been carried out. A file saying one was done has the line
+       put back among the notes on its page, which is the only state it can be
+       read in. */
+    if (e.state === "done") e.state = "open";
   } else {
     // a task's deadline is optional — most tasks are just things to do
     if (isDate(raw.due)) e.due = raw.due;
@@ -622,16 +671,43 @@ function adopt(raw, i, books) {
   return e;
 }
 
-/* A `page` only means something on a task, and only when it names a page of
-   that task's own notebook. Checked once every entry is adopted, because that
-   is when the notebook a bare entry falls back to is known. A page that does
-   not survive leaves the line on the default one, so nothing is ever stranded
-   off-page. */
+/* A `page` only means something on a line that lives on one — a task or a
+   note — and only when it names a page of that line's own notebook that can
+   show it. Checked once every entry is adopted, because that is when the
+   notebook a bare entry falls back to is known.
+   A task that names a page of notes loses the field and lands on the default
+   page, exactly as a task naming a page that no longer exists always has.
+   A note has no such fallback: absence means the default page and the default
+   page is work, so a note is carried to the first page of notes in its
+   notebook instead, and becomes a task on the default page when the notebook
+   has none — which is also what a free-standing note from the dated journal
+   does, since that journal had no pages to arrive on. Either way nothing is
+   stranded off-page and nothing is left somewhere it cannot be read, which is
+   the whole of what this pass is for. */
 function linkPages(entries, pages, first) {
-  const home = new Map(pages.map((p) => [p.id, p.book]));
+  const home = new Map(pages.map((p) => [p.id, p]));
+  const firstNotes = new Map();
+  pages.forEach((p) => {
+    if (p.kind === "notes" && !firstNotes.has(p.book)) firstNotes.set(p.book, p.id);
+  });
   entries.forEach((e) => {
-    if (!e.page) return;
-    if (e.type !== "task" || home.get(e.page) !== (e.book || first)) delete e.page;
+    if (e.type === "event") {
+      delete e.page;
+      return;
+    }
+    const pg = home.get(e.page);
+    const book = e.book || first;
+    if (pg && pg.book === book && isNotes(pg) === (e.type === "note")) return;
+    if (e.type !== "note") {
+      delete e.page;
+      return;
+    }
+    const dest = firstNotes.get(book);
+    if (dest) e.page = dest;
+    else {
+      e.type = "task";
+      delete e.page;
+    }
   });
 }
 
@@ -658,6 +734,8 @@ const save = () => localStorage.setItem(KEY, JSON.stringify(db));
 const S = {
   doneOpen: true, // starts open, as Done always was; folding it is per session
   todayDoneOpen: true, // Today keeps its own fold: it is a different day's worth
+  struckOpen: true, // and a page of notes its own, over what it has struck out
+  newPageKind: null, // what the Index's composer is about to name: notes, or work
   foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
@@ -671,7 +749,10 @@ const isTodayPage = () => db.view === "today";
 /* ── selecting what a page shows ───────────────────────────────────── */
 
 const isLive = (e) => e.state === "open";
-const onJournal = (e) => e.type === "task";
+/* What the Journal shows is whatever the page it is reading is written in:
+   the pages of work hold tasks, a page of notes holds notes. It was only ever
+   "the tasks" because a page could only be the one thing. */
+const onJournal = (e) => e.type === typeOn(curPage());
 
 /* Where a line sits when no hand has moved it: when it was settled if it has
    been, else when it was written. The same clock for both, so a bucket of
@@ -718,6 +799,25 @@ function journalBuckets() {
     done: db.hideLogged
       ? []
       : tasks.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
+  };
+}
+
+/* A page of notes, in two buckets again — but the line between them is not
+   the one the Journal draws. A note is never done, so what the fold holds is
+   what you struck off the page: no longer true, no longer worth keeping, and
+   still part of what the page said. Above it the notes read starred first and
+   then newest, or whatever order you dragged them into. There is no deadline
+   here to climb, which is the whole difference: on a page of work the dates
+   arrange the page for you, and on a page of notes the only order is the one
+   you gave it. */
+function notesBuckets() {
+  const notes = mine().filter((e) => e.type === "note" && onPage(e));
+  const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
+  return {
+    live: notes.filter(isLive).sort((a, b) => star(a, b) || rankOf(b) - rankOf(a)),
+    struck: db.hideLogged
+      ? []
+      : notes.filter((e) => !isLive(e)).sort((a, b) => rankOf(b) - rankOf(a)),
   };
 }
 
@@ -943,7 +1043,8 @@ function setState(e, state) {
 /* Flip done. The same gesture both ways, so nothing can get stranded. */
 function toggleDone(id) {
   const e = byId(id);
-  if (!e) return;
+  // a note has no done to flip — its mark is not a button and nothing calls this
+  if (!e || e.type === "note") return;
   S.anim.add(id);
   buzz(e.state === "done" ? 6 : 11);
   mutate(null, () => setState(e, e.state === "done" ? "open" : "done"));
@@ -1095,6 +1196,7 @@ function render() {
   if (isTodayPage()) renderToday();
   else if (isCal()) renderCalendar();
   else if (isIndex()) renderIndex();
+  else if (isNotes(curPage())) renderNotes();
   else renderJournal();
   S.anim.clear();
 }
@@ -1233,6 +1335,49 @@ function renderJournal() {
     empty.innerHTML =
       `<b>${safeHtml(curPage().name)} is empty</b>` +
       "Write a task below. It needs no date — that is what the Calendar is for.";
+  }
+}
+
+/* A page of notes. Nothing at the head of it: what is on today is work, and
+   this is the page you keep things on rather than one you work from — an
+   event printed over a page of notes would be the day interrupting the one
+   place in the notebook that is not about a day at all.
+   The one heading is the struck-out fold, where Done sits on a page of work:
+   the same shape in the same place, because it is the same thing — what the
+   page used to say, put away but not thrown out. */
+function renderNotes() {
+  const list = $("#list");
+  list.textContent = "";
+
+  const { live, struck } = notesBuckets();
+
+  /* A note lifts and drags like any other line, among the rows the sort would
+     leave it beside — which here is only the star, since no note carries a
+     date for the sort to draw a line at. */
+  const put = (e, bucket) => {
+    const li = row(e, { tray: true });
+    li.dataset.group = bucket + (e.star ? ":star" : "");
+    liftable(li);
+    list.append(li);
+  };
+
+  live.forEach((e) => put(e, "notes"));
+
+  if (struck.length) {
+    list.append(foldHeading("Struck out", struck.length, "struckOpen"));
+    if (S.struckOpen) struck.forEach((e) => put(e, "struck"));
+  }
+
+  const empty = $("#empty");
+  const bare = !live.length && !struck.length;
+  empty.hidden = !bare;
+  if (bare) {
+    /* The page says its own name here for the same reason the Journal's does:
+       with several in a notebook, "empty" alone leaves you wondering which
+       one you are looking at. */
+    empty.innerHTML =
+      `<b>${safeHtml(curPage().name)} is empty</b>` +
+      "Write a note below. Nothing here is owed on a day — it is what you want to keep.";
   }
 }
 
@@ -1419,6 +1564,14 @@ function pageLink(pg) {
   const n = pendingOn(pg.id);
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : ""));
   const pick = el("button", "pagelink-pick");
+  /* The row leads with the mark the page's lines are written in: a dot for a
+     page of work, a dash for a page of notes. Choosing a page is choosing
+     what you are about to write, so which of the two it is cannot be
+     something you find out by arriving. Both carry one rather than only the
+     page of notes, for the reason every line in this app carries a bullet —
+     a mark that is not a dot only reads as a departure from the dot if the
+     dot is there to depart from. */
+  pick.append(bwrap("b b-" + typeOn(pg)));
   pick.append(el("span", "pagelink-name", safeHtml(pg.name)));
   if (n) pick.append(el("span", "pagelink-n", String(n)));
   pick.onclick = () => goPage(pg.id);
@@ -1436,7 +1589,7 @@ function pageLink(pg) {
 function whereOf(e) {
   const out = [];
   if (liveBooks().length > 1) out.push(bookName(bookOf(e)));
-  if (e.type === "task" && pagesIn(bookOf(e)).length > 1) out.push(pageName(pageOf(e)));
+  if (e.type !== "event" && pagesIn(bookOf(e)).length > 1) out.push(pageName(pageOf(e)));
   return out.join(" · ");
 }
 
@@ -1469,7 +1622,11 @@ function row(e, opts = {}) {
   if (S.anim.has(e.id)) li.classList.add("anim");
 
   const under = el("div", "row-under");
-  under.append(el("span", "u-l", ICON.check), el("span", "u-r", swipeLeftIcon()));
+  /* The tick a right swipe uncovers, on every line that can be finished. A
+     note cannot, so nothing is laid under it that way and the row does not
+     travel there at all — see swipeable. */
+  if (e.type !== "note") under.append(el("span", "u-l", ICON.check));
+  under.append(el("span", "u-r", swipeLeftIcon()));
   li.append(under);
 
   /* The lists you work from — the Journal's live work and Today's wanted
@@ -1483,7 +1640,10 @@ function row(e, opts = {}) {
      Finishing is not among them, for that same reason: it already has two
      doors of its own, and a third here would read as one more thing the left
      swipe might be about to do. */
-  const open = e.type === "task" && e.state === "open";
+  /* The tray and the sun are for the lines you can still act on, which means
+     a task or a note: an event is the Calendar's and a settled line has
+     nothing left to carry. */
+  const open = e.type !== "event" && e.state === "open";
   if (opts.tray && open) {
     li.classList.add("has-tray");
     const tray = el("span", "qa-tray");
@@ -1516,12 +1676,23 @@ function row(e, opts = {}) {
 
   /* Then the mark, always the last thing before the words and always the
      same step from them — so the mark and the line it belongs to read as
-     one wherever that line turns up. */
-  const bul = el("button", "bul");
-  bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
-  bul.append(el("i", bulletClass(e)));
-  bul.onclick = () => toggleDone(e.id);
-  face.append(bul);
+     one wherever that line turns up.
+     On a task and an event it is also the tap that finishes the line. On a
+     note it is only the dash the line is written with: there is no done to
+     toggle, so it is not a button at all rather than a button that answers
+     nothing. It keeps the same box either way, which is what holds the words
+     in one column whichever page you are reading. */
+  if (e.type === "note") {
+    const dash = el("span", "bul");
+    dash.append(el("i", bulletClass(e)));
+    face.append(dash);
+  } else {
+    const bul = el("button", "bul");
+    bul.setAttribute("aria-label", e.state === "done" ? "Reopen" : "Complete");
+    bul.append(el("i", bulletClass(e)));
+    bul.onclick = () => toggleDone(e.id);
+    face.append(bul);
+  }
 
   const txt = el("button", "row-text");
   /* The words get one line and an ellipsis past it. A list is read by running
@@ -1632,6 +1803,10 @@ function swipeable(li, face, e) {
     decided = false,
     id = null;
   const tray = li.querySelector(".qa-tray");
+  /* A right swipe finishes the line, and a note has no finish. So the row
+     simply does not move that way — a rubber-band to nowhere would have said
+     there was something there and then taken it back. */
+  const canDone = e.type !== "note";
 
   const reset = (animate = true) => {
     face.classList.toggle("snap", animate);
@@ -1697,6 +1872,7 @@ function swipeable(li, face, e) {
     const x = base + mx;
     const lim = x < 0 ? full : COMMIT;
     dx = Math.abs(x) > lim ? Math.sign(x) * (lim + (Math.abs(x) - lim) * 0.35) : x;
+    if (!canDone) dx = Math.min(dx, 0);
     face.style.transform = `translateX(${dx}px)`;
     li.classList.toggle("sw-r", dx > 12);
     li.classList.toggle("sw-l", dx < -12);
@@ -1708,7 +1884,7 @@ function swipeable(li, face, e) {
     if (!active || (id !== null && ev.pointerId !== id)) return;
     active = false;
     if (!decided) return;
-    if (dx >= COMMIT - 4) {
+    if (canDone && dx >= COMMIT - 4) {
       reset(false);
       toggleDone(e.id);
     } else if (dx <= -full + 4) {
@@ -1914,34 +2090,58 @@ function longPress(node, fn) {
 
 const input = $("#input");
 const composer = $("#composer");
+const kindSeg = $("#kindSeg");
 
 /* There is nothing to pick any more: the page you are on decides what you are
-   writing. The Journal writes a task, the Calendar writes an event and asks
-   for the day it falls on, and the Index writes the name of a new page — what
-   a page holds there is pages, so that is what the field takes. Today writes a
-   task already marked for today; it reads across every notebook, so the line
-   has to be told where to live, and the only answer it can have is the
-   notebook and page you have open. That is what the notebook button in the
-   header means on this page — not what you are reading, but where a line you
-   write now will go — and the row that appears says so itself.
+   writing. A page of work writes a task, a page of notes writes a note, the
+   Calendar writes an event and asks for the day it falls on, and the Index
+   writes the name of a new page — what a page holds there is pages, so that is
+   what the field takes. Today writes a task already marked for today; it reads
+   across every notebook, so the line has to be told where to live, and the
+   only answer it can have is the notebook and page you have open. That is what
+   the notebook button in the header means on this page — not what you are
+   reading, but where a line you write now will go — and the row that appears
+   says so itself.
+   The Index grows a second row of its own, because a page has to say what it
+   holds before it can exist — the same way the Calendar grows a date, and for
+   the same reason. It is not a picker for a line: on every page the field at
+   the foot still writes the one kind of thing that page is made of, and this
+   is the page made of pages.
    Nothing caps what you type: a page name is read on rows that can carry a
    long one. */
 function renderComposer() {
   $("#when").hidden = !isCal();
   if (isCal() && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
+  $("#pageKind").hidden = !isIndex();
+  [...kindSeg.children].forEach((b) =>
+    b.classList.toggle("on", (b.dataset.kind || null) === S.newPageKind)
+  );
   input.placeholder = isCal()
     ? "what happens that day?"
     : isIndex()
       ? "name a new page"
       : isTodayPage()
         ? "what are you doing today?"
-        : "what needs doing?";
+        : isNotes(curPage())
+          ? "what do you want to keep?"
+          : "what needs doing?";
   /* The Index is naming a page, which is lower case by rule, so the keyboard
      stops offering a capital it would only have to take back on submit. */
   input.setAttribute("autocapitalize", isIndex() ? "none" : "sentences");
   input.removeAttribute("maxlength");
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
+
+/* Which kind of page the name below will make. Session-only, like every other
+   piece of view state, and it goes back to work once a page is made: it is a
+   statement about the page you are naming now, not a mode the Index is left
+   in. */
+kindSeg.onclick = (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  S.newPageKind = b.dataset.kind || null;
+  renderComposer();
+};
 
 input.addEventListener("input", () =>
   composer.classList.toggle("armed", input.value.trim().length > 0)
@@ -1959,11 +2159,16 @@ composer.addEventListener("submit", (ev) => {
     const name = cleanPage(raw);
     input.value = "";
     composer.classList.remove("armed");
-    if (name) addPage(db.book, name);
+    if (name) addPage(db.book, name, S.newPageKind);
+    S.newPageKind = null;
     return;
   }
 
-  const type = isCal() ? "event" : "task";
+  /* Today is asked before the page is, because Today is on no page: a line
+     written there is work for the day whatever page the Journal was left
+     showing, and the default page — which is always a page of work — is the
+     only answer it can have. */
+  const type = isCal() ? "event" : isTodayPage() ? "task" : typeOn(curPage());
   const e = {
     id: uid(),
     type,
@@ -1973,13 +2178,13 @@ composer.addEventListener("submit", (ev) => {
     created: Date.now(),
   };
   if (db.book !== db.books[0].id) e.book = db.book;
-  /* Only a task has a page; an event belongs to the notebook. Written on
-     Today it goes to the notebook's default page rather than to whichever
-     page the Journal happens to be left on: Today belongs to no page, so the
-     page it was last showing is an accident of where you were, not an
-     answer to where this line goes. The default is the answer, which is what
-     makes it worth being able to choose. */
-  if (type === "task") putPage(e, isTodayPage() ? defPage(db.book).id : db.page);
+  /* A task and a note both live on a page; an event belongs to the notebook.
+     Written on Today it goes to the notebook's default page rather than to
+     whichever page the Journal happens to be left on: Today belongs to no
+     page, so the page it was last showing is an accident of where you were,
+     not an answer to where this line goes. The default is the answer, which is
+     what makes it worth being able to choose. */
+  if (type !== "event") putPage(e, isTodayPage() ? defPage(db.book).id : db.page);
   // written on Today, so it is wanted today — nothing else would put it there
   if (isTodayPage()) e.today = TODAY();
   if (type === "event") e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
@@ -1990,7 +2195,7 @@ composer.addEventListener("submit", (ev) => {
   buzz(7);
   mutate(null, () => db.entries.push(e));
   // keep the page on the line you just wrote
-  if (type === "task") $("#page").scrollTop = 0;
+  if (type !== "event") $("#page").scrollTop = 0;
 });
 
 /* ── sheets ────────────────────────────────────────────────────────── */
@@ -2048,7 +2253,7 @@ function openEntry(id) {
   const e = byId(id);
   if (!e) return;
   openSheet((b) => {
-    b.append(el("div", "s-title", { task: "Task", event: "Event" }[e.type]));
+    b.append(el("div", "s-title", { task: "Task", event: "Event", note: "Note" }[e.type]));
     /* The row prints no date, so this is where a line says how old it is. */
     if (Number.isFinite(e.created)) {
       const w = iso(new Date(e.created));
@@ -2148,11 +2353,16 @@ function openEntry(id) {
       }, { on: e.star })
     );
 
-    acts.append(
-      e.state === "done"
-        ? actRow(ICON.undo, "Reopen", () => { toggleDone(id); closeSheet(); })
-        : actRow(ICON.check, "Mark done", () => { toggleDone(id); closeSheet(); })
-    );
+    /* Not on a note: a note is not carried out. It is struck out when it
+       stops being worth keeping, which is the row below, and deleted when it
+       was never worth writing, which is the row at the foot. */
+    if (e.type !== "note") {
+      acts.append(
+        e.state === "done"
+          ? actRow(ICON.undo, "Reopen", () => { toggleDone(id); closeSheet(); })
+          : actRow(ICON.check, "Mark done", () => { toggleDone(id); closeSheet(); })
+      );
+    }
 
     acts.append(
       e.state === "dropped"
@@ -2160,17 +2370,24 @@ function openEntry(id) {
         : actRow(ICON.strike, "Strike out", () => { toggleDropped(id); closeSheet(); })
     );
 
-    /* Only a task. An event copied onto the same day is the same event twice;
-       one wanted on another day is a new line written on the Calendar. */
-    if (e.type === "task") {
+    /* Not an event: one copied onto the same day is the same event twice, and
+       one wanted on another day is a new line written on the Calendar. A task
+       and a note both copy, which is how a line that is nearly right again
+       starts from the one you already wrote. */
+    if (e.type !== "event") {
       acts.append(
         actRow(ICON.copy, "Duplicate", () => { duplicateEntry(id); closeSheet(); })
       );
     }
 
-    /* Move a task to another page of the same notebook. Only a task: an event
-       has no page to be on, so there is nothing to offer. */
-    const elsewhere = e.type === "task" ? pagesIn(bookOf(e)).filter((p) => p.id !== pageOf(e)) : [];
+    /* Move a line to another page of the same notebook — and only to a page
+       that is written in the same kind of line, because a task on a page of
+       notes would be a task nothing on that page can show. An event has no
+       page to be on at all, so it is offered nothing. */
+    const elsewhere =
+      e.type === "event"
+        ? []
+        : pagesIn(bookOf(e)).filter((p) => p.id !== pageOf(e) && typeOn(p) === e.type);
     if (elsewhere.length) {
       acts.append(el("div", "sep", "Move to page"));
       /* The group rides along on the label rather than splitting this into
@@ -2186,11 +2403,17 @@ function openEntry(id) {
       );
     }
 
-    // move a line to another notebook
-    if (liveBooks().length > 1) {
+    /* Move a line to another notebook. A task lands on the notebook's default
+       page, which every notebook has. A note needs a page of notes, which not
+       every notebook has — so a notebook without one is left out of the list
+       rather than offered and then refused. */
+    const landing = (bk) => (e.type === "note" ? pagesIn(bk.id).find(isNotes) : null);
+    const others = liveBooks().filter(
+      (bk) => bk.id !== bookOf(e) && (e.type !== "note" || landing(bk))
+    );
+    if (others.length) {
       acts.append(el("div", "sep", "Move to notebook"));
-      liveBooks()
-        .filter((bk) => bk.id !== bookOf(e))
+      others
         .forEach((bk) =>
           acts.append(
             actRow(ICON.move, bk.name, () => {
@@ -2199,8 +2422,12 @@ function openEntry(id) {
                   if (bk.id === db.books[0].id) delete x.book;
                   else x.book = bk.id;
                   /* Pages belong to a notebook, so one cannot cross with the
-                     line — it arrives on the new notebook's default page. */
-                  delete x.page;
+                     line — a task arrives on the new notebook's default page,
+                     and a note on its first page of notes, which is the only
+                     kind of page that can show one. */
+                  const pg = landing(bk);
+                  if (pg) x.page = pg.id;
+                  else delete x.page;
                 };
                 put(e);
               });
@@ -2514,16 +2741,23 @@ function openBook(id) {
 
 /* ── pages ─────────────────────────────────────────────────────────── */
 
-/* How many tasks are on one page. Only tasks, because only a task has a page
-   — an event is counted by the notebook that holds it. */
-const pageCount = (id) => db.entries.filter((e) => e.type === "task" && pageOf(e) === id).length;
+/* How many lines are on one page, of the one kind it is written in. Only the
+   lines that live on a page are counted — an event is counted by the notebook
+   that holds it, having no page to be on. */
+const linesOn = (id, f) => {
+  const pg = db.pages.find((p) => p.id === id);
+  if (!pg) return 0;
+  const t = typeOn(pg);
+  return db.entries.filter((e) => e.type === t && pageOf(e) === id && f(e)).length;
+};
+const pageCount = (id) => linesOn(id, () => true);
 /* And how many of them are still open, which is everything on the page you
    have not finished with: the number is read while you are choosing a page,
    and at that distance every line you have not dealt with counts the same.
    A finished or struck line is the only thing behind you, and that is what
-   the number leaves out. */
-const pendingOn = (id) =>
-  db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
+   the number leaves out. It reads the same way on a page of notes, where
+   nothing is ever finished: what is left is what the page still says. */
+const pendingOn = (id) => linesOn(id, isLive);
 
 /* Make a page the default one. Every line that had no page of its own was
    on the old default by that very absence, so before the flag moves they are
@@ -2535,7 +2769,9 @@ const pendingOn = (id) =>
    choosing a default quietly empties one page into another. */
 function setDefaultPage(id) {
   const pg = db.pages.find((x) => x.id === id);
-  if (!pg || defPage(pg.book).id === id) return;
+  /* Never a page of notes: absence means the default page, and the lines
+     written down by absence are tasks, which a page of notes cannot show. */
+  if (!pg || isNotes(pg) || defPage(pg.book).id === id) return;
   buzz(6);
   mutate(`${pg.name} is the default page`, () => {
     const here = db.entries.filter((e) => e.type === "task" && bookOf(e) === pg.book);
@@ -2602,10 +2838,10 @@ function openGroup(name) {
 /* A new page, named in the Index's composer. You land on it: a page you just
    made is a page you want to be on, and the Journal is the only place a page
    can be written to. */
-function addPage(bookId, name) {
+function addPage(bookId, name, kind) {
   const bk = db.books.find((x) => x.id === bookId) || curBook();
   if (pagesIn(bk.id).length >= PAGE_MAX) return toast(`${PAGE_MAX} pages in ${bk.name} already`);
-  const pg = newPage(bk.id, name);
+  const pg = newPage(bk.id, name, kind);
   mutate(null, () => db.pages.push(pg));
   buzz(7);
   goPage(pg.id);
@@ -2622,15 +2858,20 @@ function openPage(id) {
   const pg = db.pages.find((x) => x.id === id);
   if (!pg) return;
   const first = defPage(pg.book).id === pg.id;
-  const only = pagesIn(pg.book).length <= 1;
   const n = pageCount(pg.id);
+  /* A page of notes can always go. A page of work can go while the notebook
+     has another, for the reason the last page of all cannot: absence has to
+     go on meaning a page a task can be read on. */
+  const canGo = isNotes(pg) || pagesIn(pg.book).filter((x) => !isNotes(x)).length > 1;
   openSheet((b) => {
     b.append(el("div", "s-title", pg.name));
     b.append(
       el(
         "div",
         "s-sub",
-        `${n} ${n === 1 ? "line" : "lines"} in ${bookName(pg.book)}` + (first ? " · the default page" : "")
+        `${n} ${n === 1 ? "line" : "lines"} in ${bookName(pg.book)}` +
+          (isNotes(pg) ? " · a page of notes" : "") +
+          (first ? " · the default page" : "")
       )
     );
 
@@ -2655,6 +2896,37 @@ function openPage(id) {
       );
     }
 
+    /* What the page holds — while it still holds nothing. A page of work and
+       a page of notes are read by two different renders and written in two
+       different kinds of line, so turning one that has lines on it into the
+       other would not move them anywhere: it would simply stop showing them.
+       An empty page has nothing to hide, and that is the one moment the
+       choice is still open. Past it the subtitle above says which the page is
+       and the way to the other kind is a new page.
+       The default page is never offered it either, for the reason it is never
+       offered to a page of notes: a task written down by absence has to have
+       somewhere it can be read. */
+    if (!n && !first) {
+      acts.append(
+        segRow(
+          ICON.page,
+          "Page of",
+          [
+            ["", "tasks"],
+            ["notes", "notes"],
+          ],
+          pg.kind || "",
+          (v) =>
+            mutate(null, () => {
+              const live = db.pages.find((x) => x.id === id);
+              if (!live) return;
+              if (v) live.kind = v;
+              else delete live.kind;
+            })
+        )
+      );
+    }
+
     /* Which group the page sits under in the Index. Joining one is writing a
        name and leaving is deleting it, so there is no group to make first and
        none to tidy away after — the row that offers a new one is offering a
@@ -2675,7 +2947,7 @@ function openPage(id) {
     /* The default page: where a line written on Today lands, and where a
        notebook opens. Offered on every page but the one that already is it,
        which says so in the subtitle above instead. */
-    if (!first) {
+    if (!first && !isNotes(pg)) {
       acts.append(el("div", "sep", "Default page"));
       acts.append(
         actRow(ICON.page, `Make ${pg.name} the default`, () => {
@@ -2690,13 +2962,17 @@ function openPage(id) {
        it, and the lines that were on it go with it the same way a
        notebook's do. The one page a notebook cannot be without is its last:
        delete that and there would be nowhere for the next line to land. */
-    if (!only) {
+    if (canGo) {
       acts.append(
         actRow(
           ICON.trash,
           "Delete page",
           () => {
-            const next = first ? pagesIn(pg.book).find((x) => x.id !== pg.id).name : null;
+            /* The role goes to the first page of work left, which is what
+               defPage will pick once this one is gone. */
+            const next = first
+              ? pagesIn(pg.book).find((x) => x.id !== pg.id && !isNotes(x)).name
+              : null;
             if (
               !confirm(
                 `Delete ${pg.name} and its ${n} ${n === 1 ? "line" : "lines"}?` +
@@ -2709,7 +2985,7 @@ function openPage(id) {
               /* The entries first: pageOf reads the list the next line
                  shortens, and on the default page it is what resolves every
                  line that carries no page of its own. */
-              db.entries = db.entries.filter((e) => !(e.type === "task" && pageOf(e) === pg.id));
+              db.entries = db.entries.filter((e) => !(e.type !== "event" && pageOf(e) === pg.id));
               db.pages = db.pages.filter((x) => x.id !== pg.id);
               /* A line explicitly on the page that has just become the
                  default drops the field, so "absent means the default one"
@@ -2778,7 +3054,7 @@ function openSearch() {
         const where = [
           e.type === "event" ? dayLabel(e.date) : e.due ? `by ${dayLabel(e.due)}` : writtenLabel(e.created),
           bookOf(e) !== db.book ? bookName(bookOf(e)) : null,
-          e.type === "task" && pageOf(e) !== db.page ? pageName(pageOf(e)) : null,
+          e.type !== "event" && pageOf(e) !== db.page ? pageName(pageOf(e)) : null,
         ]
           .filter(Boolean)
           .join(" · ");
@@ -2796,7 +3072,7 @@ function openSearch() {
             /* Only a task is on a page; for an event the notebook's default
                page is simply where the Journal will be when you get back to
                it. */
-            db.page = e.type === "task" ? pageOf(e) : defPage(bookOf(e)).id;
+            db.page = e.type === "event" ? defPage(bookOf(e)).id : pageOf(e);
           });
           openEntry(e.id);
         };
