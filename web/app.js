@@ -1925,8 +1925,10 @@ function row(e, opts = {}) {
      lettered q: and a: in place of the bullet they do not carry. */
   const prose = e.type === "note" || e.type === "question";
   if (prose) line.classList.add("wrap");
-  if (e.type === "question") line.append(el("span", "row-tag", "q:"));
-  line.append(document.createTextNode(e.text));
+  if (e.type === "question") {
+    line.append(el("span", "row-tag", "q:"));
+    line.append(el("span", "row-body", safeHtml(e.text)));
+  } else line.append(document.createTextNode(e.text));
   txt.append(line);
   /* The answer, directly under the question that asked it and in the same
      type: the two are one line of the notebook, and setting the answer in a
@@ -1939,7 +1941,7 @@ function row(e, opts = {}) {
   {
     const ans = el("span", "row-answer wrap");
     ans.append(el("span", "row-tag", "a:"));
-    ans.append(document.createTextNode(e.answer));
+    ans.append(el("span", "row-body", safeHtml(e.answer)));
     txt.append(ans);
   }
   // only a task carries a deadline, and most of them do not
