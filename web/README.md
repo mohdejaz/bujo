@@ -647,10 +647,15 @@ the passphrase wrapping. Two doors to one key. The scan happens on the device
 and returns only the derived bytes, so no camera is opened and nothing about
 your face is stored.
 
-Enrolling asks for your face twice — once to make the passkey, once to read its
-secret — and every unlock after that asks once. The lock screen then offers the
-scan with the passphrase underneath it; a cancelled or refused scan just falls
-through to typing. **The passphrase never stops working**, which is what makes
+Enrolling takes **two taps**, not one: the device makes the passkey on the
+first and lets the page read its secret on the second, and it will not do both
+from a single tap — chaining them leaves the save-passkey sheet up and nothing
+happening. So the row reads *Face ID* → tap → *Finish Face ID*, with a toast
+offering the same second tap. Some platforms hand the secret over at creation
+and finish on the first tap on their own. Every unlock after that is one scan.
+The lock screen offers it with the passphrase underneath; a cancelled or
+refused scan falls through to typing, and says which it was rather than
+shrugging. **The passphrase never stops working**, which is what makes
 losing the passkey survivable: turning Face ID off again drops the second
 wrapping and touches nothing else. Same row rule as **Screen** — it is only
 offered where it can work, so it is absent over plain-http LAN, and it needs a
