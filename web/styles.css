@@ -1051,6 +1051,20 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-answer::placeholder { color: var(--dim); }
 .s-answer:focus { background: var(--paper); border-color: var(--accent); }
 
+/* The one filled button a sheet has. Sheets are otherwise rows and segments,
+   so this exists only where a sheet asks for something to be typed and then
+   committed — the PIN is the whole of that. */
+.s-go {
+  width: 100%;
+  font: inherit;
+  font-weight: 600;
+  padding: 12px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #fff;
+}
+.s-go:disabled { opacity: 0.55; }
 .s-acts { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
 .s-act {
   display: flex;
@@ -1427,6 +1441,28 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
   border: 0;
   overflow: hidden;
   clip-path: inset(50%);
+}
+/* The PIN form is the passphrase form's shape, with the digits centred and
+   spaced out — a short secret is read back by eye while it is typed, which a
+   run of proportional dots makes needlessly hard. */
+.vault-pin { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.vault input.vault-pin-in {
+  text-align: center;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em; /* the tracking is trailing, so the run sits off-centre without this */
+  font-size: 1.25rem;
+}
+/* A word, not a button: the long way in is always available but is not the
+   thing being offered, and two filled buttons would say otherwise. */
+.vault button.vault-alt {
+  font: inherit;
+  font-size: 0.875rem;
+  padding: 10px;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 .vault-v { margin-top: 18px; text-align: center; font-size: 0.75rem; color: var(--ink-2); }
 .vault-msg { min-height: 1.2em; font-size: 0.8125rem; color: var(--accent); }

@@ -867,6 +867,7 @@ const vault = {
   salt: null,
   wrapped: null, // base64 of the data key sealed under the passphrase key
   wiv: null,
+  pin: null, // the same data key sealed a second time, under a short PIN
   ready: false, // false until the page is allowed to draw the journal
 };
 const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
@@ -915,6 +916,7 @@ async function recallKey(env) {
     vault.salt = unb64(env.salt);
     vault.wiv = unb64(env.wiv);
     vault.wrapped = env.wk;
+    vault.pin = env.pin || null;
     vault.key = key;
     return JSON.parse(new TextDecoder().decode(plain));
   } catch {
@@ -931,6 +933,7 @@ async function vaultCreate(pass) {
   vault.wiv = crypto.getRandomValues(new Uint8Array(12));
   const wrap = await passKey(pass, vault.salt);
   vault.wrapped = b64(await crypto.subtle.wrapKey("raw", key, wrap, { name: "AES-GCM", iv: vault.wiv }));
+  vault.pin = null; // a PIN is set later, from the menu, never on first run
   // hold it again non-extractable, so script can use the key but never read it
   const open = await unwrapData(wrap, true);
   await rememberKey(open);
@@ -939,12 +942,10 @@ async function vaultCreate(pass) {
     "decrypt",
   ]);
 }
-// returns the journal object, or throws on a wrong passphrase
-async function vaultOpen(env, pass) {
-  vault.salt = unb64(env.salt);
-  vault.wiv = unb64(env.wiv);
-  vault.wrapped = env.wk;
-  const open = await unwrapData(await passKey(pass, vault.salt), true);
+/* However the data key was unwrapped — by the passphrase or by the PIN — what
+   follows is the same: remember it for the session, hold it non-extractable,
+   read the envelope with it. Two doors, one lock, one way through it. */
+async function vaultUnseal(env, open) {
   const key = await crypto.subtle.importKey("raw", await crypto.subtle.exportKey("raw", open), "AES-GCM", false, [
     "encrypt",
     "decrypt",
@@ -954,6 +955,122 @@ async function vaultOpen(env, pass) {
   vault.key = key;
   return JSON.parse(new TextDecoder().decode(plain));
 }
+// returns the journal object, or throws on a wrong passphrase
+async function vaultOpen(env, pass) {
+  vault.salt = unb64(env.salt);
+  vault.wiv = unb64(env.wiv);
+  vault.wrapped = env.wk;
+  /* Read the PIN record from storage rather than from `env`, which the gate
+     read before the lock screen was drawn. A PIN can be spent *while* that
+     screen is up — wrong ten times and it deletes itself — and then the
+     passphrase unlocks on a stale envelope that still has one, so the next
+     seal would write back the record the user had just burned through. */
+  vault.pin = ((readEnvelope() || env).pin) || null;
+  return vaultUnseal(env, await unwrapData(await passKey(pass, vault.salt), true));
+}
+/* ── the PIN ───────────────────────────────────────────────────────── */
+
+/* A short way in, beside the long one. The PIN does not replace the
+   passphrase and does not re-encrypt anything: it wraps the *same* data key a
+   second time, so the journal has two doors and the passphrase remains the
+   one that cannot be taken away. Set it, change it, drop it — the ciphertext
+   never moves.
+
+   Be clear about what this costs, because the comment is the only place it
+   gets said once and for all: a six-digit PIN is a million guesses, and an
+   attacker holding a copy of `localStorage` can try them all offline at
+   whatever speed their hardware allows. Against that, a PIN is weak however
+   strong the passphrase is — the weakest door is the one that gets tried.
+   What it is genuinely good against is the realistic threat, someone picking
+   up an unlocked-looking phone, and the two defences below are aimed there:
+   a deliberately expensive derivation, and a counter that throws the PIN away
+   after a few wrong answers and leaves only the passphrase. */
+const PIN_ITER = 2000000; // slower than the passphrase's on purpose: the secret is shorter
+const PIN_TRIES = 10;
+const PIN_MIN = 4;
+
+async function pinKey(pin, salt) {
+  const base = await crypto.subtle.importKey("raw", utf8.encode(pin), "PBKDF2", false, ["deriveKey"]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: PIN_ITER, hash: "SHA-256" },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["wrapKey", "unwrapKey"],
+  );
+}
+
+/* The counter lives in the envelope but outside the ciphertext, and is written
+   straight to storage rather than through `seal()`. It has to be: the whole
+   point is to count answers that did *not* open the journal, and `seal()`
+   cannot run without the key those answers failed to produce. Passing null
+   drops the PIN wrapping entirely. */
+function pinTries(n) {
+  try {
+    const o = JSON.parse(localStorage.getItem(KEY));
+    if (!o || !o.pin) return;
+    if (n === null) delete o.pin;
+    else o.pin.tries = n;
+    localStorage.setItem(KEY, JSON.stringify(o));
+  } catch {}
+}
+
+/* Setting one wraps the key the session is already holding — `vault.key` is
+   non-extractable on purpose, so the raw bytes come from the one place that
+   legitimately has them, the session the passphrase opened. A PIN therefore
+   cannot be set from behind the lock screen, only from inside an open
+   journal, which is what stops it being a way around the passphrase. */
+async function pinSet(pin) {
+  const raw = sessionStorage.getItem(SESSION_KEY);
+  if (!raw) throw new Error("locked");
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const wiv = crypto.getRandomValues(new Uint8Array(12));
+  const wrap = await pinKey(pin, salt);
+  const dk = await crypto.subtle.importKey("raw", unb64(raw), "AES-GCM", true, ["encrypt", "decrypt"]);
+  vault.pin = {
+    salt: b64(salt),
+    wiv: b64(wiv),
+    wk: b64(await crypto.subtle.wrapKey("raw", dk, wrap, { name: "AES-GCM", iv: wiv })),
+    tries: 0,
+  };
+  await seal();
+}
+
+async function pinClear() {
+  vault.pin = null;
+  await seal();
+}
+
+// how many answers the PIN has left before it is thrown away
+const pinLeft = (env) => PIN_TRIES - ((env.pin && env.pin.tries) || 0);
+
+/* Returns the journal, or throws. The attempt is counted *before* it is made,
+   so a tab closed mid-guess still spent one — otherwise the counter is only
+   a suggestion. It is reset on the way out, and on the last wrong answer the
+   wrapping is dropped and the passphrase is all that is left. */
+async function pinOpen(env, pin) {
+  const p = env.pin;
+  const used = (p.tries || 0) + 1;
+  pinTries(used);
+  vault.salt = unb64(env.salt);
+  vault.wiv = unb64(env.wiv);
+  vault.wrapped = env.wk;
+  try {
+    const wrap = await pinKey(pin, unb64(p.salt));
+    const open = await crypto.subtle.unwrapKey("raw", unb64(p.wk), wrap, { name: "AES-GCM", iv: unb64(p.wiv) }, "AES-GCM", true, [
+      "encrypt",
+      "decrypt",
+    ]);
+    const out = await vaultUnseal(env, open);
+    vault.pin = { ...p, tries: 0 }; // it opened, so the count starts again
+    pinTries(0);
+    return out;
+  } catch (e) {
+    if (used >= PIN_TRIES) pinTries(null);
+    throw e;
+  }
+}
+
 /* Writes are queued and the newest wins: `save()` is called synchronously from
    `mutate`, sealing is not, so a burst of edits seals once, the last state. */
 let sealing = false;
@@ -968,7 +1085,16 @@ async function seal() {
       const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, vault.key, utf8.encode(JSON.stringify(db)));
       localStorage.setItem(
         KEY,
-        JSON.stringify({ enc: 1, salt: b64(vault.salt), wiv: b64(vault.wiv), wk: vault.wrapped, iv: b64(iv), ct: b64(ct) }),
+        JSON.stringify({
+          enc: 1,
+          salt: b64(vault.salt),
+          wiv: b64(vault.wiv),
+          wk: vault.wrapped,
+          iv: b64(iv),
+          ct: b64(ct),
+          // absent means no PIN, the same way absent means the default everywhere else
+          ...(vault.pin ? { pin: vault.pin } : {}),
+        }),
       );
     } while (sealAgain);
   } finally {
@@ -1462,6 +1588,9 @@ const ICON = {
      bars alone read as a phone buzzing, which is a thing this app also does */
   awake: '<svg viewBox="0 0 24 24"><rect x="7.5" y="3.5" width="9" height="17" rx="2.5"/><path d="M3.1 7.4l1.5 1.5M20.9 7.4l-1.5 1.5M2.4 12.5h2.1M19.5 12.5h2.1M3.1 17.6l1.5-1.5M20.9 17.6l-1.5-1.5"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
+  /* a keypad, not a padlock: the lock is the vault's, this row is about the
+     short thing you tap into it */
+  pin: '<svg viewBox="0 0 24 24" class="fill"><circle cx="6" cy="6" r="1.6"/><circle cx="12" cy="6" r="1.6"/><circle cx="18" cy="6" r="1.6"/><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/><circle cx="6" cy="18" r="1.6"/><circle cx="12" cy="18" r="1.6"/><circle cx="18" cy="18" r="1.6"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -3018,6 +3147,12 @@ function openMenu() {
       );
     }
 
+    /* Offered only on a sealed journal, which is the only kind that has a key
+       to wrap — over plain http there is no vault at all. */
+    if (vault.can && vault.key && vault.wrapped) {
+      acts.append(actRow(ICON.pin, "PIN", () => openPin(), { on: !!vault.pin, k: vault.pin ? "On" : "Off" }));
+    }
+
     acts.append(
       segRow(
         ICON.eye,
@@ -3059,6 +3194,68 @@ function openMenu() {
     );
     foot.style.cssText = "margin:18px 0 0;text-align:center";
     b.append(foot);
+  });
+}
+
+/* The PIN's own sheet. It says what a PIN is worth before it takes one — a
+   short secret is a trade, and the one place to be straight about it is where
+   the trade is made. */
+function openPin() {
+  openSheet((b) => {
+    b.append(el("div", "s-title", "PIN"));
+    b.append(
+      el(
+        "div",
+        "s-sub",
+        "A short way in, beside your passphrase. It unlocks the same journal — " +
+          "the passphrase still works and is still the only way back if you forget this. " +
+          `Wrong ${PIN_TRIES} times and the PIN turns itself off.`,
+      ),
+    );
+    const mk = (ph) => {
+      const i = el("input", "s-input");
+      i.type = "password";
+      i.inputMode = "numeric";
+      i.pattern = "[0-9]*";
+      i.placeholder = ph;
+      i.autocomplete = "off";
+      return i;
+    };
+    const p1 = mk(vault.pin ? "New PIN" : "PIN");
+    const p2 = mk("Again");
+    const msg = el("div", "vault-msg");
+    const go = el("button", "s-go", vault.pin ? "Change PIN" : "Set PIN");
+    go.onclick = async () => {
+      msg.textContent = "";
+      if (!/^[0-9]+$/.test(p1.value)) return void (msg.textContent = "Digits only.");
+      if (p1.value.length < PIN_MIN) return void (msg.textContent = `At least ${PIN_MIN} digits.`);
+      if (p1.value !== p2.value) return void (msg.textContent = "The two don't match.");
+      go.disabled = true;
+      go.textContent = "…";
+      try {
+        await pinSet(p1.value);
+        closeSheet();
+        buzz(6);
+        toast("PIN set", false, 2000);
+      } catch {
+        msg.textContent = "Couldn't set it.";
+        go.disabled = false;
+        go.textContent = vault.pin ? "Change PIN" : "Set PIN";
+      }
+    };
+    b.append(p1, p2, msg, go);
+    if (vault.pin) {
+      const acts = el("div", "s-acts");
+      acts.append(
+        actRow(ICON.trash, "Turn off the PIN", async () => {
+          await pinClear();
+          closeSheet();
+          toast("PIN off — passphrase only", false, 2200);
+        }, { danger: true }),
+      );
+      b.append(acts);
+    }
+    setTimeout(() => p1.focus(), 60);
   });
 }
 
@@ -4005,10 +4202,22 @@ async function vaultGate() {
       db = normalise(again);
       return start();
     }
-    vaultScreen("bujo is locked", "Enter your passphrase.", async (pass) => {
-      db = normalise(await vaultOpen(env, pass));
-      start();
-    });
+    vaultScreen(
+      "bujo is locked",
+      env.pin ? "Enter your PIN." : "Enter your passphrase.",
+      async (pass) => {
+        db = normalise(await vaultOpen(env, pass));
+        start();
+      },
+      false,
+      env.pin
+        ? async (pin) => {
+            db = normalise(await pinOpen(env, pin));
+            start();
+          }
+        : null,
+      env,
+    );
   } else {
     vaultScreen(
       "Choose a passphrase",
@@ -4022,7 +4231,7 @@ async function vaultGate() {
     );
   }
 }
-function vaultScreen(title, blurb, go, confirmIt) {
+function vaultScreen(title, blurb, go, confirmIt, pinGo, env) {
   const wrap = el("div", "vault");
   wrap.append(el("h1", "", safeHtml(title)), el("p", "", safeHtml(blurb)));
   document.body.append(wrap);
@@ -4073,13 +4282,65 @@ function vaultScreen(title, blurb, go, confirmIt) {
       btn.textContent = label;
     }
   };
-  wrap.append(form);
+  /* With a PIN set, that is the form you get and the passphrase waits behind
+     a word. Both are on the page from the start — swapping is a class, not a
+     redraw — so the long way in is never more than one tap away, which is
+     what makes a forgotten PIN a nuisance rather than a lockout. */
+  if (pinGo) {
+    const pf = el("form", "vault-pin");
+    const pi = el("input", "vault-pin-in");
+    pi.type = "password";
+    pi.inputMode = "numeric";
+    pi.pattern = "[0-9]*";
+    pi.placeholder = "PIN";
+    pi.autocomplete = "off";
+    const pmsg = el("div", "vault-msg");
+    const pbtn = el("button", "", "Unlock");
+    pbtn.type = "submit";
+    pf.append(pi, pmsg, pbtn);
+    const other = el("button", "vault-alt", "Use passphrase");
+    other.type = "button";
+    other.onclick = () => {
+      pf.remove();
+      other.remove();
+      wrap.insertBefore(form, wrap.querySelector(".vault-v"));
+      $("p", wrap).textContent = "Enter your passphrase.";
+      p1.focus();
+    };
+    pf.onsubmit = async (ev) => {
+      ev.preventDefault();
+      pmsg.textContent = "";
+      pbtn.disabled = true;
+      pbtn.textContent = "…";
+      try {
+        await pinGo(pi.value);
+        wrap.remove();
+      } catch {
+        /* The count is the honest part of a short secret, so it is said out
+           loud rather than left for the user to discover on the last one. A
+           PIN record that is simply gone means the last answer spent it —
+           reading the count off an envelope that no longer has one would
+           report a full ten and offer a door that is not there. */
+        const now = readEnvelope() || env;
+        const left = now && now.pin ? pinLeft(now) : 0;
+        pmsg.textContent = left > 0 ? `Wrong PIN — ${left} ${left === 1 ? "try" : "tries"} left` : "PIN turned off. Use your passphrase.";
+        pi.value = "";
+        if (left <= 0) return other.click();
+        pbtn.disabled = false;
+        pbtn.textContent = "Unlock";
+        pi.focus();
+      }
+    };
+    wrap.append(pf, other);
+  } else {
+    wrap.append(form);
+  }
   /* The build, down here as well as in the menu footer. The footer is behind
      the lock, which is no use at all when the question is whether the phone
      is running the build you just deployed or a cached one — and the lock
      screen is exactly where that question gets asked. */
   wrap.append(el("div", "vault-v", VERSION_LABEL));
-  p1.focus();
+  (pinGo ? wrap.querySelector(".vault-pin-in") : p1).focus();
 }
 vaultGate().catch((e) => crash("Couldn't open the journal", e));
 
