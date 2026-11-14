@@ -638,3 +638,20 @@ asked for once per session (a reload keeps it open; closing the app locks it). T
 gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
 Over plain-http LAN the browser has no WebCrypto, so there the journal stays
 unencrypted (and an already-encrypted one cannot be opened).
+
+**Face ID.** Once the journal is sealed, **⋯ → Face ID** adds a second way in.
+It is not a gate in front of the passphrase: the passkey is asked for a secret
+of its own (WebAuthn's PRF extension, the same 32 bytes every time the device
+recognises you), and those bytes wrap the *same* data key a second time, beside
+the passphrase wrapping. Two doors to one key. The scan happens on the device
+and returns only the derived bytes, so no camera is opened and nothing about
+your face is stored.
+
+Enrolling asks for your face twice — once to make the passkey, once to read its
+secret — and every unlock after that asks once. The lock screen then offers the
+scan with the passphrase underneath it; a cancelled or refused scan just falls
+through to typing. **The passphrase never stops working**, which is what makes
+losing the passkey survivable: turning Face ID off again drops the second
+wrapping and touches nothing else. Same row rule as **Screen** — it is only
+offered where it can work, so it is absent over plain-http LAN, and it needs a
+device that can hold a platform passkey (on iPhone, iOS 18.4 or later).
