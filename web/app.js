@@ -833,6 +833,7 @@ const vault = {
   wrapped: null, // base64 of the data key sealed under the passphrase key
   wiv: null,
   bio: null, // the same data key sealed a second time, under your face
+  pending: null, // a passkey made but not yet read; session-only, never sealed
   ready: false, // false until the page is allowed to draw the journal
 };
 const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
@@ -984,45 +985,92 @@ async function prfBytes(cred) {
   return new Uint8Array(r.results.first);
 }
 
-/* Enrolling wraps the key the session is already holding. It has to: `vault.key`
-   is non-extractable on purpose, so the raw bytes come from the one place that
-   legitimately has them — the session the passphrase opened. Nothing can be
-   enrolled from behind the lock screen, which is the point. */
-async function bioCreate() {
+/* Enrolling is deliberately *two* ceremonies and never two in one tap. iOS
+   will not start a second passkey sheet while the first is still dismissing:
+   chaining the `get()` straight onto the `create()` leaves the save-passkey
+   sheet up and the promise never settles. So the passkey is made on one tap
+   and read on the next, each with its own gesture behind it. Where the
+   platform hands back the PRF at creation — some do — the second tap is
+   skipped and `bioCreate` finishes on its own.
+
+   Both halves wrap the key the session is already holding. They have to:
+   `vault.key` is non-extractable on purpose, so the raw bytes come from the
+   one place that legitimately has them, the session the passphrase opened.
+   Nothing can be enrolled from behind the lock screen, which is the point. */
+let bioBusy = false; // one ceremony at a time; a second tap mid-sheet is a hang
+
+function sessionRaw() {
   const raw = sessionStorage.getItem(SESSION_KEY);
   if (!raw) throw new Error("locked");
-  const cred = await navigator.credentials.create({
-    publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rp: { id: location.hostname, name: "bujo" },
-      /* The journal has no account and no server, so the user handle is random
-         and means nothing. It exists because WebAuthn requires one. */
-      user: { id: crypto.getRandomValues(new Uint8Array(16)), name: "bujo", displayName: "bujo" },
-      pubKeyCredParams: [
-        { type: "public-key", alg: -7 },
-        { type: "public-key", alg: -257 },
-      ],
-      authenticatorSelection: {
-        authenticatorAttachment: "platform", // this device's own face, never a roaming key
-        residentKey: "required",
-        userVerification: "required",
-      },
-      extensions: { prf: {} },
-    },
-  });
-  if (!cred) throw new Error("no credential");
-  const id = b64(cred.rawId);
+  return raw;
+}
+// wraps the data key under the PRF bytes and writes the record
+async function bioWrap(cred, bytes) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const wiv = crypto.getRandomValues(new Uint8Array(12));
-  const wrap = await bioWrapKey(await prfBytes(id), salt);
-  const dk = await crypto.subtle.importKey("raw", unb64(raw), "AES-GCM", true, ["encrypt", "decrypt"]);
+  const wrap = await bioWrapKey(bytes, salt);
+  const dk = await crypto.subtle.importKey("raw", unb64(sessionRaw()), "AES-GCM", true, ["encrypt", "decrypt"]);
   vault.bio = {
-    cred: id,
+    cred,
     salt: b64(salt),
     wiv: b64(wiv),
     wk: b64(await crypto.subtle.wrapKey("raw", dk, wrap, { name: "AES-GCM", iv: wiv })),
   };
+  vault.pending = null;
   await seal();
+}
+
+/* Returns "done", or "again" when the device still owes us the scan that
+   reads the secret. */
+async function bioCreate() {
+  if (bioBusy) return "busy";
+  bioBusy = true;
+  try {
+    sessionRaw(); // fail before the sheet rather than after it
+    const cred = await navigator.credentials.create({
+      publicKey: {
+        challenge: crypto.getRandomValues(new Uint8Array(32)),
+        rp: { id: location.hostname, name: "bujo" },
+        /* The journal has no account and no server, so the handle means
+           nothing — but it is *fixed*, so a second attempt replaces the
+           passkey of the first instead of leaving one behind on the device. */
+        user: { id: utf8.encode("bujo"), name: "bujo", displayName: "bujo" },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },
+          { type: "public-key", alg: -257 },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform", // this device's own face, never a roaming key
+          residentKey: "required",
+          userVerification: "required",
+        },
+        extensions: { prf: { eval: { first: PRF_AT } } },
+      },
+    });
+    if (!cred) throw new Error("no credential");
+    const id = b64(cred.rawId);
+    const r = cred.getClientExtensionResults().prf;
+    if (r && r.results && r.results.first) {
+      await bioWrap(id, new Uint8Array(r.results.first));
+      return "done";
+    }
+    if (r && r.enabled === false) throw new Error("no prf");
+    vault.pending = id; // session-only: a half-made setup is never written down
+    return "again";
+  } finally {
+    bioBusy = false;
+  }
+}
+
+// the second tap: read the passkey's secret and wrap the key with it
+async function bioFinish() {
+  if (bioBusy) return;
+  bioBusy = true;
+  try {
+    await bioWrap(vault.pending, await prfBytes(vault.pending));
+  } finally {
+    bioBusy = false;
+  }
 }
 
 // returns the journal object, or throws if the scan was refused or cancelled
@@ -1040,11 +1088,25 @@ async function bioOpen(env) {
   return vaultUnseal(env, open);
 }
 
+/* A refusal and a breakage are not the same thing and must not read the same.
+   Cancelling is the ordinary case and says so plainly; anything else carries
+   the browser's own name for it, because a phone has no console to check. */
+function bioWhy(e) {
+  const n = (e && e.name) || String((e && e.message) || e);
+  if (n === "NotAllowedError") return "Face ID cancelled";
+  if (n === "InvalidStateError") return "This device already has a bujo passkey";
+  if (n === "NotSupportedError" || n === "Error: no prf") return "This device can't hold the key (needs iOS 18.4 or later)";
+  if (String(e && e.message) === "locked") return "Unlock with your passphrase first";
+  if (String(e && e.message) === "no prf") return "This device can't hold the key (needs iOS 18.4 or later)";
+  return "Face ID didn't finish — " + n;
+}
+
 /* Forgetting drops the second wrapping and nothing else: the key, the journal
    and the passphrase are all untouched, so this is safe to do at any time and
    there is nothing to confirm. The passkey itself is the device's to keep. */
 async function bioForget() {
   vault.bio = null;
+  vault.pending = null;
   await seal();
 }
 
@@ -3126,28 +3188,58 @@ function openMenu() {
 
     /* Offered only where it could do something: a sealed journal on a device
        that can hold a passkey. Over plain http there is no vault at all, and
-       on a journal that is not sealed there would be no key to wrap. */
+       on a journal that is not sealed there would be no key to wrap.
+       Three states, not two: a passkey can be made and not yet read, and the
+       row has to be able to say so or the second tap has nowhere to live. */
     if (bioCan() && vault.key && vault.wrapped) {
+      const state = vault.bio ? "On" : vault.pending ? "Finish" : "Off";
       acts.append(
-        actRow(ICON.face, "Face ID", async () => {
-          try {
-            if (vault.bio) {
-              await bioForget();
+        actRow(
+          ICON.face,
+          vault.pending && !vault.bio ? "Finish Face ID" : "Face ID",
+          async () => {
+            try {
+              if (vault.bio) {
+                await bioForget();
+                closeSheet();
+                return void toast("Face ID off — passphrase only", false, 2200);
+              }
+              if (vault.pending) {
+                await bioFinish();
+                closeSheet();
+                buzz(6);
+                return void toast("Face ID on", false, 2200);
+              }
+              const r = await bioCreate();
               closeSheet();
-              toast("Face ID off — passphrase only");
-            } else {
-              await bioCreate();
+              if (r === "done") {
+                buzz(6);
+                return void toast("Face ID on", false, 2200);
+              }
+              if (r === "busy") return;
+              /* The device made the passkey but has not yet let us read its
+                 secret, and it will not do both on one tap. The toast asks
+                 for the second one; miss it and the menu row is still
+                 waiting, which is why this is not the only way through. */
+              toast("Passkey saved. One more scan to finish.", {
+                label: "Scan",
+                fn: async () => {
+                  try {
+                    await bioFinish();
+                    buzz(6);
+                    toast("Face ID on", false, 2200);
+                  } catch (e) {
+                    toast(bioWhy(e), false, 5000);
+                  }
+                },
+              }, 20000);
+            } catch (e) {
               closeSheet();
-              toast("Face ID on");
+              toast(bioWhy(e), false, 5000);
             }
-            buzz(6);
-          } catch {
-            /* Cancelling the scan is the ordinary case, not an error worth a
-               dialog: nothing was written, so the row just stays as it was. */
-            closeSheet();
-            toast("Face ID wasn't set up");
-          }
-        }, { on: !!vault.bio, k: vault.bio ? "On" : "Off" })
+          },
+          { on: !!vault.bio, k: state }
+        )
       );
     }
 
