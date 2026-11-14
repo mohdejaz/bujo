@@ -639,8 +639,27 @@ gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
 Over plain-http LAN the browser has no WebCrypto, so there the journal stays
 unencrypted (and an already-encrypted one cannot be opened).
 
-The lock screen is an ordinary password form — it carries an out-of-sight
-account name so that iOS will offer to **save the passphrase to the Keychain**,
-and then fill it back in behind a glance at your face. Saying yes to that is
-the way to stop typing it: the journal is still sealed with the passphrase and
-nothing is stored any differently, the phone is just doing the typing.
+The passphrase form is an ordinary password form — it carries an out-of-sight
+account name so that iOS can offer to **save the passphrase to the Keychain**
+and fill it back in later. The journal is still sealed with the passphrase and
+nothing is stored any differently; the phone is just doing the typing.
+
+**A PIN.** ⋯ → **PIN** adds a short way in beside the long one. It does not
+replace the passphrase and re-encrypts nothing: it wraps the *same* data key a
+second time, so there are two doors to one lock and the passphrase is the one
+that cannot be taken away. Set it from inside an open journal — never from the
+lock screen, which is what stops it being a way *around* the passphrase. With
+one set, the lock screen asks for the PIN and keeps **Use passphrase** one tap
+below it, so a forgotten PIN is a nuisance and not a lockout.
+
+Be clear about what a PIN costs. Six digits is a million guesses, and anyone
+holding a copy of `localStorage` can try all of them offline as fast as their
+hardware allows — against that, a PIN is weak however strong the passphrase
+is, because the weakest door is the one that gets tried. It is aimed at the
+realistic threat instead, someone picking up your phone, and two things defend
+that: the PIN's key is derived far more slowly than the passphrase's
+(PBKDF2, 2M rounds against 600k, because the secret is shorter), and ten wrong
+answers delete the PIN wrapping and leave only the passphrase. The count is
+written outside the ciphertext — it has to be, since a wrong answer cannot
+re-seal what it failed to open — and an attempt is counted *before* it is
+made, so closing the app mid-guess still spends one.
