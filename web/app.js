@@ -867,8 +867,6 @@ const vault = {
   salt: null,
   wrapped: null, // base64 of the data key sealed under the passphrase key
   wiv: null,
-  bio: null, // the same data key sealed a second time, under your face
-  pending: null, // a passkey made but not yet read; session-only, never sealed
   ready: false, // false until the page is allowed to draw the journal
 };
 const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
@@ -917,7 +915,6 @@ async function recallKey(env) {
     vault.salt = unb64(env.salt);
     vault.wiv = unb64(env.wiv);
     vault.wrapped = env.wk;
-    vault.bio = env.bio || null;
     vault.key = key;
     return JSON.parse(new TextDecoder().decode(plain));
   } catch {
@@ -934,7 +931,6 @@ async function vaultCreate(pass) {
   vault.wiv = crypto.getRandomValues(new Uint8Array(12));
   const wrap = await passKey(pass, vault.salt);
   vault.wrapped = b64(await crypto.subtle.wrapKey("raw", key, wrap, { name: "AES-GCM", iv: vault.wiv }));
-  vault.bio = null; // a face is enrolled later, from the menu, never on first run
   // hold it again non-extractable, so script can use the key but never read it
   const open = await unwrapData(wrap, true);
   await rememberKey(open);
@@ -943,11 +939,12 @@ async function vaultCreate(pass) {
     "decrypt",
   ]);
 }
-/* However the data key was unwrapped, what follows is the same: remember it
-   for the session, hold it non-extractable, read the envelope with it. Both
-   ways in share this, which is why adding a second one adds no second path
-   through the decryption itself. */
-async function vaultUnseal(env, open) {
+// returns the journal object, or throws on a wrong passphrase
+async function vaultOpen(env, pass) {
+  vault.salt = unb64(env.salt);
+  vault.wiv = unb64(env.wiv);
+  vault.wrapped = env.wk;
+  const open = await unwrapData(await passKey(pass, vault.salt), true);
   const key = await crypto.subtle.importKey("raw", await crypto.subtle.exportKey("raw", open), "AES-GCM", false, [
     "encrypt",
     "decrypt",
@@ -957,194 +954,6 @@ async function vaultUnseal(env, open) {
   vault.key = key;
   return JSON.parse(new TextDecoder().decode(plain));
 }
-// returns the journal object, or throws on a wrong passphrase
-async function vaultOpen(env, pass) {
-  vault.salt = unb64(env.salt);
-  vault.wiv = unb64(env.wiv);
-  vault.wrapped = env.wk;
-  vault.bio = env.bio || null;
-  return vaultUnseal(env, await unwrapData(await passKey(pass, vault.salt), true));
-}
-/* ── the face ──────────────────────────────────────────────────────── */
-
-/* Face ID cannot decrypt anything by itself, so it is not used as a gate that
-   something behind it trusts — the journal would then be readable with no
-   secret at all, and the sentence that says the stored value is noise without
-   the passphrase would stop being true. Instead the passkey is asked for a
-   secret of its own: WebAuthn's PRF extension returns the same 32 bytes every
-   time the authenticator recognises you, and never otherwise. Those bytes wrap
-   the data key a *second* time, beside the passphrase wrapping and in exactly
-   the same shape. Two doors to one key; neither knows about the other, and
-   losing the passkey costs nothing because the first door is untouched.
-
-   The face never reaches this code. The scan happens in the Secure Enclave,
-   which answers only with the derived bytes, so there is nothing about you in
-   the journal and no camera is ever opened. */
-const PRF_INFO = "bujo.vault.prf.v1";
-/* The PRF is evaluated at a fixed point, not a random one: a random salt could
-   not be re-derived, and this secret has to come back identical every launch.
-   What makes each device's bytes different is the passkey, not the salt. */
-const PRF_AT = utf8.encode(PRF_INFO);
-/* The relying party is the origin the app is installed from, which is why this
-   follows the same rule as the service worker and the wake lock: present on
-   https and localhost, simply absent over the plain-http LAN address. */
-const bioCan = () => vault.can && !!(globalThis.PublicKeyCredential && navigator.credentials);
-
-/* HKDF by way of deriveBits rather than deriveKey — the same derivation, but
-   deriveBits is the half of WebCrypto every browser here implements. */
-async function bioWrapKey(bytes, salt) {
-  const base = await crypto.subtle.importKey("raw", bytes, "HKDF", false, ["deriveBits"]);
-  const bits = await crypto.subtle.deriveBits(
-    { name: "HKDF", hash: "SHA-256", salt, info: utf8.encode("bujo.vault.wrap") },
-    base,
-    256,
-  );
-  return crypto.subtle.importKey("raw", bits, "AES-GCM", false, ["wrapKey", "unwrapKey"]);
-}
-
-/* One face scan, one secret. `create()` reports only that the PRF is *enabled*
-   on nearly every platform; the bytes come from a `get()`, which is why
-   enrolling asks for your face twice and every unlock after it asks once. */
-async function prfBytes(cred) {
-  const got = await navigator.credentials.get({
-    publicKey: {
-      challenge: crypto.getRandomValues(new Uint8Array(32)),
-      rpId: location.hostname,
-      allowCredentials: cred ? [{ type: "public-key", id: unb64(cred) }] : [],
-      userVerification: "required",
-      extensions: { prf: { eval: { first: PRF_AT } } },
-    },
-  });
-  const r = got && got.getClientExtensionResults().prf;
-  if (!r || !r.results || !r.results.first) throw new Error("no prf");
-  return new Uint8Array(r.results.first);
-}
-
-/* Enrolling is deliberately *two* ceremonies and never two in one tap. iOS
-   will not start a second passkey sheet while the first is still dismissing:
-   chaining the `get()` straight onto the `create()` leaves the save-passkey
-   sheet up and the promise never settles. So the passkey is made on one tap
-   and read on the next, each with its own gesture behind it. Where the
-   platform hands back the PRF at creation — some do — the second tap is
-   skipped and `bioCreate` finishes on its own.
-
-   Both halves wrap the key the session is already holding. They have to:
-   `vault.key` is non-extractable on purpose, so the raw bytes come from the
-   one place that legitimately has them, the session the passphrase opened.
-   Nothing can be enrolled from behind the lock screen, which is the point. */
-let bioBusy = false; // one ceremony at a time; a second tap mid-sheet is a hang
-
-function sessionRaw() {
-  const raw = sessionStorage.getItem(SESSION_KEY);
-  if (!raw) throw new Error("locked");
-  return raw;
-}
-// wraps the data key under the PRF bytes and writes the record
-async function bioWrap(cred, bytes) {
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const wiv = crypto.getRandomValues(new Uint8Array(12));
-  const wrap = await bioWrapKey(bytes, salt);
-  const dk = await crypto.subtle.importKey("raw", unb64(sessionRaw()), "AES-GCM", true, ["encrypt", "decrypt"]);
-  vault.bio = {
-    cred,
-    salt: b64(salt),
-    wiv: b64(wiv),
-    wk: b64(await crypto.subtle.wrapKey("raw", dk, wrap, { name: "AES-GCM", iv: wiv })),
-  };
-  vault.pending = null;
-  await seal();
-}
-
-/* Returns "done", or "again" when the device still owes us the scan that
-   reads the secret. */
-async function bioCreate() {
-  if (bioBusy) return "busy";
-  bioBusy = true;
-  try {
-    sessionRaw(); // fail before the sheet rather than after it
-    const cred = await navigator.credentials.create({
-      publicKey: {
-        challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { id: location.hostname, name: "bujo" },
-        /* The journal has no account and no server, so the handle means
-           nothing — but it is *fixed*, so a second attempt replaces the
-           passkey of the first instead of leaving one behind on the device. */
-        user: { id: utf8.encode("bujo"), name: "bujo", displayName: "bujo" },
-        pubKeyCredParams: [
-          { type: "public-key", alg: -7 },
-          { type: "public-key", alg: -257 },
-        ],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform", // this device's own face, never a roaming key
-          residentKey: "required",
-          userVerification: "required",
-        },
-        extensions: { prf: { eval: { first: PRF_AT } } },
-      },
-    });
-    if (!cred) throw new Error("no credential");
-    const id = b64(cred.rawId);
-    const r = cred.getClientExtensionResults().prf;
-    if (r && r.results && r.results.first) {
-      await bioWrap(id, new Uint8Array(r.results.first));
-      return "done";
-    }
-    if (r && r.enabled === false) throw new Error("no prf");
-    vault.pending = id; // session-only: a half-made setup is never written down
-    return "again";
-  } finally {
-    bioBusy = false;
-  }
-}
-
-// the second tap: read the passkey's secret and wrap the key with it
-async function bioFinish() {
-  if (bioBusy) return;
-  bioBusy = true;
-  try {
-    await bioWrap(vault.pending, await prfBytes(vault.pending));
-  } finally {
-    bioBusy = false;
-  }
-}
-
-// returns the journal object, or throws if the scan was refused or cancelled
-async function bioOpen(env) {
-  const bio = env.bio;
-  vault.salt = unb64(env.salt);
-  vault.wiv = unb64(env.wiv);
-  vault.wrapped = env.wk;
-  vault.bio = bio;
-  const wrap = await bioWrapKey(await prfBytes(bio.cred), unb64(bio.salt));
-  const open = await crypto.subtle.unwrapKey("raw", unb64(bio.wk), wrap, { name: "AES-GCM", iv: unb64(bio.wiv) }, "AES-GCM", true, [
-    "encrypt",
-    "decrypt",
-  ]);
-  return vaultUnseal(env, open);
-}
-
-/* A refusal and a breakage are not the same thing and must not read the same.
-   Cancelling is the ordinary case and says so plainly; anything else carries
-   the browser's own name for it, because a phone has no console to check. */
-function bioWhy(e) {
-  const n = (e && e.name) || String((e && e.message) || e);
-  if (n === "NotAllowedError") return "Face ID cancelled";
-  if (n === "InvalidStateError") return "This device already has a bujo passkey";
-  if (n === "NotSupportedError" || n === "Error: no prf") return "This device can't hold the key (needs iOS 18.4 or later)";
-  if (String(e && e.message) === "locked") return "Unlock with your passphrase first";
-  if (String(e && e.message) === "no prf") return "This device can't hold the key (needs iOS 18.4 or later)";
-  return "Face ID didn't finish — " + n;
-}
-
-/* Forgetting drops the second wrapping and nothing else: the key, the journal
-   and the passphrase are all untouched, so this is safe to do at any time and
-   there is nothing to confirm. The passkey itself is the device's to keep. */
-async function bioForget() {
-  vault.bio = null;
-  vault.pending = null;
-  await seal();
-}
-
 /* Writes are queued and the newest wins: `save()` is called synchronously from
    `mutate`, sealing is not, so a burst of edits seals once, the last state. */
 let sealing = false;
@@ -1159,16 +968,7 @@ async function seal() {
       const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, vault.key, utf8.encode(JSON.stringify(db)));
       localStorage.setItem(
         KEY,
-        JSON.stringify({
-          enc: 1,
-          salt: b64(vault.salt),
-          wiv: b64(vault.wiv),
-          wk: vault.wrapped,
-          iv: b64(iv),
-          ct: b64(ct),
-          // absent means no face enrolled, the same way absent means the default everywhere else
-          ...(vault.bio ? { bio: vault.bio } : {}),
-        }),
+        JSON.stringify({ enc: 1, salt: b64(vault.salt), wiv: b64(vault.wiv), wk: vault.wrapped, iv: b64(iv), ct: b64(ct) }),
       );
     } while (sealAgain);
   } finally {
@@ -1662,9 +1462,6 @@ const ICON = {
      bars alone read as a phone buzzing, which is a thing this app also does */
   awake: '<svg viewBox="0 0 24 24"><rect x="7.5" y="3.5" width="9" height="17" rx="2.5"/><path d="M3.1 7.4l1.5 1.5M20.9 7.4l-1.5 1.5M2.4 12.5h2.1M19.5 12.5h2.1M3.1 17.6l1.5-1.5M20.9 17.6l-1.5-1.5"/></svg>',
   chev: '<svg viewBox="0 0 24 24"><path d="M9 6l6 6-6 6"/></svg>',
-  /* four turned corners with a face inside: the frame a phone draws when it is
-     looking at you, which is the thing being named, not a head in profile */
-  face: '<svg viewBox="0 0 24 24"><path d="M3.5 8.5V6A2.5 2.5 0 016 3.5h2.5M15.5 3.5H18A2.5 2.5 0 0120.5 6v2.5M20.5 15.5V18a2.5 2.5 0 01-2.5 2.5h-2.5M8.5 20.5H6A2.5 2.5 0 013.5 18v-2.5"/><path d="M9 9.5V11M15 9.5V11M9.3 14.8s1 1.4 2.7 1.4 2.7-1.4 2.7-1.4"/></svg>',
 };
 
 /* a bullet in a fixed-width gutter, so mixed shapes still line up */
@@ -3221,63 +3018,6 @@ function openMenu() {
       );
     }
 
-    /* Offered only where it could do something: a sealed journal on a device
-       that can hold a passkey. Over plain http there is no vault at all, and
-       on a journal that is not sealed there would be no key to wrap.
-       Three states, not two: a passkey can be made and not yet read, and the
-       row has to be able to say so or the second tap has nowhere to live. */
-    if (bioCan() && vault.key && vault.wrapped) {
-      const state = vault.bio ? "On" : vault.pending ? "Finish" : "Off";
-      acts.append(
-        actRow(
-          ICON.face,
-          vault.pending && !vault.bio ? "Finish Face ID" : "Face ID",
-          async () => {
-            try {
-              if (vault.bio) {
-                await bioForget();
-                closeSheet();
-                return void toast("Face ID off — passphrase only", false, 2200);
-              }
-              if (vault.pending) {
-                await bioFinish();
-                closeSheet();
-                buzz(6);
-                return void toast("Face ID on", false, 2200);
-              }
-              const r = await bioCreate();
-              closeSheet();
-              if (r === "done") {
-                buzz(6);
-                return void toast("Face ID on", false, 2200);
-              }
-              if (r === "busy") return;
-              /* The device made the passkey but has not yet let us read its
-                 secret, and it will not do both on one tap. The toast asks
-                 for the second one; miss it and the menu row is still
-                 waiting, which is why this is not the only way through. */
-              toast("Passkey saved. One more scan to finish.", {
-                label: "Scan",
-                fn: async () => {
-                  try {
-                    await bioFinish();
-                    buzz(6);
-                    toast("Face ID on", false, 2200);
-                  } catch (e) {
-                    toast(bioWhy(e), false, 5000);
-                  }
-                },
-              }, 20000);
-            } catch (e) {
-              closeSheet();
-              toast(bioWhy(e), false, 5000);
-            }
-          },
-          { on: !!vault.bio, k: state }
-        )
-      );
-    }
-
     acts.append(
       segRow(
         ICON.eye,
@@ -4265,23 +4005,10 @@ async function vaultGate() {
       db = normalise(again);
       return start();
     }
-    const face =
-      env.bio && bioCan()
-        ? async () => {
-            db = normalise(await bioOpen(env));
-            start();
-          }
-        : null;
-    vaultScreen(
-      "bujo is locked",
-      face ? "Look at your phone, or enter your passphrase." : "Enter your passphrase.",
-      async (pass) => {
-        db = normalise(await vaultOpen(env, pass));
-        start();
-      },
-      false,
-      face,
-    );
+    vaultScreen("bujo is locked", "Enter your passphrase.", async (pass) => {
+      db = normalise(await vaultOpen(env, pass));
+      start();
+    });
   } else {
     vaultScreen(
       "Choose a passphrase",
@@ -4295,7 +4022,7 @@ async function vaultGate() {
     );
   }
 }
-function vaultScreen(title, blurb, go, confirmIt, face) {
+function vaultScreen(title, blurb, go, confirmIt) {
   const wrap = el("div", "vault");
   wrap.append(el("h1", "", safeHtml(title)), el("p", "", safeHtml(blurb)));
   document.body.append(wrap);
@@ -4310,11 +4037,26 @@ function vaultScreen(title, blurb, go, confirmIt, face) {
   };
   const p1 = mk("Passphrase", confirmIt ? "new-password" : "current-password");
   const p2 = confirmIt ? mk("Again", "new-password") : null;
+  /* An account the form never shows. iOS offers to save a passphrase, and
+     later to fill it behind a glance at your face, only when it can see
+     something to file it under — and a journal that has no login had nothing
+     to offer. So the form carries a name out of sight. It is a fixed word and
+     not a secret: it is the label on the Keychain entry, not a second thing
+     to remember, and there has only ever been one user per device.
+     Off-screen rather than `display:none`, which password managers skip, and
+     out of the tab order so the one real field is still the first thing a
+     thumb lands on. */
+  const who = el("input", "vault-user");
+  who.type = "text";
+  who.name = "username";
+  who.autocomplete = "username";
+  who.value = "bujo";
+  who.tabIndex = -1;
   const msg = el("div", "vault-msg");
   const label = confirmIt ? "Encrypt" : "Unlock";
   const btn = el("button", "", label);
   btn.type = "submit";
-  form.append(p1, ...(p2 ? [p2] : []), msg, btn);
+  form.append(who, p1, ...(p2 ? [p2] : []), msg, btn);
   form.onsubmit = async (ev) => {
     ev.preventDefault();
     msg.textContent = "";
@@ -4331,36 +4073,13 @@ function vaultScreen(title, blurb, go, confirmIt, face) {
       btn.textContent = label;
     }
   };
-  /* The scan is behind a tap rather than fired on load: WebAuthn wants a real
-     user gesture, and a prompt that appeared by itself before the app had even
-     drawn would be the wrong way round anyway. A refused or cancelled scan
-     falls through to the passphrase, which is sitting right underneath. */
-  if (face) {
-    wrap.classList.add("has-face");
-    const fb = el("button", "vault-face", ICON.face);
-    fb.type = "button";
-    fb.append(el("span", null, "Unlock with Face ID"));
-    const fmsg = el("div", "vault-msg");
-    fb.onclick = async () => {
-      fmsg.textContent = "";
-      fb.disabled = true;
-      try {
-        await face();
-        wrap.remove();
-      } catch {
-        fmsg.textContent = "That didn't unlock it. Try your passphrase.";
-        fb.disabled = false;
-      }
-    };
-    wrap.append(fb, fmsg, el("div", "vault-or", "or"));
-  }
   wrap.append(form);
   /* The build, down here as well as in the menu footer. The footer is behind
      the lock, which is no use at all when the question is whether the phone
      is running the build you just deployed or a cached one — and the lock
      screen is exactly where that question gets asked. */
   wrap.append(el("div", "vault-v", VERSION_LABEL));
-  if (!face) p1.focus(); // with a face offered, the keyboard waits to be asked for
+  p1.focus();
 }
 vaultGate().catch((e) => crash("Couldn't open the journal", e));
 

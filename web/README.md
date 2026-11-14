@@ -639,24 +639,8 @@ gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
 Over plain-http LAN the browser has no WebCrypto, so there the journal stays
 unencrypted (and an already-encrypted one cannot be opened).
 
-**Face ID.** Once the journal is sealed, **⋯ → Face ID** adds a second way in.
-It is not a gate in front of the passphrase: the passkey is asked for a secret
-of its own (WebAuthn's PRF extension, the same 32 bytes every time the device
-recognises you), and those bytes wrap the *same* data key a second time, beside
-the passphrase wrapping. Two doors to one key. The scan happens on the device
-and returns only the derived bytes, so no camera is opened and nothing about
-your face is stored.
-
-Enrolling takes **two taps**, not one: the device makes the passkey on the
-first and lets the page read its secret on the second, and it will not do both
-from a single tap — chaining them leaves the save-passkey sheet up and nothing
-happening. So the row reads *Face ID* → tap → *Finish Face ID*, with a toast
-offering the same second tap. Some platforms hand the secret over at creation
-and finish on the first tap on their own. Every unlock after that is one scan.
-The lock screen offers it with the passphrase underneath; a cancelled or
-refused scan falls through to typing, and says which it was rather than
-shrugging. **The passphrase never stops working**, which is what makes
-losing the passkey survivable: turning Face ID off again drops the second
-wrapping and touches nothing else. Same row rule as **Screen** — it is only
-offered where it can work, so it is absent over plain-http LAN, and it needs a
-device that can hold a platform passkey (on iPhone, iOS 18.4 or later).
+The lock screen is an ordinary password form — it carries an out-of-sight
+account name so that iOS will offer to **save the passphrase to the Keychain**,
+and then fill it back in behind a glance at your face. Saying yes to that is
+the way to stop typing it: the journal is still sealed with the passphrase and
+nothing is stored any differently, the phone is just doing the typing.
