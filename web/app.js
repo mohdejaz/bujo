@@ -52,6 +52,41 @@
  *           written after a reorder still lands on top.
  */
 
+/* A phone has no console, so a thrown error used to mean a white screen and
+   nothing else — no name, no line, no version, nothing to tell a crash apart
+   from a stale cache. This paints whatever went wrong onto the page instead,
+   with the build it happened on, and is deliberately the first thing in the
+   file so it is already listening before anything can fail. It uses raw DOM
+   and no helper, because the helpers are what it may have to report on. */
+function crash(where, err) {
+  try {
+    const was = document.getElementById("crash");
+    if (was) was.remove();
+    const e = err || {};
+    const box = document.createElement("div");
+    box.id = "crash";
+    box.className = "crash";
+    const h = document.createElement("h1");
+    h.textContent = where;
+    const pre = document.createElement("pre");
+    pre.textContent =
+      (e.name ? e.name + ": " : "") +
+      (e.message || String(err)) +
+      "\n\n" +
+      (e.stack || "no stack") +
+      "\n\nbuild " +
+      VERSION_LABEL +
+      (navigator.standalone ? " · installed" : " · browser");
+    const b = document.createElement("button");
+    b.textContent = "Reload";
+    b.onclick = () => location.reload();
+    box.append(h, pre, b);
+    (document.body || document.documentElement).append(box);
+  } catch {}
+}
+addEventListener("error", (ev) => crash("bujo hit an error", ev.error || ev));
+addEventListener("unhandledrejection", (ev) => crash("bujo hit an error", ev.reason));
+
 const KEY = "bujo.v2";
 /* The dated journal this app replaces. Read once, migrated, and then left
    alone forever — it is the only backup of the old shape, so nothing here
@@ -4320,9 +4355,14 @@ function vaultScreen(title, blurb, go, confirmIt, face) {
     wrap.append(fb, fmsg, el("div", "vault-or", "or"));
   }
   wrap.append(form);
+  /* The build, down here as well as in the menu footer. The footer is behind
+     the lock, which is no use at all when the question is whether the phone
+     is running the build you just deployed or a cached one — and the lock
+     screen is exactly where that question gets asked. */
+  wrap.append(el("div", "vault-v", VERSION_LABEL));
   if (!face) p1.focus(); // with a face offered, the keyboard waits to be asked for
 }
-vaultGate();
+vaultGate().catch((e) => crash("Couldn't open the journal", e));
 
 if ("serviceWorker" in navigator && location.protocol === "https:") {
   navigator.serviceWorker.register("sw.js").catch(() => {});

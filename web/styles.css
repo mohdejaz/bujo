@@ -1381,6 +1381,41 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
   background: var(--accent);
   color: #fff;
 }
+/* Deliberately plain and unstyled-looking: it is the one screen that must
+   render when the rest of the app could not, so it leans on nothing. */
+.crash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  overflow: auto;
+  padding: 24px;
+  background: var(--paper, #fff);
+  color: var(--ink, #111);
+}
+.crash h1 { margin: 0 0 12px; font-size: 1.125rem; }
+.crash pre {
+  margin: 0 0 16px;
+  padding: 12px;
+  border-radius: 10px;
+  background: var(--card, #f4f4f4);
+  font-size: 0.75rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  user-select: text;
+  -webkit-user-select: text;
+}
+.crash button {
+  font: inherit;
+  font-weight: 600;
+  padding: 12px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--accent, #c4632a);
+  color: #fff;
+}
+
+.vault-v { margin-top: 18px; text-align: center; font-size: 0.75rem; color: var(--ink-2); }
 .vault-msg { min-height: 1.2em; font-size: 0.8125rem; color: var(--accent); }
 /* The face is the quicker way in, so it is the filled button and the
    passphrase below it is the plain one — the shapes say which is which
