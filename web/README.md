@@ -438,10 +438,11 @@ is read on a row of its own in the Index, on the stamp above the Journal and in
 the move-a-line rows, and each of those gives it the width or trails it off
 with an ellipsis. Short still reads better; it is just no longer enforced.
 
-**On a desktop.** The layout is a portrait notebook and stays one: past 720px
-of width the page stops stretching and becomes a 560px column, centred, on a
-desk rather than filling the window. Past 1000px there is room for two things
-at once, and the **Index moves out of the tabs and into a column** of its own
+**On a desktop.** The page takes the room it is given: past 720px it keeps the
+phone's margins but not the phone's width, filling the window with wider
+breathing room at the edges — a window opened wider is someone asking for more
+page. Past 1000px there is room for two things at once, and the
+**Index moves out of the tabs and into a column** of its own
 down the left — the same Index, the same list of pages, the same segment and
 the same field that names a new one, so you can turn to a page without leaving
 the one you are reading. The Index tab goes while that column is up, and the

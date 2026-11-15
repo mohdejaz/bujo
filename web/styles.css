@@ -1281,21 +1281,26 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
   border-radius: 999px;
 }
 
-/* ── desktop: keep the phone shape, centred ─────────────────────────── */
+/* ── desktop: the page takes the room it is given ───────────────────── */
+
+/* The notebook used to sit on the desk as a 560px card, the phone's shape with
+   the window behind it. It reads better as the page itself: a window opened
+   wider is someone asking for more page, and a card floating in the middle of
+   it answers by giving them more desk. So the page fills what it is given —
+   beside the Index's column where there is one, the whole window where there
+   is not — and what a phone spends 12px on at the edges it spends 20 here,
+   because the margin of a page is not a thing that scales with the thumb. The
+   rows still start where they always did; nothing is stretched, there is
+   simply more of it before the line runs out. */
 
 @media (min-width: 720px) {
-  /* html gets its own background so body's doesn't propagate to the canvas */
-  html { background: var(--hair-2); }
-  body {
-    max-width: 560px;
-    margin: 0 auto;
-    background: var(--paper);
-    box-shadow: 0 0 0 1px var(--hair), var(--lift-2);
-  }
   .row-face:hover { background: var(--hair-2); }
-  /* A sheet belongs to the page, not to the desk the page is lying on. It is
-     fixed to the viewport, so without this it spreads the full width of the
-     window and the notebook's own actions arrive from somewhere else. */
+  .list { padding: 0 20px; }
+  #head { padding-left: 20px; padding-right: 20px; }
+  .composer { padding-left: 20px; padding-right: 20px; }
+  /* A sheet is a question about one line, not a second page, so it keeps the
+     width it has always had and centres on the page rather than spreading to
+     meet it. */
   .sheet-card { left: 0; right: 0; width: 560px; margin: 0 auto; }
 }
 

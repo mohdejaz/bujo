@@ -191,9 +191,10 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   that carries the reasoning.
 - **Portrait, one thumb, phone widths.** The layout is portrait-locked by design —
   on a phone. The desk is the one place it is given more: at 720px the page
-  becomes a fixed 560px column rather than stretching, and at 1000px the Index
-  takes a column of its own beside it. Neither widens a row or moves a control;
-  the notebook keeps its shape and the width buys a second thing to look at.
+  fills the window on 20px margins instead of the phone's 12, and at 1000px the
+  Index takes a column of its own beside it and the page fills what is left.
+  Neither moves a control or stretches a row — the rows start where they always
+  did, there is simply more page before the line runs out.
   The "turn your phone upright" cover is gated on `pointer: coarse` for the
   same reason — a short desktop window is not a phone on its side. The
   notebook's 5-character name cap is the feature, not a limit to work around: it shares
