@@ -1301,11 +1301,18 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
 /* The manifest asks for portrait at install time and app.js asks again at
    runtime, but neither lands in a plain Safari tab. When the page is short and
    wide anyway, the notebook steps aside for a full-viewport nudge rather than
-   squeezing a header, a list and a composer into ~380px of height. */
+   squeezing a header, a list and a composer into ~380px of height.
+
+   `pointer: coarse` is what keeps that nudge honest. A desktop window that is
+   not maximised is short and wide too, and there the words are a lie twice
+   over: there is no phone, and the shape is not something turning anything
+   fixes — it is a window, and the reader is the one who sizes it. So the
+   cover is for a thumb only; a mouse gets the notebook it asked for, narrow
+   window and all. */
 
 .rotate { display: none; }
 
-@media (orientation: landscape) and (max-height: 560px) {
+@media (orientation: landscape) and (max-height: 560px) and (pointer: coarse) {
   body { overflow: hidden; }
   body > *:not(.rotate) { display: none !important; }
 
