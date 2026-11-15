@@ -1016,6 +1016,21 @@ const isIndex = () => db.view === "index";
    about a line, and this one is only ever about where you are standing. */
 const isTodayPage = () => db.view === "today";
 
+/* The width at which the Index stops being a view you turn to and becomes a
+   column standing beside the page: the notebook's 560 and the Index's 272,
+   with room left either side for the pair to sit on the desk rather than
+   against the edges of it. */
+const SIDE_MQ = matchMedia("(min-width: 1000px)");
+const sideLive = () => SIDE_MQ.matches;
+/* Whether the *main column* is the Index. Where the Index has a column of its
+   own it is already on screen, so the view reads as the page it was in front
+   of instead. This is a read and never a write: `db.view` keeps saying
+   "index", so the same journal opened on the phone still turns to the Index,
+   and nothing has to be put back when the window narrows. It is the same rule
+   the rest of the app runs on — a filter decides what is shown and never
+   rewrites what is stored. */
+const mainIsIndex = () => isIndex() && !sideLive();
+
 /* ── selecting what a page shows ───────────────────────────────────── */
 
 const isLive = (e) => e.state === "open";
@@ -1493,9 +1508,10 @@ const bulletClass = (e) =>
 function render() {
   renderHead();
   renderComposer();
+  renderSide();
   if (isTodayPage()) renderToday();
   else if (isCal()) renderCalendar();
-  else if (isIndex()) renderIndex();
+  else if (mainIsIndex()) renderIndex($("#list"));
   else if (isQuestionPage(curPage())) renderQuestions();
   else if (isNotesPage(curPage())) renderNotes();
   else renderJournal();
@@ -1504,8 +1520,13 @@ function render() {
 
 function renderHead() {
   $("#bookName").textContent = curBook().name;
+  /* The lit tab is the one whose page is in front of you, which is not always
+     the one `db.view` names: where the Index has a column of its own the main
+     column is reading the Journal, and a strip with nothing lit would be the
+     header disagreeing with the page under it. */
+  const shown = mainIsIndex() || !isIndex() ? db.view : "journal";
   [...$("#tabs").children].forEach((b) => {
-    const on = b.dataset.view === db.view;
+    const on = b.dataset.view === shown;
     b.classList.toggle("is-on", on);
     b.setAttribute("aria-selected", String(on));
   });
@@ -1529,7 +1550,7 @@ function renderHead() {
      and the Index is the list of them, so naming one on any of the three
      would say something untrue about what is below it. */
   $("#stampPageName").textContent = curPage().name;
-  $("#stampPage").hidden = isCal() || isIndex() || isTodayPage();
+  $("#stampPage").hidden = isCal() || mainIsIndex() || isTodayPage();
 }
 
 /* A bucket heading that does not fold, and the only one left: Today's own.
@@ -1837,8 +1858,14 @@ function renderCalendar() {
    beside it is where its name and its delete live; and the composer at the
    foot names a new one, because on every page what you write there is the
    kind of thing that page is made of. */
-function renderIndex() {
-  const list = $("#list");
+/* The Index, written into whichever list is showing it — the main column on a
+   phone, the column beside the page on a wide screen. One render for both,
+   because they are one Index: a second copy of this would be a second place
+   for a page to be made, renamed or put away, which is exactly what keeping
+   page handling in one view was for. `side` turns off only what a column has
+   no room for — the standing note about what pages do, which is an
+   explanation you read once and then read past. */
+function renderIndex(list, side) {
   list.textContent = "";
 
   /* One kind at a time, the one the segment at the foot is set to. The two
@@ -1892,14 +1919,34 @@ function renderIndex() {
 
   /* Printed under the list rather than as an empty state, because the Index
      always has its composer and its note to show. */
-  list.append(
-    el(
-      "li",
-      "index-note",
-      "Pages split the Journal and nothing else — the Calendar reads every page of the notebook at once."
-    )
+  if (!side)
+    list.append(
+      el(
+        "li",
+        "index-note",
+        "Pages split the Journal and nothing else — the Calendar reads every page of the notebook at once."
+      )
+    );
+  if (!side) $("#empty").hidden = true;
+}
+
+/* The Index in its own column. It is drawn only where it is showing: the list
+   is short, but it carries a handler per row, and building those for a column
+   no phone will ever paint is work done to be thrown away. Emptying it when
+   the window narrows is the other half of that — a stale list behind
+   `display: none` is a list that comes back wrong when the window widens
+   again. */
+function renderSide() {
+  const list = $("#sideList");
+  if (!sideLive()) return void (list.textContent = "");
+  renderIndex(list, true);
+  [...$("#sideKind").children].forEach((b) =>
+    b.classList.toggle("on", (b.dataset.kind || null) === S.indexKind)
   );
-  $("#empty").hidden = true;
+  /* The field says which kind it is about to make, because here the segment
+     above it is the only thing that says so and the two are one statement. */
+  const kind = S.indexKind === "qa" ? "q&a" : S.indexKind || "tasks";
+  $("#sideInput").placeholder = `name a page of ${kind}`;
 }
 
 /* A group's heading, over the pages that carry its name. It folds like the
@@ -2529,13 +2576,13 @@ const kindSeg = $("#kindSeg");
 function renderComposer() {
   $("#when").hidden = !isCal();
   if (isCal() && !isDate($("#whenDate").value)) $("#whenDate").value = TODAY();
-  $("#pageKind").hidden = !isIndex();
+  $("#pageKind").hidden = !mainIsIndex();
   [...kindSeg.children].forEach((b) =>
     b.classList.toggle("on", (b.dataset.kind || null) === S.indexKind)
   );
   input.placeholder = isCal()
     ? "what happens that day?"
-    : isIndex()
+    : mainIsIndex()
       ? "name a new page"
       : isTodayPage()
         ? "what are you doing today?"
@@ -2546,7 +2593,7 @@ function renderComposer() {
             : "what needs doing?";
   /* The Index is naming a page, which is lower case by rule, so the keyboard
      stops offering a capital it would only have to take back on submit. */
-  input.setAttribute("autocapitalize", isIndex() ? "none" : "sentences");
+  input.setAttribute("autocapitalize", mainIsIndex() ? "none" : "sentences");
   input.removeAttribute("maxlength");
   composer.classList.toggle("armed", input.value.trim().length > 0);
 }
@@ -2554,13 +2601,38 @@ function renderComposer() {
 /* Which kind of page the Index is about. It redraws the whole view rather than
    just the composer, because the list above answers to it too — and it stays
    where you put it for the session, since it is a mode now and not a one-shot
-   answer to "what am I naming". */
-kindSeg.onclick = (ev) => {
+   answer to "what am I naming".
+   Two segments carry it, the composer's and the column's, and only ever one
+   of them is on screen. They are not two controls: both write the one flag
+   and both redraw from it, so the statement is still made in one place. */
+const pickKind = (ev) => {
   const b = ev.target.closest("button");
   if (!b) return;
   S.indexKind = b.dataset.kind || null;
   render();
 };
+kindSeg.onclick = pickKind;
+$("#sideKind").onclick = pickKind;
+
+/* The column's field names a page, which is the one thing the Index's field
+   has always done — so it goes the same way the composer's Index branch goes,
+   through `addPage`, and lands you on what it made. */
+$("#sideComposer").addEventListener("submit", (ev) => {
+  ev.preventDefault();
+  const si = $("#sideInput");
+  const name = cleanPage(si.value);
+  si.value = "";
+  $("#sideComposer").classList.remove("armed");
+  if (name) addPage(db.book, name, S.indexKind);
+});
+$("#sideInput").addEventListener("input", (ev) =>
+  $("#sideComposer").classList.toggle("armed", ev.target.value.trim().length > 0)
+);
+
+/* The column appears and goes with the width of the window, and what the main
+   column is reading changes with it — so crossing the line is a redraw, the
+   same full redraw everything else here asks for. */
+SIDE_MQ.addEventListener("change", () => render());
 
 input.addEventListener("input", () =>
   composer.classList.toggle("armed", input.value.trim().length > 0)
@@ -2574,7 +2646,7 @@ composer.addEventListener("submit", (ev) => {
   /* On the Index the field is not writing a line at all — it is naming a page
      of the notebook, and you land on it the way a new line lands on the page
      it was written to. */
-  if (isIndex()) {
+  if (mainIsIndex()) {
     const name = cleanPage(raw);
     input.value = "";
     composer.classList.remove("armed");
@@ -3880,7 +3952,18 @@ function goTo(view) {
   slide(back);
   $("#page").scrollTop = 0;
 }
-const stepView = (d) => goTo(VIEWS[VIEWS.indexOf(db.view) + d]);
+/* The views a step actually walks. Where the Index has a column of its own,
+   stepping on to it would be stepping on to something already on screen, so
+   it drops out of the walk and the arrow keys and the header swipe agree with
+   what the strip is offering. A journal left on the Index by a phone starts
+   that walk from the page the main column is reading instead — the same
+   reading `mainIsIndex` makes everywhere else. */
+const walk = () => (sideLive() ? VIEWS.filter((v) => v !== "index") : VIEWS);
+const stepView = (d) => {
+  const w = walk();
+  const at = w.indexOf(db.view);
+  goTo(w[(at < 0 ? w.indexOf("journal") : at) + d]);
+};
 
 /* The list slides in from the side you came from — the same motion whether you
    changed which of the three pages you are on or which page of the notebook. */

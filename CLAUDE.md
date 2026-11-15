@@ -115,6 +115,19 @@ the only thing that moves it, and it writes every page-less task in that noteboo
 page it was already on before it flips the flag: absence means the default, so moving
 the default without that would quietly empty one page into another.
 
+**The Index is a view on a phone and a column on a desk.** Past
+`SIDE_MQ` (1000px) it moves out of the tab strip and stands beside the page —
+the same `renderIndex`, written into `#sideList` instead of `#list`, so there
+is still exactly one place a page is made, renamed or put away. `mainIsIndex()`
+is what every other reader asks instead of `isIndex()`: where the Index has a
+column of its own, `db.view === "index"` *reads* as the Journal in the main
+column and `db.view` is never rewritten — a read, like every other filter here,
+so the same journal opened on a phone still turns to the Index and nothing has
+to be put back when the window narrows. `walk()` is the same idea for the tab
+strip: the Index drops out of the steps the arrow keys and the header swipe
+make, because stepping on to it would be stepping on to something already on
+screen.
+
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
 notebook (bar archived ones) and every page, tasks and events alike — never a
@@ -176,7 +189,13 @@ cached one. Pushes to `main` touching `web/` deploy to GitHub Pages automaticall
   `MM/dd` (`shortDay`) because there the date is a stamp repeating down the page
   rather than a day being named. Still absolute, which is the half of the rule
   that carries the reasoning.
-- **Portrait, one thumb, phone widths.** The layout is portrait-locked by design. The
+- **Portrait, one thumb, phone widths.** The layout is portrait-locked by design —
+  on a phone. The desk is the one place it is given more: at 720px the page
+  becomes a fixed 560px column rather than stretching, and at 1000px the Index
+  takes a column of its own beside it. Neither widens a row or moves a control;
+  the notebook keeps its shape and the width buys a second thing to look at.
+  The "turn your phone upright" cover is gated on `pointer: coarse` for the
+  same reason — a short desktop window is not a phone on its side. The
   notebook's 5-character name cap is the feature, not a limit to work around: it shares
   the header row with three tabs and a menu, and a tab that gets truncated is not a tab.
   A page name is uncapped — it is read on rows of its own, which clamp it with an
