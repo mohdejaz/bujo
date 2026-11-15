@@ -286,8 +286,7 @@ on the Calendar — this is a read of it, not a second copy — so completing or
 striking it there and here are the same act. Nothing on today, nothing shown.
 
 **The Index.** The first tab is the notebook's contents, and the only place
-pages are handled — on a wide screen it is not a tab at all but a column
-standing beside the page, see *On a desktop* below: every page of the notebook in order — of one kind at a time, see the segment below — each led by
+pages are handled: every page of the notebook in order — of one kind at a time, see the segment below — each led by
 the mark its lines are written in, a dot for a page of work and a `?` for a
 page of q&a, and each with what is still open on it, nothing at all beside a page
 with none. Tap a page to turn to it — you land on the Journal, reading that
@@ -437,25 +436,6 @@ a name that gets truncated there is not a name. A page has no such limit — it
 is read on a row of its own in the Index, on the stamp above the Journal and in
 the move-a-line rows, and each of those gives it the width or trails it off
 with an ellipsis. Short still reads better; it is just no longer enforced.
-
-**On a desktop.** The page takes the room it is given: past 720px it keeps the
-phone's margins but not the phone's width, filling the window with wider
-breathing room at the edges — a window opened wider is someone asking for more
-page. Past 1000px there is room for two things at once, and the
-**Index moves out of the tabs and into a column** of its own
-down the left — the same Index, the same list of pages, the same segment and
-the same field that names a new one, so you can turn to a page without leaving
-the one you are reading. The Index tab goes while that column is up, and the
-arrow keys and the header swipe step past it, because it is already on screen.
-Narrow the window and everything goes back: the tab returns and the Index is a
-page you turn to again. Nothing about this is stored — it is the width of the
-window and nothing else, so the same journal is a phone's on a phone and a
-desk's on a desk.
-
-Every gesture works with a mouse — drag a line to reorder it, swipe it left
-for its tray or right to finish it, drag the header to change page. The
-keyboard has `/` to write a line, `f` to search, `←`/`→` to change page and
-`Esc` to put a sheet away.
 
 **Search** (**⋯ → Search**, or `f`) looks across *every* notebook and page,
 line and note — you search because you forgot where something is, and which
@@ -625,7 +605,7 @@ you get the app but not the installable layer. Pushes to `main` that touch
 
 | file | |
 |---|---|
-| `index.html` | the shell — header, tabs, the Index's wide-screen column, list, composer, sheet, toast |
+| `index.html` | the shell — header, tabs, list, composer, sheet, toast |
 | `styles.css` | the paper: colour tokens, dot grid, both themes, the type scale |
 | `app.js` | store, migration, dates, render, gestures, sheets |
 | `sw.js`, `manifest.webmanifest`, `icons/` | the installable/offline layer |

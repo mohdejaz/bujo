@@ -22,36 +22,6 @@
   <body>
     <div class="grid-bg" aria-hidden="true"></div>
 
-    <!-- The Index, given a column of its own. On a phone it is a view you turn
-         to, because there is only ever room for one thing at a time; on a
-         screen wide enough it stands beside the page instead, which is what a
-         notebook open on a desk actually looks like — the contents in view
-         while you write. It is the same Index and not a second one: the same
-         list, the same segment naming the kind, the same field that makes a
-         page. So the tab that led to it steps aside at this width rather than
-         leading somewhere already on screen, and the page it was in front of
-         is what the main column reads instead. -->
-    <aside id="side" aria-label="Index">
-      <div class="s-seg side-seg" id="sideKind">
-        <button type="button" data-kind="">tasks</button>
-        <button type="button" data-kind="notes">notes</button>
-        <button type="button" data-kind="qa">q&amp;a</button>
-      </div>
-      <ul id="sideList" class="list side-list"></ul>
-      <form id="sideComposer" class="side-composer" autocomplete="off">
-        <input
-          id="sideInput"
-          type="text"
-          placeholder="name a new page"
-          autocapitalize="none"
-          autocorrect="off"
-        />
-        <button type="submit" class="send" aria-label="Add page">
-          <svg viewBox="0 0 24 24"><path d="M12 19V5M5 12l7-7 7 7" /></svg>
-        </button>
-      </form>
-    </aside>
-
     <header id="head">
       <div class="head-row">
         <!-- The notebook's contents, then the two places a line can live. The

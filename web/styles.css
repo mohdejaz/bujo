@@ -27,10 +27,6 @@
   --sans: ui-rounded, -apple-system, BlinkMacSystemFont, "SF Pro Rounded", "Segoe UI",
     Inter, system-ui, sans-serif;
   --tap: 44px;
-  /* The Index's column on a wide screen. Wide enough for a page name and its
-     count without the names clipping, narrow enough that the notebook beside
-     it is still the thing you are looking at. */
-  --side-w: 272px;
   --safe-b: env(safe-area-inset-bottom, 0px);
   --safe-t: env(safe-area-inset-top, 0px);
 }
@@ -940,13 +936,10 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   transition: background 0.18s, color 0.18s, transform 0.14s, opacity 0.18s;
 }
 .send svg { width: 19px; height: 19px; stroke-width: 2.4; }
-.composer.armed .send,
-.side-composer.armed .send { background: var(--accent); color: #fff; transform: scale(1.04); }
-:root[data-theme="dark"] .composer.armed .send,
-:root[data-theme="dark"] .side-composer.armed .send { color: #21140c; }
+.composer.armed .send { background: var(--accent); color: #fff; transform: scale(1.04); }
+:root[data-theme="dark"] .composer.armed .send { color: #21140c; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .composer.armed .send,
-  :root:not([data-theme="light"]) .side-composer.armed .send { color: #21140c; }
+  :root:not([data-theme="light"]) .composer.armed .send { color: #21140c; }
 }
 .send:active { transform: scale(0.88); }
 
@@ -1281,100 +1274,19 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
   border-radius: 999px;
 }
 
-/* ── desktop: the page takes the room it is given ───────────────────── */
-
-/* The notebook used to sit on the desk as a 560px card, the phone's shape with
-   the window behind it. It reads better as the page itself: a window opened
-   wider is someone asking for more page, and a card floating in the middle of
-   it answers by giving them more desk. So the page fills what it is given —
-   beside the Index's column where there is one, the whole window where there
-   is not — and what a phone spends 12px on at the edges it spends 20 here,
-   because the margin of a page is not a thing that scales with the thumb. The
-   rows still start where they always did; nothing is stretched, there is
-   simply more of it before the line runs out. */
+/* ── desktop: keep the phone shape, centred ─────────────────────────── */
 
 @media (min-width: 720px) {
+  /* html gets its own background so body's doesn't propagate to the canvas */
+  html { background: var(--hair-2); }
+  body {
+    max-width: 560px;
+    margin: 0 auto;
+    background: var(--paper);
+    box-shadow: 0 0 0 1px var(--hair), var(--lift-2);
+  }
   .row-face:hover { background: var(--hair-2); }
-  .list { padding: 0 20px; }
-  #head { padding-left: 20px; padding-right: 20px; }
-  .composer { padding-left: 20px; padding-right: 20px; }
-  /* A sheet is a question about one line, not a second page, so it keeps the
-     width it has always had and centres on the page rather than spreading to
-     meet it. */
-  .sheet-card { left: 0; right: 0; width: 560px; margin: 0 auto; }
 }
-
-/* ── wide: the Index stands beside the page ─────────────────────────── */
-
-/* Past this width there is room for the contents and the page at once, so the
-   Index stops being somewhere you go and becomes something you can see. The
-   column is pinned to the window and the notebook is centred in what is left,
-   which is why the things fixed to the viewport that belong to the *page* —
-   the sheet's card, the toast — are nudged by the same width: the page moved
-   and they go with it. The scrim is the exception and still covers the whole
-   window, because a sheet is modal: a lit column beside it would be a column
-   you could turn a page from while the sheet in front of you was still asking
-   about the last one.
-   `#tabIndex` goes because the Index is on screen; app.js takes it out of the
-   walk the arrow keys and the header swipe make, so the strip and the
-   gestures are saying the same thing. */
-
-#side {
-  display: none;
-  position: fixed;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  z-index: 40;
-  width: var(--side-w);
-  flex-direction: column;
-  padding: calc(var(--safe-t) + 14px) 0 0;
-  border-right: 1px solid var(--hair);
-  background: var(--bar);
-  backdrop-filter: saturate(1.6) blur(14px);
-  -webkit-backdrop-filter: saturate(1.6) blur(14px);
-}
-/* The column is a flex column, so the segment stretches to its width on its
-   own — `.s-seg-wide` would add a 100% on top of these margins and push its
-   last button past the edge. */
-.side-seg { margin: 0 12px 10px; }
-/* The list is the only part that scrolls: the segment names what is listed and
-   the field makes another one, so both have to stay reachable however long the
-   notebook's contents run. */
-.side-list {
-  flex: 1;
-  overflow-y: auto;
-  padding: 2px 10px 14px;
-}
-.side-composer {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px calc(8px + var(--safe-b));
-  border-top: 1px solid var(--hair);
-}
-#sideInput {
-  flex: 1;
-  min-width: 0;
-  height: 2.5rem;
-  font-size: max(16px, 0.96875rem);
-  padding: 0 2px;
-}
-#sideInput::placeholder { color: var(--dim); }
-#sideInput:focus { outline: none; }
-/* The column has a pointer on it by definition — nothing this wide is being
-   read with a thumb — so its rows answer to hover the way the page's do. */
-.side-list .pagelink-pick:hover { background: var(--hair-2); }
-.side-list .pagelink-edit:hover { background: var(--hair-2); color: var(--ink-2); }
-
-@media (min-width: 1000px) {
-  html { padding-left: var(--side-w); }
-  #side { display: flex; }
-  #tabIndex { display: none; }
-  .sheet-card { left: var(--side-w); }
-  .toast { left: calc(50% + var(--side-w) / 2); }
-}
-
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
