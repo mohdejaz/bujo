@@ -71,6 +71,16 @@ cannot lose, where a stray line falls back — and asking "not a page of questio
 page of notes through every one of them. That was a real bug, caught by a test. Nothing else filters anything, and **no filter ever rewrites an entry**.
 That is why a notebook can be archived without touching what it holds.
 
+`openPurge` is the one deliberate exception and not a filter at all: *Clear
+settled lines* on a notebook's sheet deletes every `!isLive` entry of one
+notebook (`settledIn`), archived pages included, because the only cost of a
+finished line is the file's size and this is the one way to get it back. It
+touches no page, group or notebook, so none of the invariants above are in
+play. It asks in a second sheet rather than a `confirm` because what the moment
+calls for is the export — a thing to do, not a thing to agree with — so
+`writeExport` (the download split out of `exportJson`, which also closes the
+sheet) sits one press above the delete.
+
 Two of the four pages are the exceptions that prove it. The **Index** holds no entries
 at all, listing `db.pages` for the current notebook so you can turn to one. It is also
 the only place a page is made, renamed or deleted — its composer names a new page
