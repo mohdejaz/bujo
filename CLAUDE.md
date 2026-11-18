@@ -92,28 +92,45 @@ is one; its mark survives only where the kinds mix, in the Index and in Search, 
 `.row + .row:not(:has(.bul))` is what pulls the divider inset back. A question carries
 no `notes`: any that arrive are folded into the answer by `adopt`. A note is the mirror,
 carrying `notes` and never an `answer`, folded the other way. `linkPages` then carries
-any line to the first page of its own kind in its notebook, falling back to a task on
-the default page when there is none.
+any line to the **default** live page of its own kind in its notebook — never an
+archived one, which is the page you cannot turn to — falling back to a task on
+the default page of work when there is none.
 
 A page is also archived from there — `archived` is the notebook's own filter one level
 down, gated by `canArchive` on there being no open task left (`openWorkOn`), which is
-why a page of notes or of q&a is always free to go. `livePages` is what every reader but the
+why a page of notes or of q&a is always free to go, its own default included. `livePages` is what every reader but the
 Index's own archive fold means by "the pages of this notebook". Groups are read there and nowhere else, and they are
 a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, so there
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
-is untouched, because the default page is unaffected by it. That default is the
-live page of work carrying `def`, falling back to the notebook's first live page of work
-when no page carries one — so an old journal reads back unchanged. It is never a page of questions,
-because the lines written down by absence are tasks and such a page cannot show
-one, and never an archived one, because you cannot turn to it; `withPages` guarantees
-every notebook has a live page of work, creating one past `PAGE_MAX` if it must,
-because the invariant outranks the ceiling. A page carrying `def` never keeps
-`archived` — dropping `def` instead would leave every page-less task pointing at a page
-nobody can turn to. `setDefaultPage` is
-the only thing that moves it, and it writes every page-less task in that notebook down on the
-page it was already on before it flips the flag: absence means the default, so moving
-the default without that would quietly empty one page into another.
+is untouched, because the default page is unaffected by it.
+
+**One default per kind.** `defPage(book, kind)` is the live page of that kind carrying
+`def`, falling back to the notebook's first live page of that kind — so an old journal
+reads back unchanged. Asked with no kind it is the default page **of work**, which is
+what the rest of the app means by "the default page" and the only thing a missing `page`
+resolves to; that one always exists, while the other two come back `undefined` when the
+notebook has no page of the kind, which is the answer their callers want. `landingPage`
+is the thin alias that asks it by *entry type* rather than page kind, via `kindFor` —
+the inverse of `typeOn`. `withPages` guarantees every notebook has a live page of work,
+creating one past `PAGE_MAX` if it must, because the invariant outranks the ceiling.
+
+Where `def` and `archived` collide the kinds part company, and the reason is which of
+them absence points at. A page of **work** carrying `def` never keeps `archived` —
+dropping `def` instead would leave every page-less task pointing at a page nobody can
+turn to. A page of **notes** or **q&a** is the other way round: the archive wins and the
+page stops being the default, because nothing resolves to it by absence and a new note
+landing out of sight is the worse outcome. That is also why `canArchive` blocks only the
+work default — gating all three would strand a notebook holding exactly one page of
+notes, default by having no rival and so unputtable-away for ever. `archivePage` deletes
+`def` itself as well as `withPages` doing it on load, so the answer does not depend on
+whether the journal has been reloaded since.
+
+`setDefaultPage` is the only thing that moves any of the three. For the work it writes
+every page-less task in that notebook down on the page it was already on before it flips
+the flag: absence means the default, so moving it without that would quietly empty one
+page into another. For the other two it moves nothing at all, because a note and a
+question always name their page — all that changes is where the next one lands.
 
 **Today** is the other, and the sharper one: it is the only page that filters by *when*
 rather than by where, so it reads straight past all three filters above — every
@@ -134,7 +151,9 @@ being rewritten, and tomorrow the date speaks again. Outside Search it is the on
 where a line actually lives.
 
 **"Absent means the default."** `book` is absent for the first notebook, `page` for its
-notebook's default page, `group` for a page under no group, `kind` for a page of work,
+notebook's default page **of work** — and only that one, so a note on its own default
+page still writes the page down: absence has exactly one meaning in the file, and the
+other phone's cached build already reads it that way — `group` for a page under no group, `kind` for a page of work,
 `archived` for a page you have not put away, `due`/`backlog` when they do not apply. This is the migration
 strategy, not an optimisation: a journal written before notebooks or pages existed gains
 a record and not one entry is rewritten. Writing an explicit default (`putPage` guards
@@ -146,9 +165,11 @@ drift. `withBooks`/`withPages` guarantee what every reader assumes: at least one
 notebook, at least one page *of work* per notebook, and `db.book`/`db.page` naming real
 ones. `linkPages` is where a line and its page are reconciled: a task naming a page of
 notes loses the field and falls back to the default, and a note naming anything else is
-carried to its notebook's first page of questions — or becomes a task when the notebook has
-none, which is also how a free-standing note from the v1 journal still lands. Nothing
-is ever left somewhere it cannot be read.
+carried to its notebook's default live page of notes — or becomes a task when the
+notebook has none, which is also how a free-standing note from the v1 journal still
+lands. It reads `def` straight off the raw array rather than calling `defPage`, because
+it runs before there is a `db` to ask, and it runs after `withPages`, so there is at most
+one claim per kind to honour. Nothing is ever left somewhere it cannot be read.
 `adopt()` spreads `...raw` first, so **unknown keys survive** — a file from a newer build
 round-trips through an older one without losing fields.
 

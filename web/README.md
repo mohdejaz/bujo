@@ -121,8 +121,8 @@ find the right page to write one down is the thing marking a line for the day
 exists to spare you. The task is the default, and it arrives already marked for
 today, on the notebook's **default page** — Today belongs to no page, and
 whichever one the Journal was last showing is where you happened to be, not an
-answer to where the line goes. A note goes to the notebook's first page of
-notes and a question to its first page of q&a, and because neither can be shown
+answer to where the line goes. A note goes to the notebook's **default page of
+notes** and a question to its **default page of q&a**, and because neither can be shown
 on Today — neither is owed on a day, so neither carries the mark — the page it
 landed on is named as you write it. A notebook with nowhere to put a note has
 no *note* to press, the same way it is left out of *Move to notebook*; with
@@ -391,9 +391,14 @@ always go — an unanswered question is not an unfinished job, and waiting for
 every line to be struck would be waiting for the page to have nothing left to
 say rather than nothing left to do.
 
-The **default page** can never be archived, for the reason it can never be
-deleted while it is the last of the work: a line that names no page lives
-there, so it has to stay somewhere you can read it. An archived page is also
+The **default page of work** can never be archived, for the reason it can never
+be deleted while it is the last of the work: a line that names no page lives
+there, so it has to stay somewhere you can read it. The default notes and q&a
+pages are free to go like any other page of their kind — nothing resolves to
+them by absence, so putting one away simply hands the role to the next page of
+that kind, and the alternative would strand a notebook holding exactly one page
+of notes, which is the default by having no rival and could then never be put
+away at all. An archived page is also
 the one page you cannot turn to, and its lines drop out of **Today** and out of
 the move-a-line rows — putting a page away means putting it away.
 
@@ -403,20 +408,31 @@ more than one kind would have to start asking. A page says which it is when you 
 still change its mind **while it is empty**: the two are read by different
 lists and written in different lines, so turning a page that already holds
 something into the other kind would not move anything, it would simply stop
-showing it. Past that, the way to the other kind is a new page. The default
-page is always a page of work, for the reason below.
+showing it. Past that, the way to the other kind is a new page. Each kind has
+a default page of its own, for the reason below.
 
 **Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
 a paper one. The **Index** is where they live: turn to one, rename or delete it
-with the pencil, name a new one in the field at the foot. Every notebook has a
-**default page**: it is where a line with no page of its own lives, which is
-how a journal written before pages existed needed no migration, where a task
-written on Today lands, and where the notebook opens. The first page holds the
-role until you move it — *Make … the default* on any page's sheet. Moving it
-does not move a single line: every line that had no page of its own is written
-down on the page it was already on first, so what changes is which page the
-silence means, not where anything sits. Any page can be deleted, the default
-one included — the first page of work left takes the role, and the lines go
+with the pencil, name a new one in the field at the foot.
+
+**The default page, one per kind.** Every notebook has a **default page of
+work**, and a **default page of notes** and **of q&a** once it has pages of
+those kinds. Each is where a line of that kind lands when nothing else says
+where to put it: a task written on Today, a note or a question written there,
+a line moved in from another notebook, and — for the work — where the notebook
+opens and where a line that names no page at all lives. The first page of a
+kind holds the role until you move it: *Make … the default* on any page's
+sheet, where the heading says which kind you are setting. The three do not
+compete; a notebook carries all three at once.
+
+Moving the default page of work does not move a single line: every line that
+had no page of its own is written down on the page it was already on first, so
+what changes is which page the silence means, not where anything sits. Moving
+the notes or q&a default moves nothing by construction, because a note and a
+question always name their page — all that changes is where the next one
+lands, which is the whole of what the default is for there. Any page can be
+deleted, a default included — the first page of the same kind left takes the
+role, and the lines go
 with the page the way they do with a notebook. The one page a notebook cannot
 be without is its last page of work: a line that names no page lives there, and
 that line is always a task, so there has to be somewhere it can be read. A page
@@ -433,8 +449,8 @@ having to check five pages to find out what is on today would be a worse
 notebook, not a tidier one. Today goes one further and reads every page of
 every notebook. None of those three names a page on its stamp, for the same
 reason: it would say something untrue about what is below it. Today names one
-on each row instead, where it is true. Move a task between pages from its entry sheet; moving it to another
-notebook lands it on that notebook's default page.
+on each row instead, where it is true. Move a task between pages from its entry sheet; moving a line to another
+notebook lands it on that notebook's default page of the same kind.
 
 **Duplicate** on a task's sheet writes the same line again on the same page
 of the same notebook — its words, notes, star and deadline come with it — and
@@ -546,23 +562,32 @@ nowhere in the file: they are read off the lines, so there is no day to go
 stale when the last line settled on one is reopened or deleted. `book` is absent for the first
 notebook, which is how a journal written before notebooks existed needed no
 migration; `page` is the same trick one level down — it appears on tasks and
-questions, never on events, and is absent for its notebook's default page,
-whichever page that currently is — a page says it is the default by carrying
-`def`, and absent on all of them means the first live page of work, so a
-journal written before the default could be moved reads back unchanged. A note
-is always written down explicitly, because the default page is a page of work
-and a question is never on one.
+questions, never on events, and is absent for its notebook's **default page of
+work**, whichever page that currently is — a page says it is the default by
+carrying `def`, and absent on all of them means the first live page of its
+kind, so a journal written before the default could be moved reads back
+unchanged. A note and a question are always written down explicitly, even on
+their own default page: absence has one meaning in the file and it is the page
+of work, so a build that has not updated yet still reads every file the same
+way. The three defaults are alike in where a new line lands and unalike in what
+reaches the disk, which is the right place for them to differ.
 
 `kind` is the field that says which a page is: absent on a page of work, which
 is what a page has always been and so what it still means to say nothing, and
 `"notes"` on a page of notes and `"qa"` on a page of q&a.
 `archived` is the notebook's own flag one level
 down and the same kind of filter: absent on a page you are working with, `true`
-on one you have put away — never on the default page, and not counted against
-the sixteen. Only a live page of work can carry `def`, and every notebook is
-guaranteed one: a notebook whose pages are all notes, or all archived, gains a
-page of work on the next load, because absence has to go on meaning exactly one
-page and that page has to be one a task can be read on. `group` is the trick one level
+on one you have put away — never on the default page of work, and not counted
+against the sixteen. A page of any kind can carry `def`, one to a kind to a
+notebook, and a file claiming two of a kind has the first honoured and the rest
+dropped. Where the two flags collide the work and the other two part company:
+on a page of work `def` wins and the archive is dropped, because page-less
+tasks must stay readable; on a page of notes or q&a the archive wins and the
+page stops being the default, because nothing resolves to it by absence and a
+new note landing somewhere you cannot turn to would be far worse. Every
+notebook is guaranteed a live page of work: one whose pages are all notes, or
+all archived, gains one on the next load, because absence has to go on meaning
+exactly one page and that page has to be one a task can be read on. `group` is the trick one level
 down again: a page carries the name of the group it is under, and absent means
 it is under none, so there is no list of groups anywhere in the file — and a field the app does not recognise is kept as it was, so an
 export from a newer version survives a trip through an older one.
