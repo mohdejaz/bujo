@@ -268,6 +268,10 @@ const isWorkPage = (pg) => !!pg && !pg.kind;
 /* The kind of line a page is written in: the one thing its composer writes,
    its render reads and its count counts. */
 const typeOn = (pg) => (isNotesPage(pg) ? "note" : isQuestionPage(pg) ? "question" : "task");
+/* And what that kind is called out loud, for the one place a page has to name
+   its own kind: there are three defaults now, so "the default page" no longer
+   says which. */
+const kindWord = (pg) => (isNotesPage(pg) ? "notes" : isQuestionPage(pg) ? "q&a" : "work");
 
 const newBook = (name) => ({ id: uid(), name });
 const newPage = (book, name, kind) => {
@@ -356,20 +360,27 @@ function withPages(raw) {
        migration — the same trick as `book` and `page` one level down again. */
     const group = cleanPage(p.group);
     if (group) pg.group = group;
-    /* One default to a notebook. A file claiming two has the first of them
-       honoured and the rest dropped, rather than leaving `defPage` to pick
-       by an order that is not the question being asked.
-       A page of questions cannot carry it at all: the lines written down by
-       absence are tasks, and a page of questions could not show one, so a file
-       claiming it loses the flag rather than leaving every page-less task in
-       the notebook pointing somewhere it cannot be read. */
-    if (p.def === true && !pg.kind && !kept.some((k) => k.book === p.book && k.def)) pg.def = true;
-    /* Put away — but never the default page, which is where a line that names
-       no page lives and so has to stay readable. A file claiming both loses
-       the archive rather than the flag: dropping `def` instead would leave
-       every page-less task in the notebook pointing at a page nobody can turn
-       to. This is also why `defPage` can trust what it finds. */
-    if (p.archived === true && !pg.def) pg.archived = true;
+    /* One default to a notebook *per kind*: a page of work where a task
+       lands, a page of notes where a note does, a page of q&a where a question
+       does. A file claiming two of a kind has the first honoured and the rest
+       dropped, rather than leaving `defPage` to pick by an order that is not
+       the question being asked. The kinds do not compete, so a notebook can
+       carry three of these and they say three different things. */
+    const wantsDef =
+      p.def === true &&
+      !kept.some((k) => k.book === p.book && (k.kind || null) === (pg.kind || null) && k.def);
+    /* Put away — but never the default page of *work*, which is where a line
+       that names no page lives and so has to stay readable. A file claiming
+       both loses the archive rather than the flag: dropping `def` instead
+       would leave every page-less task in the notebook pointing at a page
+       nobody can turn to. This is why `defPage(book)` can trust what it finds.
+       The other two kinds are the other way round, because nothing resolves to
+       them by absence — a note always names its page. There the archive wins
+       and the page simply stops being the default, which costs nothing: the
+       role falls to the notebook's next live page of that kind, and a new note
+       landing on a page you cannot turn to would be the worse outcome by far. */
+    if (p.archived === true && !(wantsDef && !pg.kind)) pg.archived = true;
+    if (wantsDef && !pg.archived) pg.def = true;
     kept.push(pg);
   });
   /* A page of work for any notebook without one — the notebook of a journal
@@ -408,25 +419,27 @@ const pagesIn = (book) => db.pages.filter((p) => p.book === book);
 /* The ones that are not put away: what every reader but the Index's own
    archive fold means by "the pages of this notebook". */
 const livePages = (book) => pagesIn(book).filter((p) => !p.archived);
-/* Its default: where a line that names no page lives. Only a page of work can
-   be it, because a task is the only line ever written down that way and a
-   page of questions could not show one — so the role is the page of work that
-   says it is, else the notebook's first. `def` is absent on every page of a
-   notebook nobody has chosen for, which is how a journal written before the
-   default could be moved reads back exactly as it did — the same trick as
-   `book`, `page`, `group` and `kind`, one level along. withPages guarantees
-   there is a page of work to find. */
-const defPage = (book) => {
-  const work = livePages(book).filter(isWorkPage);
-  return work.find((p) => p.def) || work[0];
+/* The default page of one kind: where a line of that kind lands when nothing
+   else has been said about where it goes — the page of that kind that says it
+   is, else the notebook's first. `def` is absent on every page of a notebook
+   nobody has chosen for, which is how a journal written before the default
+   could be moved reads back exactly as it did — the same trick as `book`,
+   `page`, `group` and `kind`, one level along.
+   Asked with no kind it is the default page of *work*, which is the one the
+   rest of the app means by "the default page" and the one thing a missing
+   `page` resolves to. That one always exists, because withPages guarantees a
+   live page of work; the other two can come back undefined, and that is the
+   answer their callers want — a notebook with nowhere to put a note is better
+   off not offering the kind than refusing it once the words are typed. */
+const defPage = (book, kind = null) => {
+  const of = livePages(book).filter((p) => (p.kind || null) === kind);
+  return of.find((p) => p.def) || of[0];
 };
-/* Where a line of a given kind lands in a notebook. A task lands on the
-   default page, which every notebook has; a note or a question needs a page
-   of its own kind, which not every notebook does — and `undefined` there is
-   the answer the callers want, because the honest move is to not offer the
-   kind at all rather than to refuse it once the words are typed. */
-const landingPage = (book, type) =>
-  type === "task" ? defPage(book) : livePages(book).find((pg) => typeOn(pg) === type);
+/* Pages are sorted by kind and lines by type, and the two are the same three
+   things under different names. `typeOn` reads a page's kind as a type; this
+   reads a type as a kind, which is what you need to ask where a line lands. */
+const kindFor = (type) => (type === "note" ? "notes" : type === "question" ? "qa" : null);
+const landingPage = (book, type) => defPage(book, kindFor(type));
 /* The groups of one notebook, in the order their first page appears. This is
    the whole existence of a group: write the name on a page and the group is
    there, take it off the last page carrying it and the group is gone. There is
@@ -458,11 +471,16 @@ const onArchivedPage = (e) => {
   const p = db.pages.find((x) => x.id === e.page);
   return !!p && !!p.archived;
 };
-/* Where a line goes when it lands on a page: absent for the default one, so
-   the stored shape stays the same whether or not anyone made a second page.
-   A note always comes out explicit, because the default is a page of work and
-   a question is never on one — which is right: one left to absence
-   would resolve to a page that cannot show it. */
+/* Where a line goes when it lands on a page: absent for the default page of
+   work, so the stored shape stays the same whether or not anyone made a second
+   page. Deliberately only that one, now that notes and q&a have defaults of
+   their own — a note on its default page still writes the page down. Absence
+   has exactly one meaning in the file and it is the one every older build and
+   every older journal already reads it with; teaching it a second, kind-
+   dependent one would have the other phone's cached build re-home every note
+   it found with no page. So the three defaults are alike in where a new line
+   lands and unalike in what is written to disk, and that is the right place
+   for them to differ. */
 const putPage = (e, pid) => {
   if (pid === defPage(bookOf(e)).id) delete e.page;
   else e.page = pid;
@@ -810,12 +828,21 @@ function adopt(raw, i, books) {
    read, which is the whole of what this pass is for. */
 function linkPages(entries, pages, first) {
   const home = new Map(pages.map((p) => [p.id, p]));
-  /* The first page of each kind in each notebook: where a line of that kind
-     goes when the page it named cannot have it. */
+  /* The default page of each kind in each notebook: where a line of that kind
+     goes when the page it named cannot have it. The page that says it is the
+     default wins, else the first of its kind — the same rule `defPage` reads
+     at the keyboard, spelled out here because this runs on a raw file before
+     there is a `db` to ask. withPages has already been through, so there is at
+     most one claim per kind to honour.
+     An archived page is no refuge: it is the one page you cannot turn to, and
+     a line swept onto one would be a line put somewhere it cannot be read,
+     which is the single thing this pass exists to prevent. A notebook whose
+     pages of a kind are all put away has none, and the fallback below applies. */
   const refuge = new Map();
   pages.forEach((p) => {
+    if (p.archived) return;
     const key = p.book + "/" + typeOn(p);
-    if (!refuge.has(key)) refuge.set(key, p.id);
+    if (!refuge.has(key) || p.def) refuge.set(key, p.id);
   });
   entries.forEach((e) => {
     if (e.type === "event") {
@@ -876,7 +903,22 @@ const vault = {
   wiv: null,
   ready: false, // false until the page is allowed to draw the journal
 };
-const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
+/* `btoa` wants a binary string, and the obvious way to build one —
+   `String.fromCharCode(...bytes)` — hands over every byte as its own argument.
+   The sealed journal is one argument per byte, so past about a hundred
+   thousand of them the call overflows the stack and throws. That is not a
+   hypothetical size: it is a journal of a thousand-odd lines, which is a year
+   of two people using this, and a phone gives out sooner than a desktop
+   because it has less stack to spend. A chunk at a time instead — the call
+   never sees more than 8192 arguments however long the journal gets, and the
+   string is built by the one thing that does grow without bound for free. */
+const B64_CHUNK = 0x2000;
+const b64 = (u) => {
+  const a = new Uint8Array(u);
+  let s = "";
+  for (let i = 0; i < a.length; i += B64_CHUNK) s += String.fromCharCode(...a.subarray(i, i + B64_CHUNK));
+  return btoa(s);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const utf8 = new TextEncoder();
 function readEnvelope() {
@@ -978,6 +1020,18 @@ async function seal() {
         JSON.stringify({ enc: 1, salt: b64(vault.salt), wiv: b64(vault.wiv), wk: vault.wrapped, iv: b64(iv), ct: b64(ct) }),
       );
     } while (sealAgain);
+  } catch (err) {
+    /* The one failure in this app that costs you something trying again will
+       not get back: `save()` does not await this, so a throw here is an
+       unhandled rejection and the journal simply stops being written while it
+       goes on looking saved — the loss only shows up on the next reload, by
+       which time the lines are gone. So it says so, and says what to do:
+       Export writes the journal that is still in memory, which is the whole
+       of it, and importing that file back puts everything right.
+       It stays thrown as well as announced, so nothing downstream mistakes a
+       failed seal for a finished one. */
+    toast("Couldn't save — export now, before reloading", false, 9000);
+    throw err;
   } finally {
     sealing = false;
   }
@@ -3315,14 +3369,18 @@ const openWorkOn = (id) =>
   db.entries.filter((e) => e.type === "task" && isLive(e) && pageOf(e) === id).length;
 
 /* And whether it can go at all — the whole rule, in the one place that
-   decides. Never the default page: a line that names no page lives there, so
-   it has to stay somewhere you can read it, which is the same reason the
-   default page cannot be deleted while it is the last of the work. And never
-   while work on it is still open, because a page you put away is one you have
-   finished with, and the archive would otherwise be the second pile for the
-   lines you are not getting to — which this journal does not have. The sheet
-   asks this before it acts and `openWorkOn` again for the words, but the gate
-   is here: a caller that forgets to ask still cannot get past it. */
+   decides. Never the default page *of work*: a line that names no page lives
+   there, so it has to stay somewhere you can read it, which is the same reason
+   that page cannot be deleted while it is the last of the work. The default
+   notes and q&a pages are free to go like any other of their kind, because
+   nothing resolves to them by absence — and the alternative would strand a
+   notebook holding exactly one page of notes, which is the default by having
+   no rival and could then never be put away at all. And never while work on
+   the page is still open, because a page you put away is one you have finished
+   with, and the archive would otherwise be the second pile for the lines you
+   are not getting to — which this journal does not have. The sheet asks this
+   before it acts and `openWorkOn` again for the words, but the gate is here: a
+   caller that forgets to ask still cannot get past it. */
 const canArchive = (pg) => !!pg && !pg.archived && defPage(pg.book).id !== pg.id && !openWorkOn(pg.id);
 
 /* Put a page away, and take it back out. The lines on it do not move and are
@@ -3337,6 +3395,13 @@ function archivePage(id) {
   buzz(6);
   mutate(`Archived ${pg.name}`, () => {
     pg.archived = true;
+    /* A default that has been put away is no default — the role falls to the
+       next live page of its kind. Dropped here as well as in withPages so the
+       answer does not depend on whether the journal has been reloaded since:
+       otherwise restoring the page would hand the role back on one phone and
+       not on the other. Only the notes and the q&a ever reach this; the
+       default page of work cannot be archived at all. */
+    delete pg.def;
     if (db.page === pg.id) db.page = defPage(pg.book).id;
   });
 }
@@ -3363,14 +3428,23 @@ function restorePage(id) {
    choosing a default quietly empties one page into another. */
 function setDefaultPage(id) {
   const pg = db.pages.find((x) => x.id === id);
-  /* Never a page of questions: absence means the default page, and the lines
-     written down by absence are tasks, which such a page cannot show. */
-  if (!pg || !isWorkPage(pg) || defPage(pg.book).id === id) return;
+  /* Never an archived page: the default is where a new line lands, and a line
+     landing somewhere you cannot turn to is a line written out of sight. */
+  const kind = pg && (pg.kind || null);
+  if (!pg || pg.archived || defPage(pg.book, kind).id === id) return;
   buzz(6);
-  mutate(`${pg.name} is the default page`, () => {
-    const here = db.entries.filter((e) => e.type === "task" && bookOf(e) === pg.book);
+  mutate(`${pg.name} is the default page of ${kindWord(pg)}`, () => {
+    /* Only a page of work has lines written down by absence, so only there is
+       there anything to pin first. A note and a question always name their
+       page, so moving their default moves nothing at all — it only changes
+       where the next one lands, which is the whole of what was asked for. */
+    const here = isWorkPage(pg)
+      ? db.entries.filter((e) => e.type === "task" && bookOf(e) === pg.book)
+      : [];
     const was = new Map(here.map((e) => [e.id, pageOf(e)]));
-    pagesIn(pg.book).forEach((p) => delete p.def);
+    /* Only the pages of this kind give the role up: the three defaults are
+       three separate statements and a notebook holds all three at once. */
+    pagesIn(pg.book).forEach((x) => (x.kind || null) === kind && delete x.def);
     pg.def = true;
     here.forEach((e) => putPage(e, was.get(e.id)));
   });
@@ -3451,7 +3525,11 @@ function addPage(bookId, name, kind) {
 function openPage(id) {
   const pg = db.pages.find((x) => x.id === id);
   if (!pg) return;
-  const first = defPage(pg.book).id === pg.id;
+  /* The default *of this page's kind* — there are three to a notebook now, one
+     per kind, and a page is only ever in the running for its own. An archived
+     page is in none of them, and may well be the last of its kind, so this has
+     to survive there being no live page to find at all. */
+  const first = defPage(pg.book, pg.kind || null)?.id === pg.id;
   const n = pageCount(pg.id);
   /* A page of questions can always go. A page of work can go while the notebook
      has another, for the reason the last page of all cannot: absence has to
@@ -3541,11 +3619,15 @@ function openPage(id) {
       })
     );
 
-    /* The default page: where a line written on Today lands, and where a
-       notebook opens. Offered on every page but the one that already is it,
-       which says so in the subtitle above instead. */
-    if (!first && isWorkPage(pg)) {
-      acts.append(el("div", "sep", "Default page"));
+    /* The default page of this kind: where a line of it lands when nothing
+       else says where to put it, and — for the work — where the notebook
+       opens. Offered on every page but the one that already is it, which says
+       so in the subtitle above instead, and never on an archived one, which is
+       the page you cannot turn to. The heading carries the kind, because with
+       three of these "Default page" no longer says which; the row stays short
+       enough for a thumb. */
+    if (!first && !pg.archived) {
+      acts.append(el("div", "sep", `Default page of ${kindWord(pg)}`));
       acts.append(
         actRow(ICON.page, `Make ${pg.name} the default`, () => {
           setDefaultPage(pg.id);
@@ -3558,8 +3640,10 @@ function openPage(id) {
        the lines stay, and the page comes back whole. The row is offered even
        when the page cannot go yet, and says what is in the way when you press
        it — hiding it would have left you to work out the rule for yourself,
-       and the rule is the point. The default page is offered nothing, for the
-       reason it is offered no delete: a line that names no page lives there. */
+       and the rule is the point. The default page of work is offered nothing,
+       for the reason it is offered no delete: a line that names no page lives
+       there. The other two defaults are offered it like any page of their
+       kind, and give the role up as they go. */
     if (pg.archived) {
       acts.append(el("div", "sep", "Archived"));
       acts.append(
@@ -3568,7 +3652,7 @@ function openPage(id) {
           closeSheet();
         })
       );
-    } else if (!first) {
+    } else if (!(first && isWorkPage(pg))) {
       acts.append(
         actRow(ICON.archive, "Archive page", () => {
           const left = openWorkOn(pg.id);
@@ -3593,15 +3677,18 @@ function openPage(id) {
           ICON.trash,
           "Delete page",
           () => {
-            /* The role goes to the first page of work left, which is what
-               defPage will pick once this one is gone. */
+            /* The role goes to the first page of the same kind left, which
+               is what defPage will pick once this one is gone — and to nothing
+               at all when this was the last of its kind, which only the notes
+               and the q&a can be, so there is then no sentence to print. */
             const next = first
-              ? livePages(pg.book).find((x) => x.id !== pg.id && isWorkPage(x)).name
+              ? livePages(pg.book).find((x) => x.id !== pg.id && (x.kind || null) === (pg.kind || null))
+                  ?.name
               : null;
             if (
               !confirm(
                 `Delete ${pg.name} and its ${n} ${n === 1 ? "line" : "lines"}?` +
-                  (next ? `\n\n${next} becomes the default page.` : "")
+                  (next ? `\n\n${next} becomes the default page of ${kindWord(pg)}.` : "")
               )
             )
               return;
