@@ -876,7 +876,22 @@ const vault = {
   wiv: null,
   ready: false, // false until the page is allowed to draw the journal
 };
-const b64 = (u) => btoa(String.fromCharCode(...new Uint8Array(u)));
+/* `btoa` wants a binary string, and the obvious way to build one —
+   `String.fromCharCode(...bytes)` — hands over every byte as its own argument.
+   The sealed journal is one argument per byte, so past about a hundred
+   thousand of them the call overflows the stack and throws. That is not a
+   hypothetical size: it is a journal of a thousand-odd lines, which is a year
+   of two people using this, and a phone gives out sooner than a desktop
+   because it has less stack to spend. A chunk at a time instead — the call
+   never sees more than 8192 arguments however long the journal gets, and the
+   string is built by the one thing that does grow without bound for free. */
+const B64_CHUNK = 0x2000;
+const b64 = (u) => {
+  const a = new Uint8Array(u);
+  let s = "";
+  for (let i = 0; i < a.length; i += B64_CHUNK) s += String.fromCharCode(...a.subarray(i, i + B64_CHUNK));
+  return btoa(s);
+};
 const unb64 = (s) => Uint8Array.from(atob(s), (c) => c.charCodeAt(0));
 const utf8 = new TextEncoder();
 function readEnvelope() {
@@ -978,6 +993,18 @@ async function seal() {
         JSON.stringify({ enc: 1, salt: b64(vault.salt), wiv: b64(vault.wiv), wk: vault.wrapped, iv: b64(iv), ct: b64(ct) }),
       );
     } while (sealAgain);
+  } catch (err) {
+    /* The one failure in this app that costs you something trying again will
+       not get back: `save()` does not await this, so a throw here is an
+       unhandled rejection and the journal simply stops being written while it
+       goes on looking saved — the loss only shows up on the next reload, by
+       which time the lines are gone. So it says so, and says what to do:
+       Export writes the journal that is still in memory, which is the whole
+       of it, and importing that file back puts everything right.
+       It stays thrown as well as announced, so nothing downstream mistakes a
+       failed seal for a finished one. */
+    toast("Couldn't save — export now, before reloading", false, 9000);
+    throw err;
   } finally {
     sealing = false;
   }

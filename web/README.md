@@ -656,6 +656,13 @@ gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
 Over plain-http LAN the browser has no WebCrypto, so there the journal stays
 unencrypted (and an already-encrypted one cannot be opened).
 
+A save that fails says so, in a toast that asks you to **export before
+reloading**. Sealing happens after the change is on screen and nothing waits
+on it, so without that the journal would go on looking saved while nothing
+reached the disk, and the loss would only appear on the next load — by which
+time the lines would be gone. Export reads the journal in memory, which is
+still whole, so exporting and importing that file back is the way out.
+
 **Letting the Keychain type it.** The lock screen is an ordinary password
 form — `current-password` on the field, and an out-of-sight account name,
 because iOS will not fill a password it has nowhere to file. Save the
