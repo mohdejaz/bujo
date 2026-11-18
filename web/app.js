@@ -3290,6 +3290,22 @@ function openBook(id) {
       );
     }
 
+    /* Between putting the notebook away and deleting it: the thing you
+       actually want when a journal has simply got long. The count rides on the
+       row so the size of it is known before the row is pressed, and a notebook
+       with nothing settled still shows the row and says so when you press it —
+       hiding it would leave you working out the rule for yourself. */
+    const settled = settledIn(bk.id).length;
+    acts.append(el("div", "sep", "Settled lines"));
+    acts.append(
+      actRow(
+        ICON.strike,
+        "Clear settled lines",
+        () => (settled ? openPurge(bk.id) : toast(`Nothing settled in ${bk.name}`)),
+        { k: String(settled) }
+      )
+    );
+
     if (!isLast) {
       acts.append(
         actRow(
@@ -3334,11 +3350,90 @@ function openBook(id) {
   });
 }
 
+/* Clearing one notebook out, and the only thing in this app that throws lines
+   away in bulk — so the only thing that asks twice. The first press swaps the
+   notebook's sheet for this one rather than raising a `confirm`, because a
+   confirm can only be agreed with, and what this moment actually calls for is
+   the export: a thing to *do*, not a thing to say yes to. So the backup stands
+   in the sheet directly above the delete, one press, with the sheet still open
+   underneath it.
+   A journal kept for a year is mostly things that are over, and the only cost
+   of keeping them is its size — this is the one way to get that size back.
+   What goes is settled and nothing else: every open line stays, the overdue
+   included, and no page, group or notebook is touched, so none of the
+   invariants below are in play. */
+function openPurge(id) {
+  const bk = db.books.find((x) => x.id === id);
+  if (!bk) return;
+  const gone = settledIn(bk.id);
+  const all = db.entries.filter((e) => bookOf(e) === bk.id).length;
+  /* The name typed into the sheet this one is replacing, saved on the way
+     past — the same reason closeSheet commits before it closes. */
+  commitSheet();
+  openSheet((b) => {
+    b.append(el("div", "s-title", "Clear settled lines"));
+    b.append(
+      el(
+        "div",
+        "s-sub",
+        `${gone.length} of ${all} ${all === 1 ? "line" : "lines"} in ${bk.name} ` +
+          `${gone.length === 1 ? "is" : "are"} done or struck out`
+      )
+    );
+    b.append(
+      el(
+        "div",
+        "s-sub s-shelf-note",
+        "They go from every page of this notebook, the pages you have put away included. " +
+          "Everything still open stays, overdue lines and all, and no page or group is touched. " +
+          "Undo holds one step and a reload is past it — so take the file first."
+      )
+    );
+    const acts = el("div", "s-acts");
+    acts.append(
+      actRow(ICON.down, "Export journal first", () => {
+        writeExport();
+        /* Said out loud because the next row is the irreversible one, and
+           "has the backup actually happened" is the question standing between
+           them. */
+        note("Exported");
+      })
+    );
+    acts.append(
+      actRow(
+        ICON.trash,
+        `Clear ${gone.length} ${gone.length === 1 ? "line" : "lines"}`,
+        () => {
+          /* Taken by id off the list read when the sheet was built, so what
+             goes is exactly what the sheet counted — not whatever happens to
+             be settled by the time the row is pressed. */
+          const ids = new Set(gone.map((e) => e.id));
+          mutate(`Cleared ${gone.length} from ${bk.name}`, () => {
+            db.entries = db.entries.filter((e) => !ids.has(e.id));
+          });
+          closeSheet();
+        },
+        { danger: true }
+      )
+    );
+    // the way back, for a sheet whose other two rows both do something
+    acts.append(actRow(ICON.undo, "Keep them", () => openBook(bk.id)));
+    b.append(acts);
+  });
+}
+
 /* ── pages ─────────────────────────────────────────────────────────── */
 
 /* How many lines are on one page, of the one kind it is written in. Only the
    lines that live on a page are counted — an event is counted by the notebook
    that holds it, having no page to be on. */
+/* What a notebook is finished with: every line ticked off or struck out,
+   wherever in it they sit. The pages put away are counted too — one in the
+   archive is still a page of this notebook, and its settled lines are exactly
+   the weight the clearing below is for. Events count the same as tasks: a day
+   that has been and gone is as over as a job that has been done. */
+const settledIn = (book) => db.entries.filter((e) => bookOf(e) === book && !isLive(e));
+
 const linesOn = (id, f) => {
   const pg = db.pages.find((p) => p.id === id);
   if (!pg) return 0;
@@ -3885,13 +3980,20 @@ function openMigrated(fromMenu = false) {
 
 /* ── export / import ───────────────────────────────────────────────── */
 
-function exportJson() {
+/* The file itself, with none of the sheet behaviour attached. Split out for
+   the backup row inside the purge sheet, which wants the download without
+   losing the sheet it was offered from — the whole point of it there is the
+   step you take immediately afterwards. */
+function writeExport() {
   const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
   const a = el("a");
   a.href = URL.createObjectURL(blob);
   a.download = `bujo-${TODAY()}.json`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
+function exportJson() {
+  writeExport();
   closeSheet();
 }
 

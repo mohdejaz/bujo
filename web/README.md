@@ -372,6 +372,24 @@ archiving one keeps every line it holds and only takes it out of the picker. Up
 to six open at once; archived ones don't count. Move a single line between them
 from its entry sheet.
 
+**Clearing a notebook out.** A journal kept for a year is mostly things that
+are over, and the only cost of keeping them is its size. *Clear settled lines*
+on a notebook's sheet is the one way to get that size back: it deletes every
+line in that notebook you have ticked off or struck out, on every page of it,
+the pages you have put away included. The row carries the count, so you know
+how much before you press it.
+
+Everything still open stays — overdue lines and all — and no page, group or
+notebook is touched. It is per notebook on purpose: the others are not yours to
+clear by accident.
+
+Because it is the only thing in the app that throws lines away in bulk, it is
+the only one that asks twice. The second sheet counts what will go and puts
+**Export journal first** directly above the delete, one press, with the sheet
+still open underneath — a backup is a thing to *do*, which is why this is a
+sheet and not a yes/no box. *Undo* holds one step and a reload is past it, so
+the exported file is the only way back afterwards.
+
 **Archiving a page.** A page whose work is finished can step aside: *Archive
 page* on its sheet puts it away, and it leaves the Index for the fold at the
 foot. Nothing moves and nothing is deleted — every line it holds stays exactly
