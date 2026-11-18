@@ -105,15 +105,31 @@ it. So a question never carries the `≡` either.
 
 ## Using it
 
-**Writing.** Type at the bottom and press return. There is nothing to pick:
+**Writing.** Type at the bottom and press return. Almost nothing to pick:
 a page of work writes a task, a page of notes writes a note, a page of q&a
-writes a question, the Calendar
+writes a question, and the Calendar
 writes an event and asks for the day it falls on, because an event without one
-is not an event, and Today writes a task already marked for today — onto the notebook's **default page**, since Today
-belongs to no page and whichever one the Journal was last showing is where you
-happened to be, not an answer to where the line goes. The Calendar reads back
+is not an event. The Calendar reads back
 from the furthest day towards the oldest; several events on one day sit
 newest-written first.
+
+**Writing on Today.** Today is the exception, because it is the one page that
+is on no page — so there is nothing there to say what the field writes, and it
+asks: **task**, **note** or **question**, in a row above the field. A day takes
+a thought or a question as readily as a job, and having to leave the day and
+find the right page to write one down is the thing marking a line for the day
+exists to spare you. The task is the default, and it arrives already marked for
+today, on the notebook's **default page** — Today belongs to no page, and
+whichever one the Journal was last showing is where you happened to be, not an
+answer to where the line goes. A note goes to the notebook's first page of
+notes and a question to its first page of q&a, and because neither can be shown
+on Today — neither is owed on a day, so neither carries the mark — the page it
+landed on is named as you write it. A notebook with nowhere to put a note has
+no *note* to press, the same way it is left out of *Move to notebook*; with
+nowhere to put either, the row does not appear at all. Whichever kind you pick
+stays picked for the session. And which notebook it all goes to is the one
+named in the header — on this page that button means not what you are reading
+but where a line you write now will go.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else — on a question with no
@@ -245,7 +261,8 @@ land on it: an **event dated today**, a **task due today**, an **overdue
 task** — one whose day has passed and is still open — and a **task you marked
 for today** by hand, from its sheet. The events lead, under the date stamp
 that names the day they fall on; then *Today*, with the overdue at its head
-and their dates in orange, then a folded *Done* — what the day came to.
+and their dates in orange, then a folded *Done* — what the day came to. You
+can also write on it: see **Writing on Today** above.
 
 **Only the overdue carry over.** A deadline is a claim on every day after it
 until it is met, so a late task follows you onto Today from whichever notebook
@@ -393,7 +410,7 @@ page is always a page of work, for the reason below.
 a paper one. The **Index** is where they live: turn to one, rename or delete it
 with the pencil, name a new one in the field at the foot. Every notebook has a
 **default page**: it is where a line with no page of its own lives, which is
-how a journal written before pages existed needed no migration, where a line
+how a journal written before pages existed needed no migration, where a task
 written on Today lands, and where the notebook opens. The first page holds the
 role until you move it — *Make … the default* on any page's sheet. Moving it
 does not move a single line: every line that had no page of its own is written

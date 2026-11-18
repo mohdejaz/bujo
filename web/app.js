@@ -420,6 +420,13 @@ const defPage = (book) => {
   const work = livePages(book).filter(isWorkPage);
   return work.find((p) => p.def) || work[0];
 };
+/* Where a line of a given kind lands in a notebook. A task lands on the
+   default page, which every notebook has; a note or a question needs a page
+   of its own kind, which not every notebook does — and `undefined` there is
+   the answer the callers want, because the honest move is to not offer the
+   kind at all rather than to refuse it once the words are typed. */
+const landingPage = (book, type) =>
+  type === "task" ? defPage(book) : livePages(book).find((pg) => typeOn(pg) === type);
 /* The groups of one notebook, in the order their first page appears. This is
    the whole existence of a group: write the name on a page and the group is
    there, take it off the last page carrying it and the group is gone. There is
@@ -1006,6 +1013,13 @@ const S = {
      know was there. After that it is yours for the session, like every other
      thing in S. */
   indexKind: curPage().kind || null,
+  /* What the field writes on Today. Every other page answers that itself, by
+     being the kind of page it is; Today is on no page, so it has to be asked.
+     It starts on a task because that is what a day is mostly made of, and
+     after that it is yours for the session like the Index's — a kind is a mode
+     you are in, not a one-shot answer about one line. renderComposer puts it
+     back when the notebook you are writing to has nowhere to put that kind. */
+  todayType: "task",
   foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
@@ -2507,23 +2521,41 @@ function longPress(node, fn) {
 const input = $("#input");
 const composer = $("#composer");
 const kindSeg = $("#kindSeg");
+const typeSeg = $("#typeSeg");
 
-/* There is nothing to pick any more: the page you are on decides what you are
-   writing. A page of work writes a task, a page of questions writes a
-   question, the
-   Calendar writes an event and asks for the day it falls on, and the Index
-   writes the name of a new page — what a page holds there is pages, so that is
-   what the field takes. Today writes a task already marked for today; it reads
-   across every notebook, so the line has to be told where to live, and the
-   only answer it can have is the notebook and page you have open. That is what
-   the notebook button in the header means on this page — not what you are
-   reading, but where a line you write now will go — and the row that appears
-   says so itself.
-   The Index grows a second row of its own, because a page has to say what it
-   holds before it can exist — the same way the Calendar grows a date, and for
-   the same reason. It is not a picker for a line: on every page the field at
-   the foot still writes the one kind of thing that page is made of, and this
-   is the page made of pages.
+/* What the field asks for, by the kind of line it is about to write. */
+const PROMPT = {
+  task: "what needs doing?",
+  note: "what do you want to keep?",
+  question: "what do you want to know?",
+};
+
+/* Almost nothing to pick: the page you are on decides what you are writing. A
+   page of work writes a task, a page of notes a note, a page of questions a
+   question, the Calendar writes an event and asks for the day it falls on, and
+   the Index writes the name of a new page — what a page holds there is pages,
+   so that is what the field takes.
+   Today is the exception, and it is the architecture's exception rather than a
+   convenience: it is the one page that belongs to no page, so there is no page
+   there to ask. A day takes a thought or a question as readily as a job, and
+   having to leave the day and find the right page to write one down is exactly
+   what marking a line for the day exists to spare you — so Today asks instead,
+   and offers all three. A task is the default, because that is what a day is
+   mostly made of, and it is also the only one of the three the day can then
+   show: a note and a question are captured here and read on their own page,
+   which is why writing one says where it went.
+   Today reads across every notebook, so wherever the line is going it has to
+   be told. That is what the notebook button in the header means on this page —
+   not what you are reading, but where a line you write now will go — and the
+   row that appears says so itself. A kind the notebook has nowhere to put is
+   dropped from the segment rather than offered and then refused, the same
+   answer the move-to-notebook list gives; if that leaves only the task, the
+   row goes too, because one button is not a choice.
+   The Index grows a row of its own for the same shape of reason — a page has
+   to say what it holds before it can exist, the way the Calendar's event has
+   to say which day it falls on — but what it picks is the kind of *page*, not
+   the kind of line: on the Index the field writes pages, because that is what
+   that page is made of.
    Nothing caps what you type: a page name is read on rows that can carry a
    long one. */
 function renderComposer() {
@@ -2533,17 +2565,29 @@ function renderComposer() {
   [...kindSeg.children].forEach((b) =>
     b.classList.toggle("on", (b.dataset.kind || null) === S.indexKind)
   );
+  /* Which kinds this notebook can actually take, which settles both what the
+     segment offers and whether it is worth showing at all. A kind whose page
+     has gone since you picked it falls back to the task — the one kind no
+     notebook can be without, so the fallback can never fail. */
+  const can = (t) => !!landingPage(db.book, t);
+  if (!can(S.todayType)) S.todayType = "task";
+  [...typeSeg.children].forEach((b) => {
+    b.hidden = !can(b.dataset.type);
+    b.classList.toggle("on", b.dataset.type === S.todayType);
+  });
+  $("#lineKind").hidden = !isTodayPage() || !(can("note") || can("question"));
   input.placeholder = isCal()
     ? "what happens that day?"
     : isIndex()
       ? "name a new page"
       : isTodayPage()
-        ? "what are you doing today?"
-        : isQuestionPage(curPage())
-          ? "what do you want to know?"
-          : isNotesPage(curPage())
-            ? "what do you want to keep?"
-            : "what needs doing?";
+        ? /* A task on Today asks differently from one on the Journal: there the
+             line is work for the day you are standing in, and the question
+             names it. A note and a question are the same wherever written. */
+          S.todayType === "task"
+          ? "what are you doing today?"
+          : PROMPT[S.todayType]
+        : PROMPT[typeOn(curPage())];
   /* The Index is naming a page, which is lower case by rule, so the keyboard
      stops offering a capital it would only have to take back on submit. */
   input.setAttribute("autocapitalize", isIndex() ? "none" : "sentences");
@@ -2560,6 +2604,20 @@ kindSeg.onclick = (ev) => {
   if (!b) return;
   S.indexKind = b.dataset.kind || null;
   render();
+};
+
+/* Which kind of line Today is about to write. Only the composer answers to
+   this one, so it redraws only the composer — unlike the Index's segment,
+   which the list above it reads too. The day itself is no business of this:
+   what is on it is what the date says, not what you are in the middle of
+   typing. Focus is taken back because the tap dropped it, and the next thing
+   you do here is write the line you just named the kind of. */
+typeSeg.onclick = (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  S.todayType = b.dataset.type;
+  renderComposer();
+  input.focus();
 };
 
 input.addEventListener("input", () =>
@@ -2582,11 +2640,9 @@ composer.addEventListener("submit", (ev) => {
     return;
   }
 
-  /* Today is asked before the page is, because Today is on no page: a line
-     written there is work for the day whatever page the Journal was left
-     showing, and the default page — which is always a page of work — is the
-     only answer it can have. */
-  const type = isCal() ? "event" : isTodayPage() ? "task" : typeOn(curPage());
+  /* Today is asked before the page is, because Today is on no page: there is
+     no page there to say what the field writes, so the segment says it. */
+  const type = isCal() ? "event" : isTodayPage() ? S.todayType : typeOn(curPage());
   const e = {
     id: uid(),
     type,
@@ -2596,15 +2652,20 @@ composer.addEventListener("submit", (ev) => {
     created: Date.now(),
   };
   if (db.book !== db.books[0].id) e.book = db.book;
-  /* A task and a question both live on a page; an event belongs to the notebook.
-     Written on Today it goes to the notebook's default page rather than to
-     whichever page the Journal happens to be left on: Today belongs to no
-     page, so the page it was last showing is an accident of where you were,
-     not an answer to where this line goes. The default is the answer, which is
-     what makes it worth being able to choose. */
-  if (type !== "event") putPage(e, isTodayPage() ? defPage(db.book).id : db.page);
-  // written on Today, so it is wanted today — nothing else would put it there
-  if (isTodayPage()) e.today = TODAY();
+  /* A task, a note and a question all live on a page; an event belongs to the
+     notebook. Written on Today the line goes where its kind lands in the
+     notebook you have open, rather than to whichever page the Journal happens
+     to be left on: Today belongs to no page, so the page it was last showing
+     is an accident of where you were, not an answer to where this line goes.
+     For a task that landing is the default page, which is what makes the
+     default worth being able to choose. */
+  const land = type !== "event" && isTodayPage() ? landingPage(db.book, type) : null;
+  if (type !== "event") putPage(e, land ? land.id : db.page);
+  /* Written on Today, so it is wanted today — nothing else would put it there.
+     A task only: the mark is a claim about what is owed on a day, and neither a
+     note nor a question is owed on one, which is why neither can be shown here
+     to carry it. */
+  if (isTodayPage() && type === "task") e.today = TODAY();
   if (type === "event") e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
 
   input.value = "";
@@ -2612,6 +2673,12 @@ composer.addEventListener("submit", (ev) => {
   S.anim.add(e.id);
   buzz(7);
   mutate(null, () => db.entries.push(e));
+  /* A note or a question written on Today is not *on* Today — the day shows
+     tasks and events, and these were captured here to be read on their own
+     page. So the page it went to gets the last word, the same way it does when
+     you turn to one: without it the line would appear to vanish as you wrote
+     it. */
+  if (land && type !== "task") note(land.name);
   // keep the page on the line you just wrote
   if (type !== "event") $("#page").scrollTop = 0;
 });
@@ -2876,16 +2943,12 @@ function openEntry(id, opts = {}) {
     }
 
     /* Move a line to another notebook. A task lands on the notebook's default
-       page, which every notebook has. A question needs a page of questions,
-       which not
-       every notebook has — so a notebook without one is left out of the list
-       rather than offered and then refused. */
-    /* A task lands on the notebook's default page, which every notebook has.
-       A note or a question needs a page of its own kind, which not every
-       notebook has — so a notebook without one is left out of the list rather
-       than offered and then refused. */
-    const landing = (bk) =>
-      e.type === "task" ? null : livePages(bk.id).find((pg) => typeOn(pg) === e.type);
+       page, which every notebook has; a note or a question needs a page of its
+       own kind, which not every notebook does — so a notebook without one is
+       left out of the list rather than offered and then refused. `null` for a
+       task rather than the default page itself, because what the move writes
+       is the `page` field, and a task's is absent when it is on the default. */
+    const landing = (bk) => (e.type === "task" ? null : landingPage(bk.id, e.type));
     const others = liveBooks().filter(
       (bk) => bk.id !== bookOf(e) && (e.type === "task" || landing(bk))
     );
