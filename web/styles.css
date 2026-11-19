@@ -1179,6 +1179,13 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   appearance: none;
   min-height: 34px;
 }
+/* The date pickers that were this class's only users are tapped, never focused
+   by the app, so the browser's own ring never showed and the rule was never
+   needed. The passphrase on the import sheet is focused the moment the sheet
+   opens, which puts it on screen — so it gets the accent every other focused
+   field here wears. A ring and not a border, because this field has none and
+   growing one would shift it. */
+.s-field:focus { outline: none; box-shadow: 0 0 0 2px var(--accent); }
 .s-field::-webkit-date-and-time-value { text-align: right; }
 /* Takes a deadline back off a task. Sits beside the field rather than inside
    it, because every date picker hides its own clear somewhere different. */
@@ -1424,8 +1431,10 @@ body.sheet-open .toast { bottom: auto; top: calc(var(--safe-t) + 12px); }
 
 /* Hidden from the eye but not from the password manager, which is the whole
    point: `display:none` would take it out of the form as far as AutoFill is
-   concerned. */
-.vault input.vault-user {
+   concerned. Unscoped, because the lock screen is no longer the only place
+   that asks for a passphrase — the sheet that opens an encrypted file wants
+   the same field, and the same name to file it under. */
+input.vault-user {
   position: absolute;
   width: 1px;
   height: 1px;

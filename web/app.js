@@ -939,8 +939,11 @@ async function passKey(pass, salt) {
     ["wrapKey", "unwrapKey"],
   );
 }
-const unwrapData = (wrap, extractable = false) =>
-  crypto.subtle.unwrapKey("raw", unb64(vault.wrapped), wrap, { name: "AES-GCM", iv: vault.wiv }, "AES-GCM", extractable, [
+/* The wrapped key and its iv default to this device's, which is what the gate
+   asks about. An imported file brings its own: it is another device's
+   envelope, and unwrapping it must not read ours. */
+const unwrapData = (wrap, extractable = false, wk = vault.wrapped, wiv = vault.wiv) =>
+  crypto.subtle.unwrapKey("raw", unb64(wk), wrap, { name: "AES-GCM", iv: wiv }, "AES-GCM", extractable, [
     "encrypt",
     "decrypt",
   ]);
@@ -1001,6 +1004,21 @@ async function vaultOpen(env, pass) {
   const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
   await rememberKey(open);
   vault.key = key;
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+/* Opening a *file* is not the same as opening this journal, and the whole
+   difference is what is kept afterwards. `vaultOpen` above adopts the
+   envelope it reads — salt, wrapped key, session key and all — because that
+   envelope *is* this device's, and remembering the key is what lets a reload
+   walk straight back in. An imported file is some other device's envelope
+   under some other passphrase, so this one derives, decrypts and keeps
+   nothing: the phone goes on being locked by its own passphrase and the next
+   `seal()` writes the imported lines under that. Adopting the file instead
+   would silently re-key the device to whatever the file was sealed with,
+   which is a passphrase change nobody asked for and nobody was told about. */
+async function readSealed(env, pass) {
+  const key = await unwrapData(await passKey(pass, unb64(env.salt)), false, env.wk, unb64(env.wiv));
+  const plain = await crypto.subtle.decrypt({ name: "AES-GCM", iv: unb64(env.iv) }, key, unb64(env.ct));
   return JSON.parse(new TextDecoder().decode(plain));
 }
 /* Writes are queued and the newest wins: `save()` is called synchronously from
@@ -1524,6 +1542,8 @@ const ICON = {
   /* two sheets, one laid over the other: the line and its copy */
   copy: '<svg viewBox="0 0 24 24"><rect x="8.5" y="8.5" width="12" height="12" rx="2.5"/><path d="M15.5 8.5V6a2.5 2.5 0 00-2.5-2.5H6A2.5 2.5 0 003.5 6v7A2.5 2.5 0 006 15.5h2.5"/></svg>',
   eye: '<svg viewBox="0 0 24 24"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></svg>',
+  /* a padlock, shut: the journal as the file carries it */
+  lock: '<svg viewBox="0 0 24 24"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 018 0v3"/></svg>',
   /* a lidded box: the notebook is put away, not thrown out */
   archive: '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4.5" rx="1.5"/><path d="M5 8.5v10.5a1.5 1.5 0 001.5 1.5h11a1.5 1.5 0 001.5-1.5V8.5M10 13h4"/></svg>',
   /* a phone throwing light, rays off its corners as well as its sides — two
@@ -3155,11 +3175,16 @@ function openMenu() {
     /* No row for notebooks or pages: both already have a door on the header —
        the notebook button names the one you are in, the Index is a tab — and a
        second door behind the menu would only be a longer way round to it. */
-    acts.append(
-      actRow(ICON.search, "Search", () => openSearch()),
-      actRow(ICON.down, "Export journal", exportJson),
-      actRow(ICON.up, "Import journal", importJson)
-    );
+    acts.append(actRow(ICON.search, "Search", () => openSearch()), actRow(ICON.down, "Export journal", exportJson));
+    /* The sealed file sits beside the plain one rather than replacing it. The
+       plain export is the way back from a bad moment — the failed-seal toast
+       says to take one before reloading — and its worth is that any text
+       editor on any machine opens it, for ever, with nothing remembered. The
+       sealed one is for the copies that leave the house. It is absent where
+       there is no envelope to copy, which is the plain-http page, the same
+       rule the wake lock follows. */
+    if (readEnvelope()) acts.append(actRow(ICON.lock, "Export encrypted", exportSealed));
+    acts.append(actRow(ICON.up, "Import journal", importJson));
     if (db.migrated) acts.append(actRow(ICON.cal, "What was migrated", () => openMigrated(true)));
     b.append(acts);
 
@@ -3984,16 +4009,36 @@ function openMigrated(fromMenu = false) {
    the backup row inside the purge sheet, which wants the download without
    losing the sheet it was offered from — the whole point of it there is the
    step you take immediately afterwards. */
-function writeExport() {
-  const blob = new Blob([JSON.stringify(db, null, 2)], { type: "application/json" });
+const download = (name, text) => {
+  const blob = new Blob([text], { type: "application/json" });
   const a = el("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `bujo-${TODAY()}.json`;
+  a.download = name;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+function writeExport() {
+  download(`bujo-${TODAY()}.json`, JSON.stringify(db, null, 2));
+}
+/* The sealed file is the envelope exactly as it sits in `localStorage`, so
+   this is a copy and not a second encryption — the journal was already sealed,
+   by the last `seal()`. The envelope carries its own salt, wrapped key and
+   ivs, and that is what makes the file a backup rather than a dump of this
+   browser: it opens anywhere, given the passphrase this device had when the
+   file was taken. `.enc.json` in the name because the two files are otherwise
+   indistinguishable from the outside, and a backup you cannot identify by
+   sight is a bad one. */
+function writeSealed() {
+  const env = readEnvelope();
+  if (!env) return note("This journal isn't encrypted");
+  download(`bujo-${TODAY()}.enc.json`, JSON.stringify(env));
 }
 function exportJson() {
   writeExport();
+  closeSheet();
+}
+function exportSealed() {
+  writeSealed();
   closeSheet();
 }
 
@@ -4008,21 +4053,12 @@ function importJson() {
     r.onload = () => {
       try {
         const next = JSON.parse(r.result);
+        /* A sealed file says so in the clear and says nothing else, so it
+           takes the long way round: one sheet to ask for its passphrase, and
+           then the same adoption as any other file. */
+        if (next && next.enc === 1 && next.ct) return askSealed(next);
         if (!next || !Array.isArray(next.entries)) throw 0;
-        /* A file from the dated app is still your journal: run it through the
-           same one-time migration rather than refusing it. */
-        const adopted = next.v === 2 ? normalise(next) : migrateV1(next);
-        if (!confirm(`Replace this journal with ${adopted.entries.length} imported lines?`)) return;
-        db = adopted;
-        // the device's own settings survive an import of someone else's file
-        db.theme = ["auto", "light", "dark"].includes(next.theme) ? next.theme : db.theme;
-        save();
-        applyTheme();
-        applyText();
-        applyWake();
-        closeSheet();
-        render();
-        toast(`Imported ${db.entries.length} lines`);
+        takeImport(next);
       } catch {
         toast("That file isn't a journal");
       }
@@ -4030,6 +4066,87 @@ function importJson() {
     r.readAsText(file);
   };
   f.click();
+}
+
+/* What becomes of a journal once it is in hand, whichever way it arrived —
+   plain from the file, or decrypted out of an envelope. Both go through
+   `normalise`, so an imported journal meets every invariant the loaded one
+   does and the two paths cannot drift. */
+function takeImport(next) {
+  /* A file from the dated app is still your journal: run it through the
+     same one-time migration rather than refusing it. */
+  const adopted = next.v === 2 ? normalise(next) : migrateV1(next);
+  if (!confirm(`Replace this journal with ${adopted.entries.length} imported lines?`)) return;
+  db = adopted;
+  // the device's own settings survive an import of someone else's file
+  db.theme = ["auto", "light", "dark"].includes(next.theme) ? next.theme : db.theme;
+  save();
+  applyTheme();
+  applyText();
+  applyWake();
+  closeSheet();
+  render();
+  toast(`Imported ${db.entries.length} lines`);
+}
+
+/* The passphrase a *file* wants is the one the device that exported it uses,
+   which need not be this device's — each one seals with a key of its own, and
+   an import re-seals under the local passphrase on the next save. That is
+   worth a sentence on the sheet, because the question is otherwise ambiguous
+   in the one direction that wastes your time: typing this phone's passphrase
+   into a file from the laptop fails in a way that looks like a lost backup.
+   A sheet rather than `prompt`, which cannot mask what it is given and which
+   iOS draws badly — and the same masked field as the lock screen, down to the
+   out-of-sight account name, so the Keychain will fill this too. */
+function askSealed(env) {
+  if (!vault.can) return toast("An encrypted file needs the https address");
+  commitSheet();
+  openSheet((b) => {
+    b.append(el("div", "s-title", "Import an encrypted journal"));
+    b.append(
+      el(
+        "div",
+        "s-sub",
+        "Enter the passphrase of the device this file came from. This journal keeps its own."
+      )
+    );
+    const row = el("div", "s-act", ICON.lock);
+    row.append(el("span", null, "Passphrase"));
+    const who = el("input", "vault-user");
+    who.type = "text";
+    who.name = "username";
+    who.autocomplete = "username";
+    who.value = "bujo";
+    who.tabIndex = -1;
+    const pf = el("input", "s-field");
+    pf.type = "password";
+    pf.autocomplete = "current-password";
+    row.append(who, pf);
+    const msg = el("div", "s-sub s-shelf-note");
+    const acts = el("div", "s-acts");
+    acts.append(row);
+    /* Disabled while it works: deriving the key is 600k rounds of PBKDF2 and
+       takes long enough on a phone for a second tap to land on a sheet that
+       looks idle. */
+    const go = actRow(ICON.up, "Open it", async () => {
+      msg.textContent = "";
+      if (!pf.value) return void pf.focus();
+      go.disabled = true;
+      let got = null;
+      try {
+        got = await readSealed(env, pf.value);
+      } catch {
+        msg.textContent = "That passphrase doesn't open it.";
+      }
+      go.disabled = false;
+      if (!got) return;
+      if (!Array.isArray(got.entries)) return void (msg.textContent = "That file isn't a journal.");
+      takeImport(got);
+    });
+    acts.append(go);
+    b.append(acts, msg);
+    setTimeout(() => pf.focus(), 120);
+  });
 }
 
 /* ── theme ─────────────────────────────────────────────────────────── */

@@ -524,7 +524,9 @@ closes a sheet.
 The journal lives in `localStorage` on the device, and nowhere else. Nothing is
 sent anywhere; there is no account and no network call. **⋯ → Export journal**
 writes a `bujo-YYYY-MM-DD.json` you can keep, and **Import journal** reads one
-back — that's also how you move between phone and desktop.
+back — that's also how you move between phone and desktop. On an encrypted
+journal there is a second row, **Export encrypted**, which writes the sealed
+`bujo-YYYY-MM-DD.enc.json` instead; see [Encryption](#encryption).
 
 ```json
 { "v": 2, "theme": "auto", "text": 1, "awake": false, "view": "today",
@@ -695,9 +697,25 @@ then makes a random AES-256 key on the device and seals the whole journal with
 it; the key is itself stored only wrapped by a key derived from the passphrase
 (PBKDF2, 600k rounds). `localStorage` holds ciphertext, and the passphrase is
 asked for once per session (a reload keeps it open; closing the app locks it). There is no recovery: forget it and the journal is
-gone. **Export writes plain JSON** by design, so keep that file somewhere safe.
+gone.
 Over plain-http LAN the browser has no WebCrypto, so there the journal stays
 unencrypted (and an already-encrypted one cannot be opened).
+
+**Two exports, and the plain one is not a mistake.** **Export journal** writes
+plain JSON by design: it is the way back from a bad moment, and what makes it
+worth having is that any text editor on any machine opens it, for ever, with
+nothing to remember. Keep that file somewhere safe. **Export encrypted** writes
+the envelope exactly as `localStorage` holds it — a copy, not a second
+encryption — for the copies that leave the house: a cloud drive, a USB stick,
+mailing it to yourself. It carries its own salt, wrapped key and ivs, so it
+opens on any device rather than only the one that wrote it.
+
+Importing one asks for a passphrase, and the passphrase it wants is **the one
+the device that exported the file uses** — not this device's. Each device seals
+with a key of its own, and an import leaves that alone: the lines are re-sealed
+under the local passphrase on the next save, so the phone goes on unlocking the
+way it always did. If you use the same passphrase everywhere, none of this
+shows.
 
 A save that fails says so, in a toast that asks you to **export before
 reloading**. Sealing happens after the change is on screen and nothing waits
