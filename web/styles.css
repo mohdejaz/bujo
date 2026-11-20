@@ -664,10 +664,13 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   text-overflow: ellipsis;
   color: var(--ink-2);
 }
-/* Prose rows wrap instead of clamping. The q:/a: tag is its own flex column,
-   so a wrapped second line returns to the text's edge and not under the tag. */
+/* Prose rows wrap instead of clamping, and keep the breaks typed into them:
+   these are the two fields written in a textarea, and a note's words now hold
+   everything it has to say, so a blank line in one is a blank line meant. The
+   q:/a: tag is its own flex column, so a wrapped second line returns to the
+   text's edge and not under the tag. */
 .row-line.wrap, .row-answer.wrap {
-  white-space: normal;
+  white-space: pre-wrap;
   overflow: visible;
   text-overflow: clip;
   overflow-wrap: anywhere;
@@ -1037,7 +1040,8 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 .s-note::placeholder { color: var(--dim); }
 .s-note:focus { background: var(--paper); border-color: var(--accent); }
 
-/* The answer, between the question above it and the notes below. The notes'
+/* The answer, under the question that asked it and the last box in the
+   sheet — a question carries nothing else underneath. The notes'
    own box, because it belongs with the line rather than being the line — but
    the words' own ink, because unlike a note it is the thing you came here to
    read, and the row above it already printed it in the quiet half. */

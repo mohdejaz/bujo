@@ -52,8 +52,8 @@ heading it sits under says which.
 
 Two more kinds of line are not about doing anything at all. A **note** is
 something you wrote down to keep — a number, a name, what somebody said — and
-it lives on a **page of notes**, carrying its own notes underneath if it wants
-them, the way any line does.
+it lives on a **page of notes**, and its words are the whole of it: there is no
+second box underneath, for the same reason a question has none.
 
 A **question** is the other: where the water shut-off is, what the wifi is,
 which day the bins go out. It lives on a **page of q&a**, and it carries its
@@ -92,16 +92,19 @@ narrows the journal by where a line lives — which notebook, which page, which
 kind of line — and Today narrows it by *when*, so it reads straight across
 all of them.
 
-**Every line carries its own notes** — open a task, an event or a note and
-write underneath it — so the detail behind a thing lives with the thing rather
-than floating loose. A line that holds notes is marked `≡`; the notes themselves
-never appear in the list, because a line stays one line.
+**A task and an event carry their own notes** — open one and write underneath
+it — so the detail behind a thing lives with the thing rather than floating
+loose. A line that holds notes is marked `≡`; the notes themselves never appear
+in the list, because a line of work stays one line.
 
-A question is the exception: it has no notes, and its sheet is its words and
-its answer with nothing between them. What a question has to say under itself
-*is* the answer, and a second box below that would only ever have held a note
-about the answer — which is the answer, written somewhere the row cannot print
-it. So a question never carries the `≡` either.
+The two prose kinds carry none, and for the same reason both ways round. What a
+question has to say under itself *is* the answer, and a box below that would
+only ever have held a note about the answer. A note's words *are* what you kept,
+and a box below them a note about a note. Either way it is the same thought,
+written somewhere the row cannot print it — so a note's sheet and a question's
+are the words and nothing under them but the answer, and neither ever carries
+the `≡`. A note written on an older build arrives with its notes folded into its
+words, a blank line between, so nothing that was written is lost.
 
 ## Using it
 
