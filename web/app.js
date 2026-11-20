@@ -23,12 +23,12 @@
  *           and the Calendar reads `date`. A task with no due date is not late
  *           and never will be, so it sorts below the dated ones.
  *   state = open | done | dropped  (dropped = struck out, still on the record)
- *   notes = long-form scratch hung off any entry, absent when empty — the
- *           questions and the detail behind a line. Never rendered in the
- *           list — a line stays one line — only marked with a glyph. This is
- *           where everything you want to remember lives; there is no
- *           free-standing note, because a note with nothing to hang off is
- *           just a task you have not decided about yet.
+ *   notes = long-form scratch hung off a task or an event, absent when
+ *           empty — the questions and the detail behind a line. Never
+ *           rendered in the list — a line stays one line — only marked with a
+ *           glyph. Neither prose kind carries one: a note's words and a
+ *           question's answer are already the place the detail goes, so a box
+ *           under them held a note about a note.
  *   book  = which notebook the entry is in, absent for "the first one".
  *   page  = which page of that notebook a task sits on, absent for "the
  *           default one". Only a task carries it: the Calendar reads a
@@ -242,8 +242,8 @@ const PAGE_FIRST = "log";
 /* What a page holds, and there are three. Absent means tasks — the page of
    work a page has always been, so the field is one more thing that means the
    default by not being there, and no journal ever written needs touching to
-   gain it. `"notes"` is the page of notes: lines you wrote down to keep, each
-   with its own notes underneath if it wants them. `"qa"` is the page of
+   gain it. `"notes"` is the page of notes: lines you wrote down to keep, the
+   words on the row being the whole of what was kept. `"qa"` is the page of
    questions: you write what you want to know, and the answer goes on the same
    line when you have it.
    A page holds one of the three and never two, because the field at the foot
@@ -789,11 +789,19 @@ function adopt(raw, i, books) {
     if (!e.answer && e.notes) e.answer = e.notes;
     delete e.notes;
   }
-  /* And the mirror of it: a note has no answer. One can only arrive from a
-     build where this line was a question, so its words go into the notes a
-     note does carry, where they can still be read. Read from `raw`, because
-     the line above has already taken the field off `e`. */
-  if (e.type === "note" && given && !e.notes) e.notes = given;
+  /* And a note is the mirror of the question, the same reason read the other
+     way round: a note's words *are* what you kept, so a box underneath them
+     only ever held a note about a note — the same thought, written where the
+     row cannot print it. Whatever arrives in either field is folded into the
+     words with a blank line between rather than dropped: notes from a build
+     written before the box went, the other phone's cached copy included, and
+     an answer from one where this line was a question. `given` is read from
+     `raw`, because the fold above has already taken `answer` off `e`. */
+  if (e.type === "note") {
+    const under = [e.notes, given].filter(Boolean).join("\n\n");
+    if (under) e.text += "\n\n" + under;
+    delete e.notes;
+  }
   if (!(books && books.has(e.book))) delete e.book;
   if (!Number.isFinite(raw.pos)) delete e.pos;
   /* Only a settled line has a time it was settled. An open one that arrives
@@ -2213,8 +2221,9 @@ function row(e, opts = {}) {
     openEntry(e.id, e.type === "question" && !e.answer ? { answer: true } : {});
   face.append(txt);
 
-  // a question holds its answer and nothing else, so it never carries the mark
-  if (e.notes && e.type !== "question") {
+  // only a line with a box for notes can be carrying any: a prose line keeps
+  // everything it has to say in the words the row has already printed
+  if (e.notes && !prose) {
     const m = el("span", "notemark", ICON.notes);
     m.setAttribute("aria-label", "Has notes");
     face.append(m);
@@ -2846,6 +2855,12 @@ function openEntry(id, opts = {}) {
       setTimeout(fit, 0);
     };
 
+    /* A note's words are its whole line, so the box holding them grows the
+       way the notes it replaced did. A task or an event is read on one clamped
+       row and a question has the answer below to reach, so theirs stay at the
+       two rows they opened at. */
+    if (e.type === "note") autoGrow(ta);
+
     /* The answer, on a question and nowhere else. It sits directly under the
        words it answers and above the notes, which is the order the line is
        read in: what you asked, what you found out, and then anything else
@@ -2861,12 +2876,14 @@ function openEntry(id, opts = {}) {
       autoGrow(ans);
     }
 
-    /* Every other kind of line carries its own notes. A question does not:
-       what it has to say under its words is the answer, and a second box below
-       that would only ever have held a note about the answer — which is the
-       answer, written in a place the row cannot print. */
+    /* A task and an event carry their own notes: what a line says to do is
+       one thing and the detail behind it is another, and only one of the two
+       belongs on the row. Neither prose kind does. A question's second box
+       would have held a note about the answer, which is the answer; a note's a
+       note about a note, which is the note — the same thought both times,
+       written where the row cannot print it. So the words are the only box. */
     let note = null;
-    if (e.type !== "question") {
+    if (e.type === "task" || e.type === "event") {
       note = el("textarea", "s-input s-note");
       note.rows = 2;
       note.placeholder = "Notes, links, the detail behind this line…";
