@@ -18,11 +18,17 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
+# Two jobs rather than one, and the split is the whole point of it. Uploading
+# the artifact and deploying it used to sit in the same job, half a second
+# apart — and twice the artifact API had not caught up with its own upload by
+# the time deploy-pages asked for it, so a green upload was followed by "no
+# artifacts named github-pages were found" and the site silently stayed a merge
+# behind. The job boundary is the wait: the runner hands the artifact over,
+# tears down and starts again, which puts seconds between the write and the
+# read instead of milliseconds. It is also the shape GitHub's own starter
+# workflow uses, for what is presumably this reason.
 jobs:
-  deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,5 +43,13 @@ jobs:
         uses: actions/upload-pages-artifact@v3
         with:
           path: web
+
+  deploy:
+    needs: build
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v4
