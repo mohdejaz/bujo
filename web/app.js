@@ -1123,7 +1123,6 @@ const S = {
      after that it is yours for the session like the Index's — a kind is a mode
      you are in, not a one-shot answer about one line. renderComposer puts it
      back when the notebook you are writing to has nowhere to put that kind. */
-  todayType: "task",
   foldedGroups: new Set(), // group headings put away this session, by name
   anim: new Set(), // ids whose state changed this tick — animate those only
 };
@@ -2722,7 +2721,6 @@ function longPress(node, fn) {
 const input = $("#input");
 const composer = $("#composer");
 const kindSeg = $("#kindSeg");
-const typeSeg = $("#typeSeg");
 
 /* What the field asks for, by the kind of line it is about to write. */
 const PROMPT = {
@@ -2737,22 +2735,19 @@ const PROMPT = {
    question, the Calendar writes an event and asks for the day it falls on, and
    the Index writes the name of a new page — what a page holds there is pages,
    so that is what the field takes.
-   Today is the exception, and it is the architecture's exception rather than a
-   convenience: it is the one page that belongs to no page, so there is no page
-   there to ask. A day takes a thought or a question as readily as a job, and
-   having to leave the day and find the right page to write one down is exactly
-   what marking a line for the day exists to spare you — so Today asks instead,
-   and offers all three. A task is the default, because that is what a day is
-   mostly made of, and it is also the only one of the three the day can then
-   show: a note and a question are captured here and read on their own page,
-   which is why writing one says where it went.
-   Today reads across every notebook, so wherever the line is going it has to
-   be told. That is what the notebook button in the header means on this page —
-   not what you are reading, but where a line you write now will go — and the
-   row that appears says so itself. A kind the notebook has nowhere to put is
-   dropped from the segment rather than offered and then refused, the same
-   answer the move-to-notebook list gives; if that leaves only the task, the
-   row goes too, because one button is not a choice.
+   Today is the exception only in that it has no page to ask, and it answers
+   for itself: it writes a task. A day is made of work, and a task is the one
+   kind the day can then show you — anything else written here would have
+   dropped onto a page you were not looking at, so the field had to say where
+   it had gone, which is a line you wrote and then had to read a receipt for.
+   The row of kinds that used to stand above the field is gone with that. It
+   was the one place in the app where the field asked what you were writing
+   instead of the page saying it, and the two answers it offered beyond the
+   task were both "put this somewhere else" — which is what turning to the
+   page is for, and the page is one tap away.
+   The notebook button in the header still says where the line will go, since
+   Today reads across every notebook and the task has to land in one of them.
+   It lands on that notebook's default page of work.
    The Index grows a row of its own for the same shape of reason — a page has
    to say what it holds before it can exist, the way the Calendar's event has
    to say which day it falls on — but what it picks is the kind of *page*, not
@@ -2767,17 +2762,6 @@ function renderComposer() {
   [...kindSeg.children].forEach((b) =>
     b.classList.toggle("on", (b.dataset.kind || null) === S.indexKind)
   );
-  /* Which kinds this notebook can actually take, which settles both what the
-     segment offers and whether it is worth showing at all. A kind whose page
-     has gone since you picked it falls back to the task — the one kind no
-     notebook can be without, so the fallback can never fail. */
-  const can = (t) => !!landingPage(db.book, t);
-  if (!can(S.todayType)) S.todayType = "task";
-  [...typeSeg.children].forEach((b) => {
-    b.hidden = !can(b.dataset.type);
-    b.classList.toggle("on", b.dataset.type === S.todayType);
-  });
-  $("#lineKind").hidden = !isTodayPage() || !(can("note") || can("question"));
   input.placeholder = isCal()
     ? "what happens that day?"
     : isIndex()
@@ -2785,10 +2769,8 @@ function renderComposer() {
       : isTodayPage()
         ? /* A task on Today asks differently from one on the Journal: there the
              line is work for the day you are standing in, and the question
-             names it. A note and a question are the same wherever written. */
-          S.todayType === "task"
-          ? "what are you doing today?"
-          : PROMPT[S.todayType]
+             names it. */
+          "what are you doing today?"
         : PROMPT[typeOn(curPage())];
   /* The Index is naming a page, which is lower case by rule, so the keyboard
      stops offering a capital it would only have to take back on submit. */
@@ -2806,20 +2788,6 @@ kindSeg.onclick = (ev) => {
   if (!b) return;
   S.indexKind = b.dataset.kind || null;
   render();
-};
-
-/* Which kind of line Today is about to write. Only the composer answers to
-   this one, so it redraws only the composer — unlike the Index's segment,
-   which the list above it reads too. The day itself is no business of this:
-   what is on it is what the date says, not what you are in the middle of
-   typing. Focus is taken back because the tap dropped it, and the next thing
-   you do here is write the line you just named the kind of. */
-typeSeg.onclick = (ev) => {
-  const b = ev.target.closest("button");
-  if (!b) return;
-  S.todayType = b.dataset.type;
-  renderComposer();
-  input.focus();
 };
 
 input.addEventListener("input", () =>
@@ -2843,8 +2811,9 @@ composer.addEventListener("submit", (ev) => {
   }
 
   /* Today is asked before the page is, because Today is on no page: there is
-     no page there to say what the field writes, so the segment says it. */
-  const type = isCal() ? "event" : isTodayPage() ? S.todayType : typeOn(curPage());
+     no page there to say what the field writes, so the view says it, and what
+     it says is a task — the one kind of line a day is owed. */
+  const type = isCal() ? "event" : isTodayPage() ? "task" : typeOn(curPage());
   const e = {
     id: uid(),
     type,
@@ -2854,20 +2823,18 @@ composer.addEventListener("submit", (ev) => {
     created: Date.now(),
   };
   if (db.book !== db.books[0].id) e.book = db.book;
-  /* A task, a note and a question all live on a page; an event belongs to the
-     notebook. Written on Today the line goes where its kind lands in the
-     notebook you have open, rather than to whichever page the Journal happens
-     to be left on: Today belongs to no page, so the page it was last showing
-     is an accident of where you were, not an answer to where this line goes.
-     For a task that landing is the default page, which is what makes the
-     default worth being able to choose. */
-  const land = type !== "event" && isTodayPage() ? landingPage(db.book, type) : null;
-  if (type !== "event") putPage(e, land ? land.id : db.page);
+  /* Every kind but the event lives on a page; an event belongs to the
+     notebook. Written on Today the task goes to the default page of work in
+     the notebook you have open, rather than to whichever page the Journal
+     happens to be left on: Today belongs to no page, so the page it was last
+     showing is an accident of where you were and not an answer to where this
+     line goes. That landing is what makes the default worth being able to
+     choose. */
+  if (type !== "event") putPage(e, isTodayPage() ? defPage(db.book).id : db.page);
   /* Written on Today, so it is wanted today — nothing else would put it there.
-     A task only: the mark is a claim about what is owed on a day, and neither a
-     note nor a question is owed on one, which is why neither can be shown here
-     to carry it. */
-  if (isTodayPage() && type === "task") e.today = TODAY();
+     The mark is a claim about what is owed on a day, which is the same reason
+     Today writes nothing but tasks: no other kind could carry it. */
+  if (isTodayPage()) e.today = TODAY();
   if (type === "event") e.date = isDate($("#whenDate").value) ? $("#whenDate").value : TODAY();
 
   input.value = "";
@@ -2875,12 +2842,6 @@ composer.addEventListener("submit", (ev) => {
   S.anim.add(e.id);
   buzz(7);
   mutate(null, () => db.entries.push(e));
-  /* A note or a question written on Today is not *on* Today — the day shows
-     tasks and events, and these were captured here to be read on their own
-     page. So the page it went to gets the last word, the same way it does when
-     you turn to one: without it the line would appear to vanish as you wrote
-     it. */
-  if (land && type !== "task") note(land.name);
   // keep the page on the line you just wrote
   if (type !== "event") $("#page").scrollTop = 0;
 });
