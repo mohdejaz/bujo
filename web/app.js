@@ -1612,11 +1612,13 @@ function renderHead() {
   const d = new Date();
   $("#stampDow").textContent = DOW[d.getDay()];
   $("#stampDmy").textContent = `${d.getDate()} ${MON[d.getMonth()].slice(0, 3)}`;
-  /* The date is also the way to Today, and it is marked no differently when
-     that is the page you are on: there it reads as the page's own title, which
-     is what it already was everywhere else. A screen reader is still told,
-     because "you are here" is not something you can see your way to. */
+  /* The date is also the way to Today, and on Today it is the only thing that
+     can say you are there: no tab belongs to that page and the page mark beside
+     the date is hidden on it, so the day takes a tint of its own colour the way
+     a tab takes the card. A screen reader is told in words as well, because
+     "you are here" is not something you can see your way to. */
   const td = $("#todayBtn");
+  td.classList.toggle("is-on", isTodayPage());
   if (isTodayPage()) td.setAttribute("aria-current", "page");
   else td.removeAttribute("aria-current");
   /* And which page of the notebook those lines are on — on the Journal only,

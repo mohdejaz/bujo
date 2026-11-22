@@ -243,10 +243,11 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   padding: 2px 2px 4px;
   min-width: 0;
 }
-/* The date is a control, but it is still the date: no pill, no tint, the same
-   paper as the page under it. It is the one place in the header where that is
-   right — a button up here among the other buttons would read as a fourth tab
-   by another name, which is exactly what moving Today off the strip was for.
+/* The date is a control, but away from Today it is still the date: no pill, no
+   tint, the same paper as the page under it. It is the one place in the header
+   where that is right — a button up here among the other buttons would read as
+   a fourth tab by another name, which is exactly what moving Today off the
+   strip was for.
    What is left is the press itself, and the padding that makes the day a
    thumb-sized target rather than a line of text you have to hit. The negative
    margins pay that padding back, so the day sits exactly where it sat when it
@@ -262,6 +263,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   transition: transform 0.12s;
 }
 .stamp-today:active { transform: scale(0.97); }
+/* On Today the tint is the only thing saying so: the tab strip has no tab to
+   light for a page that belongs to no notebook, and the page mark at the far
+   end of the row is hidden there too, so without this the one view that reads
+   every notebook looks exactly like the page you just left. It is the accent
+   the day is already written in, not the tabs' card and lift, because that
+   would make the date the fourth tab after all — and it fills the shape the
+   press already had, so nothing moves on arrival. */
+.stamp-today.is-on { background: var(--accent-soft); }
 
 .stamp-d {
   flex: none;
