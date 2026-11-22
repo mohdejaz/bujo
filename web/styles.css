@@ -963,10 +963,17 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
   transition: background 0.18s, color 0.18s, transform 0.14s, opacity 0.18s;
 }
 .send svg { width: 19px; height: 19px; stroke-width: 2.4; }
-.composer.armed .send { background: var(--accent); color: #fff; transform: scale(1.04); }
-:root[data-theme="dark"] .composer.armed .send { color: #21140c; }
+/* Lit when there is something to send. The composer arms it from the form,
+   because what is ready there is the line being written; search arms the
+   button itself, because what is ready there is the word the list below has
+   not answered yet. Same shape, same light, one idiom. */
+.composer.armed .send,
+.send.armed { background: var(--accent); color: #fff; transform: scale(1.04); }
+:root[data-theme="dark"] .composer.armed .send,
+:root[data-theme="dark"] .send.armed { color: #21140c; }
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) .composer.armed .send { color: #21140c; }
+  :root:not([data-theme="light"]) .composer.armed .send,
+  :root:not([data-theme="light"]) .send.armed { color: #21140c; }
 }
 .send:active { transform: scale(0.88); }
 
@@ -1229,14 +1236,23 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 
 /* ── search ─────────────────────────────────────────────────────────── */
 
+/* The field and the press that answers it, laid out the way the composer
+   lays out its own: the words take the width that is left and the button
+   keeps its circle at the end of them. */
+.s-searchrow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
 .s-search {
-  width: 100%;
+  flex: 1;
+  min-width: 0;
   font-size: max(16px, 1rem);
   padding: 12px 14px;
   border-radius: 13px;
   background: var(--paper);
   border: 1px solid var(--hair);
-  margin-bottom: 10px;
 }
 .s-search:focus { outline: none; border-color: var(--accent); }
 .hit {

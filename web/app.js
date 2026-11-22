@@ -3877,12 +3877,29 @@ function openSearch() {
     const q = el("input", "s-search");
     q.type = "search";
     q.placeholder = "a word in a line or its notes";
-    b.append(q);
+    /* The press that says the word is finished. It is the composer's send
+       button wearing a tick, because it answers the same question that one
+       does — what you typed is ready, take it — and the app should not have
+       two shapes for that. It lights while the field holds a word the list
+       below has not answered yet and goes quiet the moment it has, so the
+       wait is something you can see rather than a lag you have to trust, and
+       pressing it ends the wait there and then. */
+    const go = el("button", "send", ICON.check);
+    go.type = "button";
+    go.setAttribute("aria-label", "Search");
+    const row = el("div", "s-searchrow");
+    row.append(q, go);
+    b.append(row);
     const out = el("div", "s-acts");
     b.append(out);
 
+    /* The word the list below is answering, so the tick can say whether the
+       field has moved on from it. */
+    let shown = null;
     const run = () => {
       const term = q.value.trim().toLowerCase();
+      shown = term;
+      go.classList.remove("armed");
       out.textContent = "";
       if (term.length < 2) return;
       const hits = db.entries
@@ -3962,15 +3979,22 @@ function openSearch() {
       run();
     };
     q.addEventListener("input", () => {
+      const term = q.value.trim().toLowerCase();
       clearTimeout(pending);
-      /* Too short to search on, so there is nothing to wait for: the hits for
-         the longer word that was there go at once, rather than standing under
-         a field that no longer says what they matched. */
-      if (q.value.trim().length < 2) return run();
+      /* Back to the word the list is already answering — a letter typed and
+         taken back, a space on the end. Nothing to wait for and nothing to
+         press, so the tick goes out again. */
+      if (term === shown) return void go.classList.remove("armed");
+      /* Too short to search on, so there is nothing to wait for either: the
+         hits for the longer word that was there go at once, rather than
+         standing under a field that no longer says what they matched. */
+      if (term.length < 2) return run();
+      go.classList.add("armed");
       pending = setTimeout(answer, 300);
     });
-    /* Enter and the field's own clear button are not typing, they are done
-       typing — both answer without the wait. */
+    /* Enter, the tick, and the field's own clear button are not typing, they
+       are done typing — all three answer without the wait. */
+    go.onclick = answer;
     q.addEventListener("search", answer);
     q.addEventListener("keydown", (e) => {
       if (e.key === "Enter") answer();
