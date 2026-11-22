@@ -3949,7 +3949,32 @@ function openSearch() {
         out.append(hit);
       });
     };
-    q.addEventListener("input", run);
+    /* A search waits for a pause in the typing rather than answering every
+       letter. A word on its way to being typed matches lines you never asked
+       for — "me" and "mee" both find things on the way to "meeting" — and the
+       list under the field would rewrite itself two or three times for a word
+       you had not finished saying. The wait is long enough that nothing is
+       answered mid-word and short enough to read as the answer to what you
+       typed rather than a thing you have to wait for. */
+    let pending = 0;
+    const answer = () => {
+      clearTimeout(pending);
+      run();
+    };
+    q.addEventListener("input", () => {
+      clearTimeout(pending);
+      /* Too short to search on, so there is nothing to wait for: the hits for
+         the longer word that was there go at once, rather than standing under
+         a field that no longer says what they matched. */
+      if (q.value.trim().length < 2) return run();
+      pending = setTimeout(answer, 300);
+    });
+    /* Enter and the field's own clear button are not typing, they are done
+       typing — both answer without the wait. */
+    q.addEventListener("search", answer);
+    q.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") answer();
+    });
     setTimeout(() => q.focus(), 120);
   });
 }
