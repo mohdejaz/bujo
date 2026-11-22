@@ -260,6 +260,7 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
   margin: -5px 0 -5px -10px;
   padding: 5px 10px;
   border-radius: 12px;
+  position: relative;
   transition: transform 0.12s;
 }
 .stamp-today:active { transform: scale(0.97); }
@@ -268,9 +269,23 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
    end of the row is hidden there too, so without this the one view that reads
    every notebook looks exactly like the page you just left. It is the accent
    the day is already written in, not the tabs' card and lift, because that
-   would make the date the fourth tab after all — and it fills the shape the
-   press already had, so nothing moves on arrival. */
-.stamp-today.is-on { background: var(--accent-soft); }
+   would make the date the fourth tab after all.
+   It is drawn inside the press rather than on it. The padding above is what
+   makes the day a thumb's worth of target, and it reaches far enough up and
+   down to touch the tabs and the top of the page — invisible while it is only
+   a target, a box wedged between them the moment it is painted. So the tint
+   takes the words' own box and leaves that reach clear, which is also the
+   shape a highlight has: tight to the line, open at both ends. Nothing moves
+   on arrival, because the press itself is unchanged. */
+.stamp-today.is-on::before {
+  content: "";
+  position: absolute;
+  inset: 5px 0;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  /* behind the day and the month, in front of the header's own paper */
+  z-index: -1;
+}
 
 .stamp-d {
   flex: none;
