@@ -142,23 +142,18 @@ is not an event. The Calendar reads back
 from the furthest day towards the oldest; several events on one day sit
 newest-written first.
 
-**Writing on Today.** Today is the exception, because it is the one page that
-is on no page — so there is nothing there to say what the field writes, and it
-asks: **task**, **note** or **question**, in a row above the field. A day takes
-a thought or a question as readily as a job, and having to leave the day and
-find the right page to write one down is the thing marking a line for the day
-exists to spare you. The task is the default, and it arrives already marked for
-today, on the notebook's **default page** — Today belongs to no page, and
-whichever one the Journal was last showing is where you happened to be, not an
-answer to where the line goes. A note goes to the notebook's **default page of
-notes** and a question to its **default page of q&a**, and because neither can be shown
-on Today — neither is owed on a day, so neither carries the mark — the page it
-landed on is named as you write it. A notebook with nowhere to put a note has
-no *note* to press, the same way it is left out of *Move to notebook*; with
-nowhere to put either, the row does not appear at all. Whichever kind you pick
-stays picked for the session. And which notebook it all goes to is the one
-named in the header — on this page that button means not what you are reading
-but where a line you write now will go.
+**Writing on Today.** Today is on no page, so there is nothing there to say
+what the field writes — and it writes a **task**, which is the one kind of line
+a day is owed. It arrives already marked for today, on the notebook's **default
+page of work**: Today belongs to no page, and whichever one the Journal was
+last showing is where you happened to be, not an answer to where the line goes.
+Which notebook it goes to is the one named in the header — on this page that
+button means not what you are reading but where a line you write now will go.
+
+Nothing else can be written here. Anything that is not a task would land on a
+page you are not looking at, and the field would have to tell you where it had
+gone — a line you wrote and then had to read a receipt for. Turning to the page
+is what that is for, and the page is one tap away.
 
 **Gestures.** Tap a line's mark to complete it or, on one already finished,
 to reopen it. Tap the text to open everything else — on a question with no
@@ -468,9 +463,9 @@ with the pencil, name a new one in the field at the foot.
 it has pages of those kinds. A page about a person has none, because nothing
 ever lands on one by absence: an observation is written on that person's page
 or not at all, and Today cannot write one. Each is where a line of that kind lands when nothing else says
-where to put it: a task written on Today, a note or a question written there,
-a line moved in from another notebook, and — for the work — where the notebook
-opens and where a line that names no page at all lives. The first page of a
+where to put it: a task written on Today, a line moved in from another
+notebook, and — for the work — where the notebook opens and where a line that
+names no page at all lives. The first page of a
 kind holds the role until you move it: *Make … the default* on any page's
 sheet, where the heading says which kind you are setting. The three do not
 compete; a notebook carries all three at once.
