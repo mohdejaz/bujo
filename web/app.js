@@ -3877,13 +3877,13 @@ function openSearch() {
     const q = el("input", "s-search");
     q.type = "search";
     q.placeholder = "a word in a line or its notes";
-    /* The press that says the word is finished. It is the composer's send
-       button wearing a tick, because it answers the same question that one
-       does — what you typed is ready, take it — and the app should not have
-       two shapes for that. It lights while the field holds a word the list
-       below has not answered yet and goes quiet the moment it has, so the
-       wait is something you can see rather than a lag you have to trust, and
-       pressing it ends the wait there and then. */
+    q.enterKeyHint = "search";
+    /* The press that runs the search, and the only thing that does. It is the
+       composer's send button wearing a tick, because it answers the same
+       question that one does — what you typed is ready, take it — and the app
+       should not have two shapes for that. It lights while the field holds a
+       word the list below has not answered yet and goes quiet the moment it
+       has, which is also how it says there is something here to press. */
     const go = el("button", "send", ICON.check);
     go.type = "button";
     go.setAttribute("aria-label", "Search");
@@ -3966,38 +3966,34 @@ function openSearch() {
         out.append(hit);
       });
     };
-    /* A search waits for a pause in the typing rather than answering every
-       letter. A word on its way to being typed matches lines you never asked
-       for — "me" and "mee" both find things on the way to "meeting" — and the
-       list under the field would rewrite itself two or three times for a word
-       you had not finished saying. The wait is long enough that nothing is
-       answered mid-word and short enough to read as the answer to what you
-       typed rather than a thing you have to wait for. */
-    let pending = 0;
-    const answer = () => {
-      clearTimeout(pending);
-      run();
-    };
+    /* Typing never searches. A word on its way to being typed matches lines
+       nobody asked for — "me" and "mee" both find things on the way to
+       "meeting" — and a list that rewrites itself under your thumb while you
+       are still spelling the word is a list you cannot read. So the field
+       holds what you type and the search waits to be asked for, which is the
+       job the tick does; all typing settles is whether the tick is lit. */
     q.addEventListener("input", () => {
       const term = q.value.trim().toLowerCase();
-      clearTimeout(pending);
       /* Back to the word the list is already answering — a letter typed and
-         taken back, a space on the end. Nothing to wait for and nothing to
-         press, so the tick goes out again. */
+         taken back, a space on the end. Nothing left to ask for, so the tick
+         goes out again. */
       if (term === shown) return void go.classList.remove("armed");
-      /* Too short to search on, so there is nothing to wait for either: the
-         hits for the longer word that was there go at once, rather than
-         standing under a field that no longer says what they matched. */
+      /* Too short to search on, and the hits for the longer word that was
+         there go with it rather than standing under a field that no longer
+         says what they matched — the one thing typing clears by itself, so
+         that a dark tick always means the list below answers the field.
+         Nothing to press for either, so dark is what it stays. */
       if (term.length < 2) return run();
       go.classList.add("armed");
-      pending = setTimeout(answer, 300);
     });
-    /* Enter, the tick, and the field's own clear button are not typing, they
-       are done typing — all three answer without the wait. */
-    go.onclick = answer;
-    q.addEventListener("search", answer);
+    /* The tick, and the two presses that say the same thing: Enter, which is
+       the tick under a thumb that is already on the keyboard, and the field's
+       own clear button, which hands back an empty field — a search for
+       nothing, and the list goes. */
+    go.onclick = run;
+    q.addEventListener("search", run);
     q.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") answer();
+      if (e.key === "Enter") run();
     });
     setTimeout(() => q.focus(), 120);
   });

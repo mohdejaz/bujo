@@ -493,13 +493,15 @@ with an ellipsis. Short still reads better; it is just no longer enforced.
 
 **Search** (**⋯ → Search**, or `f`) looks across *every* notebook and page,
 line and note — you search because you forgot where something is, and which
-notebook and which page are part of what you forgot. It answers on a pause in
-the typing rather than on every letter, so the list is never a word you have
-not finished saying. The tick beside the field says where it stands: lit while
-the field holds a word the hits below have not answered yet, out once they
-have. Pressing it ends the wait there and then, as `Enter` and the field's own
-clear button do. Two characters is the least it will search on. A hit jumps to
-the page the line lives on, and to the right page of the right notebook.
+notebook and which page are part of what you forgot. Typing searches nothing:
+the **tick** beside the field runs it when you say the word is finished, so
+the list is never a word you had not finished saying. The tick lights while
+the field holds a word the hits below have not answered yet and goes out once
+they have, which is both where the wait stands and the thing to press.
+`Enter` does the same, and the field's own clear button hands back an empty
+field and takes the hits with it. Two characters is the least it will search
+on. A hit jumps to the page the line lives on, and to the right page of the
+right notebook.
 
 **Logged lines** can be hidden wholesale from **⋯ → Logged lines**, which is
 the pressure valve for an endless page.
