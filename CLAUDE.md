@@ -60,10 +60,14 @@ Syntax check: `node --check web/app.js`.
 `localStorage` under `bujo.v2`. What is on screen is decided by, in order: the notebook
 (`db.book`), then the *type* of an entry (`event` → Calendar; `task`, `note` and
 `question` → Journal), then — on the Journal only — the page of that notebook
-(`db.page`), which also settles which of those three types it is showing. A page carries
+(`db.page`), which also settles which of those types it is showing. A page carries
 `kind`: absent for the page of work that holds tasks, `"notes"` for a page of notes,
-`"qa"` for a page of q&a — `isWorkPage` / `isNotesPage` / `isQuestionPage`, with
-`typeOn` mapping a page to the one type it is written in.
+`"qa"` for a page of q&a, `"profile"` for a page about one person — `isWorkPage` /
+`isNotesPage` / `isQuestionPage` / `isProfilePage`, with `typeOn` mapping a page to the
+one type it is written in. That mapping is one-to-one in both directions (`kindFor` is
+the inverse), which is why a fourth kind of page needed a fourth type of line
+(`observation`) rather than reusing `note`: `linkPages` tells an orphan where it
+belongs by its type alone.
 
 **`isWorkPage` is the one to reach for**, not `!isQuestionPage`. Most rules here care
 only whether a page can hold a *task* — the default page, the last page a notebook
@@ -114,6 +118,15 @@ a *name a page carries*, not a record: `groupsIn` derives them from `db.pages`, 
 is no fourth array, no invariant to keep and nothing to orphan when a page or a notebook
 goes. A group never filters — it is a heading over the Index's rows and the list order
 is untouched, because the default page is unaffected by it.
+
+A **page about a person** is the one kind with no default: nothing resolves to it by
+absence, so `openPage` keeps it out of the role rather than letting `defPage`'s
+first-of-its-kind fallback name one. Its lines are read under the day each was written
+(`madeDay`, off `created` — a day nobody sets and nothing can contradict), newest day
+first, and like a question an observation is never owed on a day, never reaches Today
+and has no done to flip. `PROSE`/`isProse` is the set of kinds written in prose — note,
+question, observation — which is what the four rules that used to list two of them now
+ask.
 
 **One default per kind.** `defPage(book, kind)` is the live page of that kind carrying
 `def`, falling back to the notebook's first live page of that kind — so an old journal

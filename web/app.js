@@ -190,8 +190,9 @@ function writtenLabel(ms) {
  * existed gains a page record per notebook and not one entry is rewritten.
  *
  * `kind` says what the page holds: absent for the page of work it has always
- * been, `"notes"` for a page of questions — a spelling kept for the reason
- * given beside PAGE_KINDS. And `archived` is the notebook's own
+ * been, `"notes"` for a page of notes, `"qa"` for a page of questions — a
+ * spelling kept for the reason given beside PAGE_KINDS — and `"profile"` for a
+ * page about one person. And `archived` is the notebook's own
  * trick one level down — a filter on the page list rather than a deletion. An
  * archived page keeps every line it holds, leaves the Index for a fold at its
  * foot, drops out of the move-a-line rows and out of Today, and stops counting
@@ -239,14 +240,18 @@ const BOOK_NAME_MAX = 5;
 const BOOK_FIRST = "bujo";
 const PAGE_FIRST = "log";
 
-/* What a page holds, and there are three. Absent means tasks — the page of
+/* What a page holds, and there are four. Absent means tasks — the page of
    work a page has always been, so the field is one more thing that means the
    default by not being there, and no journal ever written needs touching to
    gain it. `"notes"` is the page of notes: lines you wrote down to keep, the
    words on the row being the whole of what was kept. `"qa"` is the page of
    questions: you write what you want to know, and the answer goes on the same
-   line when you have it.
-   A page holds one of the three and never two, because the field at the foot
+   line when you have it. `"profile"` is a page about one person: its name is
+   their name, its lines are what you have noticed about them, and they are
+   read under the day each was written. It is a page of a notebook like any
+   other and not an address book — there is no field on it for anything, and
+   nothing on it is a contact detail.
+   A page holds one of the four and never two, because the field at the foot
    of the screen asks nothing — the page you are on is what decides what you
    are writing, and a page holding more than one kind would have to start
    asking.
@@ -255,9 +260,14 @@ const PAGE_FIRST = "log";
    because it is the new thing. That matters more than it looks: this journal
    is read on two phones that each cache their own copy of the app, and a build
    that has not updated still reads a notes page as a notes page. */
-const PAGE_KINDS = new Set(["notes", "qa"]);
+const PAGE_KINDS = new Set(["notes", "qa", "profile"]);
 const isNotesPage = (pg) => !!pg && pg.kind === "notes";
 const isQuestionPage = (pg) => !!pg && pg.kind === "qa";
+/* A page about one person. The page *is* the person — its name is their name,
+   which is why it needs no field for one and holds none of the things a
+   contact holds. What is on it is what you noticed, and the only thing a line
+   there has to know about itself is the day it was written. */
+const isProfilePage = (pg) => !!pg && pg.kind === "profile";
 /* The page of work, which is the one a page is when it says nothing. Worth a
    name of its own because what most of the rules below care about is not which
    of the other two a page is but whether it can hold a task — the default
@@ -267,11 +277,13 @@ const isQuestionPage = (pg) => !!pg && pg.kind === "qa";
 const isWorkPage = (pg) => !!pg && !pg.kind;
 /* The kind of line a page is written in: the one thing its composer writes,
    its render reads and its count counts. */
-const typeOn = (pg) => (isNotesPage(pg) ? "note" : isQuestionPage(pg) ? "question" : "task");
+const typeOn = (pg) =>
+  isNotesPage(pg) ? "note" : isQuestionPage(pg) ? "question" : isProfilePage(pg) ? "observation" : "task";
 /* And what that kind is called out loud, for the one place a page has to name
    its own kind: there are three defaults now, so "the default page" no longer
    says which. */
-const kindWord = (pg) => (isNotesPage(pg) ? "notes" : isQuestionPage(pg) ? "q&a" : "work");
+const kindWord = (pg) =>
+  isNotesPage(pg) ? "notes" : isQuestionPage(pg) ? "q&a" : isProfilePage(pg) ? "people" : "work";
 
 const newBook = (name) => ({ id: uid(), name });
 const newPage = (book, name, kind) => {
@@ -438,7 +450,8 @@ const defPage = (book, kind = null) => {
 /* Pages are sorted by kind and lines by type, and the two are the same three
    things under different names. `typeOn` reads a page's kind as a type; this
    reads a type as a kind, which is what you need to ask where a line lands. */
-const kindFor = (type) => (type === "note" ? "notes" : type === "question" ? "qa" : null);
+const kindFor = (type) =>
+  type === "note" ? "notes" : type === "question" ? "qa" : type === "observation" ? "profile" : null;
 const landingPage = (book, type) => defPage(book, kindFor(type));
 /* The groups of one notebook, in the order their first page appears. This is
    the whole existence of a group: write the name on a page and the group is
@@ -685,7 +698,15 @@ function migrateV1(old) {
    build loads. Unknown keys are kept — a file from a *newer* build is still
    someone's data, and dropping fields we don't recognise would quietly destroy
    it on the next export. */
-const TYPES = new Set(["task", "event", "note", "question"]);
+const TYPES = new Set(["task", "event", "note", "question", "observation"]);
+/* The kinds written in prose rather than as a checklist: a thought you kept, a
+   thing you want to know, a thing you noticed about someone. None of them is
+   owed on a day, none is ever carried out, and none carries a second box under
+   its words — what each has to say, it says in them. Worth one name because
+   four separate rules used to ask the same question by listing the kinds, and
+   a fifth kind would have had to find all four. */
+const PROSE = new Set(["note", "question", "observation"]);
+const isProse = (e) => !!e && PROSE.has(e.type);
 /* The pages, in the order you travel through them: swipes and arrow keys step
    this list, and the slide comes in from the side it says. Today leads — it is
    the only page that answers the question you open a notebook with. Behind it
@@ -726,8 +747,8 @@ function adopt(raw, i, books) {
        and neither, then, the mark that takes one off. */
     delete e.today;
     delete e.notToday;
-  } else if (e.type === "note" || e.type === "question") {
-    /* Neither is owed on a day. Nothing a deadline brings with it belongs to
+  } else if (isProse(e)) {
+    /* None of them is owed on a day. Nothing a deadline brings with it belongs to
        one, and that includes both marks for Today — the hand mark, which would
        be saying a line you keep is a line you are doing, and the dismissal,
        which only exists to argue with a deadline that is not there. */
@@ -736,10 +757,11 @@ function adopt(raw, i, books) {
     delete e.notToday;
     delete e.date;
     delete e.time;
-    /* Done is a task's ending. These two are struck out when they stop being
-       worth keeping or asking and deleted when they were never worth writing —
-       there is no third thing to have been carried out, and answering a
-       question is filling it in rather than finishing it. A file saying one
+    /* Done is a task's ending. These are struck out when they stop being worth
+       keeping, asking or remembering and deleted when they were never worth
+       writing — there is no third thing to have been carried out, answering a
+       question is filling it in rather than finishing it, and an observation
+       is a thing that happened, which nothing can finish. A file saying one
        was done has the line put back on its page, which is the only state it
        can be read in. */
     if (e.state === "done") e.state = "open";
@@ -790,14 +812,16 @@ function adopt(raw, i, books) {
     delete e.notes;
   }
   /* And a note is the mirror of the question, the same reason read the other
-     way round: a note's words *are* what you kept, so a box underneath them
+     way round — an observation with it, which is a note about a person and
+     keeps what it has to say in the same one place: a note's words *are* what
+     you kept, so a box underneath them
      only ever held a note about a note — the same thought, written where the
      row cannot print it. Whatever arrives in either field is folded into the
      words with a blank line between rather than dropped: notes from a build
      written before the box went, the other phone's cached copy included, and
      an answer from one where this line was a question. `given` is read from
      `raw`, because the fold above has already taken `answer` off `e`. */
-  if (e.type === "note") {
+  if (e.type === "note" || e.type === "observation") {
     const under = [e.notes, given].filter(Boolean).join("\n\n");
     if (under) e.text += "\n\n" + under;
     delete e.notes;
@@ -1196,6 +1220,31 @@ function notesBuckets() {
   };
 }
 
+/* A page about one person, in days. The day a line was written is the whole
+   of what orders this page: an observation is worth what it is worth *when* it
+   was made — "moving teams" means one thing said last week and another said in
+   March — so the day is a heading over its lines rather than a stamp repeated
+   down the side of them. Newest day first, because a person is read backwards
+   from what they are doing now.
+   A struck observation leaves the days entirely for the fold at the foot. A
+   day you struck everything off is a day you noticed nothing worth keeping,
+   and a heading standing over an empty run would say otherwise. */
+function profileBuckets() {
+  const obs = mine().filter((e) => e.type === "observation" && onPage(e));
+  const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
+  const by = (a, b) => star(a, b) || rankOf(b) - rankOf(a);
+  const days = new Map();
+  obs.filter(isLive).forEach((e) => {
+    const d = madeDay(e);
+    if (!days.has(d)) days.set(d, []);
+    days.get(d).push(e);
+  });
+  return {
+    days: [...days.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).map(([d, l]) => [d, l.sort(by)]),
+    struck: db.hideLogged ? [] : obs.filter((e) => !isLive(e)).sort(by),
+  };
+}
+
 function questionBuckets() {
   const qs = mine().filter((e) => e.type === "question" && onPage(e));
   const star = (a, b) => (b.star ? 1 : 0) - (a.star ? 1 : 0);
@@ -1207,6 +1256,13 @@ function questionBuckets() {
     struck: db.hideLogged ? [] : qs.filter((e) => !isLive(e)).sort(by),
   };
 }
+
+/* The day a line was written, which is the day an observation is filed under.
+   It is read off `created` and nothing else: the day you noticed a thing is
+   not a field anyone sets, it is when the line arrived, so there is nothing
+   here that can fall out of step with the words and nothing to migrate on a
+   journal written before profiles existed. */
+const madeDay = (e) => iso(new Date(e.created));
 
 /* The day a settled line is filed under. The same stamp that already orders
    the Done bucket, so the heading over a row can never disagree with the place
@@ -1432,8 +1488,8 @@ function setState(e, state) {
 /* Flip done. The same gesture both ways, so nothing can get stranded. */
 function toggleDone(id) {
   const e = byId(id);
-  // neither a note nor a question has a done to flip
-  if (!e || e.type === "note" || e.type === "question") return;
+  // nothing written in prose has a done to flip
+  if (!e || isProse(e)) return;
   S.anim.add(id);
   buzz(e.state === "done" ? 6 : 11);
   mutate(null, () => setState(e, e.state === "done" ? "open" : "done"));
@@ -1592,6 +1648,7 @@ function render() {
   if (isTodayPage()) renderToday();
   else if (isCal()) renderCalendar();
   else if (isIndex()) renderIndex();
+  else if (isProfilePage(curPage())) renderProfile();
   else if (isQuestionPage(curPage())) renderQuestions();
   else if (isNotesPage(curPage())) renderNotes();
   else renderJournal();
@@ -1780,6 +1837,52 @@ function renderNotes() {
     empty.innerHTML =
       `<b>${safeHtml(curPage().name)} is empty</b>` +
       "Write a note below. Nothing here is owed on a day — it is what you want to keep.";
+  }
+}
+
+/* A page about one person: what you have noticed, under the day you noticed
+   it. The headings are the Calendar's, and they read `dd MMM` for the reason
+   every date in this app does — a day named in full means the same thing
+   whenever the page is read back, and this page will be read back years
+   later, which is the whole of what it is for.
+   Nothing at the head of it and nothing owed on a day: what is on today is
+   work, and nothing you noticed about a person is a job you are late with. */
+function renderProfile() {
+  const list = $("#list");
+  list.textContent = "";
+
+  const { days, struck } = profileBuckets();
+  const today = TODAY();
+
+  const put = (e, bucket) => {
+    const li = row(e, { tray: true });
+    li.dataset.group = bucket + (e.star ? ":star" : "");
+    liftable(li);
+    list.append(li);
+  };
+
+  days.forEach(([d, seen]) => {
+    const h = el("li", "sep sep-day" + (d === today ? " is-today" : ""));
+    h.append(el("span", null, dayLabel(d)));
+    list.append(h);
+    /* A drag stays inside the day it was written on, the way every other run
+       in this app holds one: the day is not the view's to move, and a line
+       dropped under another heading would be claiming you noticed it then. */
+    seen.forEach((e) => put(e, "day:" + d));
+  });
+
+  if (struck.length) {
+    list.append(foldHeading("Struck out", struck.length, "struckOpen"));
+    if (S.struckOpen) struck.forEach((e) => put(e, "struck"));
+  }
+
+  const empty = $("#empty");
+  const bare = !days.length && !struck.length;
+  empty.hidden = !bare;
+  if (bare) {
+    empty.innerHTML =
+      `<b>Nothing about ${safeHtml(curPage().name)} yet</b>` +
+      "Write what you noticed below. It is filed under the day you write it.";
   }
 }
 
@@ -1980,12 +2083,13 @@ function renderIndex() {
   /* The Index is never empty of pages — a notebook always has at least one —
      but it can be empty of *this* kind, and then it has to say so rather than
      leaving a blank page under a segment nobody has noticed moving. Only the
-     q&a side can reach this: the pages of work always have the default. */
+     three named kinds can reach this: the pages of work always have the
+     default. */
   if (!here.length && !away.length) {
-    const what = S.indexKind === "qa" ? "q&a" : "notes";
-    list.append(
-      el("li", "index-note", `No ${what} pages in ${curBook().name} yet. Name one below.`)
-    );
+    const what = { qa: "q&a pages", profile: "pages about anyone", notes: "notes pages" }[
+      S.indexKind
+    ];
+    list.append(el("li", "index-note", `No ${what} in ${curBook().name} yet. Name one below.`));
   }
 
   /* Printed under the list rather than as an empty state, because the Index
@@ -2045,13 +2149,25 @@ function pageLink(pg) {
   const li = el("li", "pagelink" + (pg.id === db.page ? " is-on" : "") + (pg.archived ? " is-away" : ""));
   const pick = el("button", "pagelink-pick");
   /* The row leads with the mark the page's lines are written in: a dot for a
-     page of work, a dash for a page of notes, a `?` for a page of questions.
-     Choosing a page is choosing what you are about to write, so which of the
-     three it is cannot be something you find out by arriving. The pages of
+     page of work, a dash for a page of notes, a `?` for a page of questions
+     and a square for a page about a person. Choosing a page is choosing what
+     you are about to write, so which of the four it is cannot be something you
+     find out by arriving. The pages of
      work carry theirs too rather than only the other two, for the reason every
      line in this app carries a bullet — a mark that is not a dot only reads as
      a departure from the dot if the dot is there to depart from. */
-  pick.append(bwrap("b b-" + (isQuestionPage(pg) ? "ask" : isNotesPage(pg) ? "note" : "task")));
+  pick.append(
+    bwrap(
+      "b b-" +
+        (isQuestionPage(pg)
+          ? "ask"
+          : isNotesPage(pg)
+            ? "note"
+            : isProfilePage(pg)
+              ? "observation"
+              : "task")
+    )
+  );
   pick.append(el("span", "pagelink-name", safeHtml(pg.name)));
   if (n) pick.append(el("span", "pagelink-n", String(n)));
   /* The archived page is the one page you cannot turn to, so its row opens its
@@ -2186,11 +2302,11 @@ function row(e, opts = {}) {
      paragraphs. The whole of it is one tap away in the sheet, which is where
      a line you have to read properly belongs. */
   const line = el("span", "row-line");
-  /* Notes and questions are prose, not a checklist, so they wrap in full
+  /* The prose kinds are prose, not a checklist, so they wrap in full
      rather than clamping: there is no scan down a column of marks to protect,
      and a cut-off thought is not a note. A question and its answer are
      lettered q: and a: in place of the bullet they do not carry. */
-  const prose = e.type === "note" || e.type === "question";
+  const prose = isProse(e);
   if (prose) line.classList.add("wrap");
   if (e.type === "question") {
     line.append(el("span", "row-tag", "q:"));
@@ -2613,6 +2729,7 @@ const PROMPT = {
   task: "what needs doing?",
   note: "what do you want to keep?",
   question: "what do you want to know?",
+  observation: "what did you notice?",
 };
 
 /* Almost nothing to pick: the page you are on decides what you are writing. A
@@ -3664,11 +3781,14 @@ function addPage(bookId, name, kind) {
 function openPage(id) {
   const pg = db.pages.find((x) => x.id === id);
   if (!pg) return;
-  /* The default *of this page's kind* — there are three to a notebook now, one
-     per kind, and a page is only ever in the running for its own. An archived
-     page is in none of them, and may well be the last of its kind, so this has
-     to survive there being no live page to find at all. */
-  const first = defPage(pg.book, pg.kind || null)?.id === pg.id;
+  /* The default *of this page's kind* — one to a notebook per kind, and a page
+     is only ever in the running for its own. An archived page is in none of
+     them, and may well be the last of its kind, so this has to survive there
+     being no live page to find at all. A page about someone is in none of them
+     either: `defPage` would hand back the first of them the way it does for
+     any kind, but nothing in the app resolves to it, so saying it was the
+     default would be naming a role that does not exist. */
+  const first = !isProfilePage(pg) && defPage(pg.book, pg.kind || null)?.id === pg.id;
   const n = pageCount(pg.id);
   /* A page of questions can always go. A page of work can go while the notebook
      has another, for the reason the last page of all cannot: absence has to
@@ -3684,6 +3804,7 @@ function openPage(id) {
         `${n} ${n === 1 ? "line" : "lines"} in ${bookName(pg.book)}` +
           (isNotesPage(pg) ? " · a page of notes" : "") +
           (isQuestionPage(pg) ? " · a page of questions" : "") +
+          (isProfilePage(pg) ? " · a page about someone" : "") +
           (first ? " · the default page" : "")
       )
     );
@@ -3728,6 +3849,7 @@ function openPage(id) {
             ["", "tasks"],
             ["notes", "notes"],
             ["qa", "q&a"],
+            ["profile", "person"],
           ],
           pg.kind || "",
           (v) =>
@@ -3736,7 +3858,12 @@ function openPage(id) {
               if (!live) return;
               if (v) live.kind = v;
               else delete live.kind;
-            })
+            }),
+          /* The four kinds take the width of the sheet rather than sitting at
+             the end of a row: sized to their own words they ran off the edge
+             at the larger text steps, and this is a choice you make once about
+             a page, which is worth a line of its own anyway. */
+          true
         )
       );
     }
@@ -3765,7 +3892,15 @@ function openPage(id) {
        the page you cannot turn to. The heading carries the kind, because with
        three of these "Default page" no longer says which; the row stays short
        enough for a thumb. */
-    if (!first && !pg.archived) {
+    /* And never a page about someone. The other three kinds have a default
+       because a line of that kind can arrive with nowhere to go — a task
+       naming no page, a note or a question written on Today. Nothing ever
+       lands on a profile page by absence: an observation is written on the
+       person's own page or not at all, and Today cannot write one, because
+       what you noticed about someone is not a thing owed on a day. A flag
+       that decided nothing would be a flag you could set and watch do
+       nothing. */
+    if (!first && !pg.archived && !isProfilePage(pg)) {
       acts.append(el("div", "sep", `Default page of ${kindWord(pg)}`));
       acts.append(
         actRow(ICON.page, `Make ${pg.name} the default`, () => {
