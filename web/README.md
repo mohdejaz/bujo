@@ -5,9 +5,10 @@ holds, from every notebook at once; tasks sit on a page of the **Journal** and
 may carry a due date; events have a date and live on the **Calendar**; the
 **Index** lists the pages of the notebook and turns to any of them. A page of
 the notebook can also be a **page of notes**, for the things you want to keep
-rather than do, or a **page of q&a**, where you write what you want to know
-and the answer goes on the same line when you have it. Switching between the
-four is the only navigation there is.
+rather than do, a **page of q&a**, where you write what you want to know and
+the answer goes on the same line when you have it, or a **page about one
+person**, where what you have noticed about them is filed under the day you
+noticed it. Switching between the four is the only navigation there is.
 
 No build step, no dependencies, no account. The journal lives in
 `localStorage` on the device.
@@ -26,6 +27,7 @@ at night. The screenshots are taken from a seeded journal, not a real one.
   ○  an event      something that happens, on a day
   –  a note        something to keep, on a page of notes
   ?  a question    something you want to know; the answer reads under it
+  ▪  an observation something you noticed about someone, on their own page
   ×  done
   ≡  carries notes
 ```
@@ -39,7 +41,7 @@ mark is for where the kinds mix: beside a page's name in the Index, and against
 the other three in a search. A task struck out keeps its `•`, dimmed and ruled
 through: that is a line you decided against, not a state of the work.
 
-Three kinds of line, and the page you are on decides which you are writing. A
+Four kinds of line, and the page you are on decides which you are writing. A
 **task** goes on a page of work in the Journal, newest first, until you drag it
 somewhere else or give it a day it is wanted by. The row prints only its words and that day,
 if it has one; the day the line was written is in its sheet. A row is **one
@@ -50,7 +52,7 @@ always carries a date, and that is what makes it an event; it goes on the
 Calendar. A date and no clock — an event is placed on a day, and the day
 heading it sits under says which.
 
-Two more kinds of line are not about doing anything at all. A **note** is
+Three more kinds of line are not about doing anything at all. A **note** is
 something you wrote down to keep — a number, a name, what somebody said — and
 it lives on a **page of notes**, and its words are the whole of it: there is no
 second box underneath, for the same reason a question has none.
@@ -72,15 +74,39 @@ is owed on a day. It is also the one line with no `×`: a question is struck out
 when it stops being worth asking and deleted when it was never worth writing,
 and answering one is filling it in rather than finishing it.
 
-The two are close enough that choosing between them is about how you will read
-it back. A note says what it is; a question says what you were looking for when
+A **page about one person** is the third. Its name is their name, and the lines
+on it are what you have noticed — what they said, what they are up to, what
+they are worried about. It is a page of the notebook and not an address book:
+there is no field on it for anything, nothing on it is a contact detail, and
+one page is one person.
+
+What is on it is filed under **the day you wrote it**, newest day first, under
+the same day heading the Calendar uses. That is the whole shape of the page,
+because an observation is worth what it is worth *when* it was made — "moving
+teams" means one thing said last week and another said in March — and a person
+is read backwards from what they are doing now. You never set that day: it is
+when the line arrived.
+
+Nothing about a person is owed on a day, so an observation carries no deadline
+and never reaches Today, exactly as a question does not. It is struck out when
+it stops being worth remembering and deleted when it was never worth writing.
+A thing you have to *do* about someone is a task and belongs on a page of work
+— their page holds what you noticed, not what you owe them.
+
+Unlike the other three kinds, a page about someone has no default. Nothing ever
+lands on one by absence: an observation is written on that person's page or not
+at all.
+
+A note and a question are close enough that choosing between them is about how
+you will read it back. A note says what it is; a question says what you were looking for when
 you come back needing it. *Bin night is Wednesday* and *Bin night? —
 Wednesday* hold the same fact, and the second is the one you scan for. Notes
 when the page is a list; q&a when the page is something you consult.
 
 A task is something to do whenever, or by a day; an event is something that
 happens on a day; a note is something you keep; a question is something you
-want to know. A line never moves
+want to know; an observation is something you noticed about a person. A line
+never moves
 between the pages — changing what kind of thing it is would be writing a
 different line — though the Journal does *show* you today's events, at the top,
 where they are hard to miss.
@@ -325,17 +351,17 @@ turning to it, because that is where *Restore* is and it is the only thing left
 to do with it.
 
 Above that field the Index grows a row the other pages do not have: **tasks**,
-**notes**, or **q&a**. It says which kind of page the Index is about — both the pages it
-lists and the kind the field below will make, because those are the same
-statement. You are working with the pages of work, or the notes, or the q&a;
-a list that showed one kind while the field made another would be two controls
-disagreeing within a thumb's reach.
+**notes**, **q&a** or **people**. It says which kind of page the Index is
+about — both the pages it lists and the kind the field below will make,
+because those are the same statement. You are working with the pages of work,
+or the notes, or the q&a, or the people; a list that showed one kind while the
+field made another would be two controls disagreeing within a thumb's reach.
 
-So the Index shows **one kind at a time**. The three are read by different
+So the Index shows **one kind at a time**. The four are read by different
 lists and written in different lines, and the kind is the only thing about a
-page that cannot be halfway — a list holding all of them had to be read three
-times, once down the dots, once down the dashes and once down the question
-marks. Nothing moves: this narrows the reading
+page that cannot be halfway — a list holding all of them had to be read four
+times, once down the dots, once down the dashes, once down the question marks
+and once down the squares. Nothing moves: this narrows the reading
 of the page list and nothing else, the order is untouched, the default keeps
 its place, and a page you cannot see is one tap of the segment away. Groups
 narrow with it — a group whose every page is the other kind has no heading to
@@ -407,8 +433,8 @@ answer — so what stands in the way is only the work you have not dealt with,
 which is exactly the number the Index already prints beside the page: **a page
 with no number beside it can be archived.** Press it with work still open and
 it tells you how much, rather than hiding the row and leaving you to guess the
-rule. A page of notes or of q&a has no work on it at all, so either can
-always go — an unanswered question is not an unfinished job, and waiting for
+rule. A page of notes, of q&a or about a person has no work on it at all, so any of
+them can always go — an unanswered question is not an unfinished job, and waiting for
 every line to be struck would be waiting for the page to have nothing left to
 say rather than nothing left to do.
 
@@ -423,22 +449,25 @@ away at all. An archived page is also
 the one page you cannot turn to, and its lines drop out of **Today** and out of
 the move-a-line rows — putting a page away means putting it away.
 
-**Three kinds of page.** A page holds tasks, or notes, or questions — never
-two of them, because the field at the foot asks nothing, and a page holding
-more than one kind would have to start asking. A page says which it is when you name it, and can
-still change its mind **while it is empty**: the two are read by different
-lists and written in different lines, so turning a page that already holds
-something into the other kind would not move anything, it would simply stop
-showing it. Past that, the way to the other kind is a new page. Each kind has
-a default page of its own, for the reason below.
+**Four kinds of page.** A page holds tasks, or notes, or questions, or one
+person — never two of them, because the field at the foot asks nothing, and a
+page holding more than one kind would have to start asking. A page says which
+it is when you name it, and can still change its mind **while it is empty**:
+the four are read by different lists and written in different lines, so turning
+a page that already holds something into another kind would not move anything,
+it would simply stop showing it. Past that, the way to another kind is a new
+page. Three of the four have a default page of their own, for the reason
+below.
 
 **Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
 a paper one. The **Index** is where they live: turn to one, rename or delete it
 with the pencil, name a new one in the field at the foot.
 
-**The default page, one per kind.** Every notebook has a **default page of
-work**, and a **default page of notes** and **of q&a** once it has pages of
-those kinds. Each is where a line of that kind lands when nothing else says
+**The default page, one per kind — but not for people.** Every notebook has a
+**default page of work**, and a **default page of notes** and **of q&a** once
+it has pages of those kinds. A page about a person has none, because nothing
+ever lands on one by absence: an observation is written on that person's page
+or not at all, and Today cannot write one. Each is where a line of that kind lands when nothing else says
 where to put it: a task written on Today, a note or a question written there,
 a line moved in from another notebook, and — for the work — where the notebook
 opens and where a line that names no page at all lives. The first page of a

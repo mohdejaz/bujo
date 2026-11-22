@@ -579,6 +579,14 @@ svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; 
 /* – for a note, the dash the line is written with. Wider than it is tall, so
    it can never read as a dot half-drawn. */
 .b-note { width: 0.6rem; height: 2px; border-radius: 2px; background: currentColor; }
+/* A square for an observation: the dot of a line you wrote, squared off. A
+   page about a person is the one page whose lines are about someone else, and
+   a shape with corners is the only thing this column can say that a dot, a
+   ring and a dash do not already say. Like the note's dash it is a mark and
+   not a tap — nothing written in prose has a done to flip — and like every
+   other mark it earns its place where the kinds mix, in the Index and in a
+   search. */
+.b-observation { width: 0.5rem; height: 0.5rem; border-radius: 1.5px; background: currentColor; }
 /* ? for a question. A page of questions prints no mark at all — see row() — so
    this is never a column, only a one-off against a dot, a ring or a dash,
    which is exactly where a shape would have had to be learnt and a letter does
@@ -1195,7 +1203,14 @@ svg.fill, .s-act.on svg.fill { fill: currentColor; stroke: none; }
 }
 .s-seg button.on { background: var(--card); color: var(--ink); box-shadow: var(--lift-1); }
 .s-seg-wide { margin-left: 0; width: 100%; }
-.s-seg-wide button { flex: 1; padding: 10px 0; line-height: 1; }
+.s-seg-wide button { flex: 1; min-width: 0; padding: 10px 0; line-height: 1; }
+/* A composer row whose segment is the width of the row rather than a control
+   at the end of it. Naming a page takes four kinds now, and four words sized
+   to themselves walked off the end of a phone at the larger text steps; four
+   equal columns fit at every step, because what they share is the width of
+   the screen rather than the length of the words. */
+.when-seg { align-items: center; gap: 8px; }
+.when-seg .s-seg { flex: 1; min-width: 0; }
 
 /* A native field at the end of a sheet row — the day an event falls on.
    Shaped like a .s-seg so a row that asks for a value sits level with the
