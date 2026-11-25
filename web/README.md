@@ -417,10 +417,9 @@ the exported file is the only way back afterwards.
 **Archiving a page.** A page whose work is finished can step aside: *Archive
 page* on its sheet puts it away, and it leaves the Index for the fold at the
 foot. Nothing moves and nothing is deleted — every line it holds stays exactly
-where it was, the way an archived notebook keeps everything in it. An archived
-page stops counting against the sixteen, so a notebook can go on having pages
-after it, and *Restore page* brings it back whole, provided there is still room
-among the sixteen for it.
+where it was, the way an archived notebook keeps everything in it. *Restore
+page* brings it back whole, and there is nothing to make room for: a notebook
+has no ceiling on its pages.
 
 It is offered **only when no task on the page is still open**. A task you
 struck out counts as finished with — you decided against it, which is an
@@ -454,9 +453,9 @@ it would simply stop showing it. Past that, the way to another kind is a new
 page. Three of the four have a default page of their own, for the reason
 below.
 
-**Pages.** Inside a notebook, up to sixteen pages — the tabs down the edge of
-a paper one. The **Index** is where they live: turn to one, rename or delete it
-with the pencil, name a new one in the field at the foot.
+**Pages.** Inside a notebook, as many pages as you want — the tabs down the
+edge of a paper one. The **Index** is where they live: turn to one, rename or
+delete it with the pencil, name a new one in the field at the foot.
 
 **The default page, one per kind — but not for people.** Every notebook has a
 **default page of work**, and a **default page of notes** and **of q&a** once
@@ -485,9 +484,8 @@ of notes can always go.
 
 A page of notes or of q&a is reached and read exactly like any other: it is a page of
 the notebook, it sits in the Index among the rest, it can go under a group, and
-a notebook can hold as many of them as it likes within the sixteen — so long as
-one page of work remains. Pages split the **Journal** and nothing else, and the
-Journal says which page it is reading: the name sits at the end of the date, under a ribbon, so the
+a notebook can hold as many of them as it likes — so long as one page of work
+remains. Pages split the **Journal** and nothing else, and the Journal says which page it is reading: the name sits at the end of the date, under a ribbon, so the
 lines below it are never anonymous. The Calendar belongs to the notebook and
 reads every page of it at once, because a day is something you want whole —
 having to check five pages to find out what is on today would be a worse
@@ -631,10 +629,9 @@ is what a page has always been and so what it still means to say nothing, and
 `"notes"` on a page of notes and `"qa"` on a page of q&a.
 `archived` is the notebook's own flag one level
 down and the same kind of filter: absent on a page you are working with, `true`
-on one you have put away — never on the default page of work, and not counted
-against the sixteen. A page of any kind can carry `def`, one to a kind to a
-notebook, and a file claiming two of a kind has the first honoured and the rest
-dropped. Where the two flags collide the work and the other two part company:
+on one you have put away — never on the default page of work. A page of any
+kind can carry `def`, one to a kind to a notebook, and a file claiming two of a
+kind has the first honoured and the rest dropped. Where the two flags collide the work and the other two part company:
 on a page of work `def` wins and the archive is dropped, because page-less
 tasks must stay readable; on a page of notes or q&a the archive wins and the
 page stops being the default, because nothing resolves to it by absence and a
