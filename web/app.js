@@ -195,10 +195,9 @@ function writtenLabel(ms) {
  * page about one person. And `archived` is the notebook's own
  * trick one level down — a filter on the page list rather than a deletion. An
  * archived page keeps every line it holds, leaves the Index for a fold at its
- * foot, drops out of the move-a-line rows and out of Today, and stops counting
- * against PAGE_MAX, so a project that is finished can step aside without being
- * emptied first. It is the one page you cannot turn to: restore it and it is
- * an ordinary page again.
+ * foot, and drops out of the move-a-line rows and out of Today, so a project
+ * that is finished can step aside without being emptied first. It is the one
+ * page you cannot turn to: restore it and it is an ordinary page again.
  *
  * Only the Journal narrows to a page. The Calendar reads the whole notebook,
  * because a day is something you want to see across every page at once —
@@ -219,13 +218,12 @@ function writtenLabel(ms) {
 const BOOK_MAX = 6;
 /* The whole list, archive included, is capped too. */
 const BOOK_KEEP_MAX = 40;
-/* Pages per notebook. More than a screenful, deliberately: the Index is a list
-   you scroll like any other, and a page is cheap — a name and a filter. The
-   ceiling is here to keep the Index readable at all, not to ration pages. */
-const PAGE_MAX = 16;
-/* And a ceiling across every notebook, as BOOK_KEEP_MAX is for the shelf. It
-   has to clear PAGE_MAX times every notebook you can have open, or a journal
-   that was legal to write would come back short a page on the next load. */
+/* A ceiling on the page list as a whole, as BOOK_KEEP_MAX is for the shelf.
+   There is no per-notebook one, and deliberately so: a page is cheap — a name
+   and a filter — and the Index is a list you scroll like any other, so a
+   ceiling there only ever stopped a notebook being kept the way its owner
+   wanted. What is capped is the size of the file, not how one journal is
+   written, which is why the number is far past anything reached by hand. */
 const PAGE_KEEP_MAX = 160;
 /* Five for a notebook: it shares one header row with three tabs and a menu,
    so every character it takes is one the rest cannot have. */
@@ -351,18 +349,14 @@ function withBooks(raw) {
 function withPages(raw) {
   const known = new Set(raw.books.map((b) => b.id));
   const kept = [];
-  const count = new Map(); // pages kept per notebook so far
   (Array.isArray(raw.pages) ? raw.pages : []).forEach((p) => {
     if (!p || typeof p !== "object" || !known.has(p.book)) return;
     const name = cleanPage(p.name);
     if (!name) return;
-    /* An archived page does not count against the ceiling, for the reason an
-       archived notebook does not count against its own: stepping aside is the
-       whole point of it, and a page you have put away is not one of the pages
-       you are working with. The list as a whole is still capped. */
-    const c = count.get(p.book) || 0;
-    if ((!p.archived && c >= PAGE_MAX) || kept.length >= PAGE_KEEP_MAX) return;
-    if (!p.archived) count.set(p.book, c + 1);
+    /* The one ceiling is on the list as a whole, archived pages counted with
+       the rest: a notebook holds as many pages as it is given, so there is no
+       per-notebook tally here and nothing an archived page makes room for. */
+    if (kept.length >= PAGE_KEEP_MAX) return;
     const pg = { id: typeof p.id === "string" && p.id ? p.id : uid(), book: p.book, name };
     /* What the page holds, absent for the ordinary page of work. */
     if (PAGE_KINDS.has(p.kind)) pg.kind = p.kind;
@@ -3623,14 +3617,12 @@ function archivePage(id) {
   });
 }
 
-/* Coming back costs a place among the pages you are working with, so the
-   ceiling is checked here and nowhere else — an archived page does not count
-   against it, which is the whole reason there was room to put it away. */
+/* And back out again, which is only dropping the flag that hid it: a notebook
+   has no ceiling on its pages, so coming back costs a restored page nothing
+   and there is nothing here to turn it away. */
 function restorePage(id) {
   const pg = db.pages.find((x) => x.id === id);
   if (!pg || !pg.archived) return;
-  if (livePages(pg.book).length >= PAGE_MAX)
-    return toast(`${PAGE_MAX} pages in ${bookName(pg.book)} already`);
   buzz(6);
   mutate(`Restored ${pg.name}`, () => delete pg.archived);
 }
@@ -3725,7 +3717,6 @@ function openGroup(name) {
    can be written to. */
 function addPage(bookId, name, kind) {
   const bk = db.books.find((x) => x.id === bookId) || curBook();
-  if (livePages(bk.id).length >= PAGE_MAX) return toast(`${PAGE_MAX} pages in ${bk.name} already`);
   const pg = newPage(bk.id, name, kind);
   mutate(null, () => db.pages.push(pg));
   buzz(7);

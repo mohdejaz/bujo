@@ -136,7 +136,9 @@ resolves to; that one always exists, while the other two come back `undefined` w
 notebook has no page of the kind, which is the answer their callers want. `landingPage`
 is the thin alias that asks it by *entry type* rather than page kind, via `kindFor` —
 the inverse of `typeOn`. `withPages` guarantees every notebook has a live page of work,
-creating one past `PAGE_MAX` if it must, because the invariant outranks the ceiling.
+creating one past `PAGE_KEEP_MAX` if it must, because the invariant outranks the
+ceiling — and that whole-list cap is the only one there is: a notebook holds as
+many pages as it is given.
 
 Where `def` and `archived` collide the kinds part company, and the reason is which of
 them absence points at. A page of **work** carrying `def` never keeps `archived` —
